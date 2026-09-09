@@ -118,9 +118,14 @@ CACHES = {
         "LOCATION": os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            # If Redis is unreachable, cache ops return None instead of raising,
+            # so a cached view falls back to recomputing rather than 500-ing.
+            "IGNORE_EXCEPTIONS": True,
         }
     }
 }
+# Log the cache errors that IGNORE_EXCEPTIONS swallows, so an outage is visible.
+DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

@@ -123,8 +123,11 @@ def seed_specimens(n, made_so_far, taxon_ids):
 
 # --- measurement -------------------------------------------------------------
 def measure(client, url, repeats):
-    # warm once (template compile, etc.)
+    # First hit: pays template compile and, where present, a cache miss.
+    t0 = time.perf_counter()
     client.get(url, HTTP_HOST="localhost")
+    ms_cold = (time.perf_counter() - t0) * 1000.0
+
     times, qcounts, qsecs, status = [], [], [], None
     for _ in range(repeats):
         with CaptureQueriesContext(connection) as ctx:
@@ -137,6 +140,7 @@ def measure(client, url, repeats):
         qsecs.append(sum(float(q["time"]) for q in ctx.captured_queries) * 1000.0)
     return {
         "status": status,
+        "ms_cold": ms_cold,
         "ms_median": statistics.median(times),
         "ms_p95": max(times),
         "queries": statistics.median(qcounts),
@@ -217,12 +221,23 @@ TARGETS = {
 }
 
 
+def _bust_taxonomy_cache():
+    """Drop any cached taxonomy payloads so a measurement reflects the current
+    row count, not a stale cache. No-op on branches without the cache layer."""
+    try:
+        from beetlesgallery.beetles_app.cache_keys import invalidate_taxonomy_caches
+        invalidate_taxonomy_caches()
+    except Exception:
+        pass
+
+
 def _reset_perf(quiet=True):
     """Remove all probe-inserted rows so each target starts from the real baseline."""
     Beetles.objects.filter(depicts_valid_name_id__startswith=PERF_TAXON_PREFIX).delete()
     Beetles.objects.filter(image_asset__full_path_at_import__startswith=PERF_IMG_PREFIX).delete()
     ImageAsset.objects.filter(full_path_at_import__startswith=PERF_IMG_PREFIX).delete()
     Taxon.objects.filter(valid_species_id__startswith=PERF_TAXON_PREFIX).delete()
+    _bust_taxonomy_cache()
 
 
 def cleanup():
@@ -252,8 +267,8 @@ def run(args):
         print("=" * 78)
         print(f"{name}   {cfg['url']}   (scaling with # {scale})")
         print("-" * 78)
-        print(f"{scale+' rows':>12} {'status':>7} {'ms (med)':>10} {'ms (p95)':>10} "
-              f"{'queries':>8} {'db ms':>9}")
+        print(f"{scale+' rows':>12} {'status':>7} {'ms cold':>9} {'ms (med)':>10} "
+              f"{'ms (p95)':>10} {'queries':>8} {'db ms':>9}")
 
         _reset_perf()  # independent baseline per target
         xs, ys, qs, made = [], [], [], 0
@@ -274,11 +289,13 @@ def run(args):
                         ).values_list("id", flat=True))
                     seed_specimens(need, made, taxon_ids)
                 made = target_total
+                _bust_taxonomy_cache()  # row count changed -> stale any taxonomy cache
 
             total_now = (base_taxa if scale == "taxa" else base_specimens) + made
             r = measure(client, cfg["url"], args.repeats)
-            print(f"{total_now:>12,} {r['status']:>7} {r['ms_median']:>10.1f} "
-                  f"{r['ms_p95']:>10.1f} {r['queries']:>8.0f} {r['db_ms_median']:>9.1f}")
+            print(f"{total_now:>12,} {r['status']:>7} {r['ms_cold']:>9.1f} "
+                  f"{r['ms_median']:>10.1f} {r['ms_p95']:>10.1f} {r['queries']:>8.0f} "
+                  f"{r['db_ms_median']:>9.1f}")
             xs.append(total_now)
             ys.append(r["ms_median"])
             qs.append(r["queries"])

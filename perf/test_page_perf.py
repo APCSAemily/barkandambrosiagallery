@@ -35,18 +35,20 @@ SEED_SPECIMENS = 2000
 REPEATS = 4
 
 # Budgets (median wall-clock ms) and hard query ceilings per request.
+# /taxonomy/ and the species list are now cache-served on repeat hits, so their
+# budgets are tight; the other pages are unchanged by this PR.
 BUDGET_MS = {
-    "/taxonomy/": 1500,
+    "/taxonomy/": 300,
     "/beetles/?per_page=12": 1200,
     "/tools/annotate/": 1200,
-    "/api/v1/species/?page_size=10000": 1500,
+    "/api/v1/species/?page_size=10000": 400,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 900,
 }
 QUERY_CEILING = {
-    "/taxonomy/": 15,
+    "/taxonomy/": 8,
     "/beetles/?per_page=12": 80,
     "/tools/annotate/": 80,
-    "/api/v1/species/?page_size=10000": 15,
+    "/api/v1/species/?page_size=10000": 8,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 150,
 }
 
@@ -100,3 +102,38 @@ class PagePerfTest(TestCase):
         print()
 
         self.assertEqual(failures, [], "\n  - " + "\n  - ".join(failures) if failures else "")
+
+    def test_taxonomy_cache_hit_is_fast_and_invalidates(self):
+        """The Taxonomy Browser must be served from cache on repeat hits, and a
+        taxonomy change must invalidate that cache."""
+        from django.core.cache import cache
+        from beetlesgallery.beetles_app.cache_keys import (
+            TAXONOMY_BROWSER_CACHE_KEY,
+            invalidate_taxonomy_caches,
+        )
+
+        invalidate_taxonomy_caches()
+        cache.delete(TAXONOMY_BROWSER_CACHE_KEY)
+
+        # First hit: cache miss, builds the tree.
+        t0 = time.perf_counter()
+        r1 = self.client.get("/taxonomy/", HTTP_HOST="localhost")
+        cold_ms = (time.perf_counter() - t0) * 1000
+        self.assertEqual(r1.status_code, 200)
+        self.assertIsNotNone(cache.get(TAXONOMY_BROWSER_CACHE_KEY), "tree was not cached")
+
+        # Repeat hits: cache hit, no per-request rebuild.
+        warm = []
+        for _ in range(REPEATS):
+            t0 = time.perf_counter()
+            self.client.get("/taxonomy/", HTTP_HOST="localhost")
+            warm.append((time.perf_counter() - t0) * 1000)
+        warm_ms = statistics.median(warm)
+
+        print(f"\n  /taxonomy/  cold {cold_ms:.0f} ms  ->  warm {warm_ms:.0f} ms\n")
+        self.assertLess(warm_ms, 150, f"cached hit still slow: {warm_ms:.0f} ms")
+        self.assertLess(warm_ms, cold_ms, "cache hit was not faster than the miss")
+
+        # A taxonomy change clears the cache.
+        invalidate_taxonomy_caches()
+        self.assertIsNone(cache.get(TAXONOMY_BROWSER_CACHE_KEY), "cache not invalidated")

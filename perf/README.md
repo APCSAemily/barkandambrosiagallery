@@ -20,8 +20,10 @@ docker compose run --rm web pixi run python perf/scaling_probe.py --repeats 9
 docker compose run --rm web pixi run python perf/scaling_probe.py --cleanup  # paranoia sweep
 ```
 
-Output per target: a table of `dataset rows | status | ms (median) | ms (p95) |
-queries | db ms`, then a log-log fit giving the exponent `b`:
+Output per target: a table of `dataset rows | status | ms cold | ms (median) |
+ms (p95) | queries | db ms`, then a log-log fit giving the exponent `b`.
+`ms cold` is the first (unwarmed) request and, for a cache-backed page, is the
+cache-miss cost; `ms (median)` is the steady state a real user sees.
 
 - `b ~ 1.0` → linear, cost grows with the dataset (needs pagination / caching)
 - `b ~ 0.1` → flat, cost is fixed overhead (fine, or already page-limited)
