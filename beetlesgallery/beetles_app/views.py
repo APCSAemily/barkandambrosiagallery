@@ -1488,16 +1488,43 @@ def stream_updates(request):
 
 @login_required
 def taxonomy_browser(request):
+    """Render the Taxonomy Browser.
+
+    The Subfamily -> Tribe -> Genus -> Species tree is identical for every
+    visitor and only changes when the reference data changes, so it is built
+    once and cached. Building it walks every Taxon row (O(n) in species count),
+    which is far too expensive to run on every request. Cache is invalidated by
+    cache_keys.invalidate_taxonomy_caches (called from migrate_taxonomy_to_db)
+    with a TTL backstop.
     """
-    Display the taxonomy browser page dynamically grouped from flat Postgres records.
+    from django.core.cache import cache
+    from beetlesgallery.beetles_app.cache_keys import (
+        TAXONOMY_BROWSER_CACHE_KEY,
+        TAXONOMY_CACHE_TTL,
+    )
+
+    context = cache.get(TAXONOMY_BROWSER_CACHE_KEY)
+    if context is None:
+        context = _build_taxonomy_browser_context()
+        cache.set(TAXONOMY_BROWSER_CACHE_KEY, context, TAXONOMY_CACHE_TTL)
+    return render(request, 'beetles/taxonomy_browser.html', context)
+
+
+def _build_taxonomy_browser_context():
+    """Build the nested Subfamily -> Tribe -> Genus -> Species tree + species map.
+
+    Expensive and O(n) in species count -- cached by taxonomy_browser().
     """
     from beetlesgallery.beetles_app.models import Taxon
     from django.core.serializers.json import DjangoJSONEncoder
     import json
     from collections import defaultdict
 
-    # 1. Fetch all flat taxa from DB
-    taxa = Taxon.objects.all()
+    # 1. Fetch all flat taxa from DB (only the fields the tree + map use)
+    taxa = Taxon.objects.all().only(
+        "valid_species_id", "scientific_name", "scientific_name_authority",
+        "subfamily", "tribe", "genus", "species", "subspecies",
+    )
 
     # 2. Build nested dictionary: Subfamily -> Tribe -> Genus -> list of Species
     tree_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -1569,10 +1596,10 @@ def taxonomy_browser(request):
     # Transform the defaultdict into the final nested array expected by JavaScript
     tree_data = dict_to_tree(tree_dict, "subfamily")
 
-    return render(request, 'beetles/taxonomy_browser.html', {
+    return {
         'taxonomy_tree_json': json.dumps(tree_data, cls=DjangoJSONEncoder, ensure_ascii=False),
         'species_map_json': json.dumps(species_map, cls=DjangoJSONEncoder, ensure_ascii=False),
-    })
+    }
 
 
 def described_names_for_species(request):

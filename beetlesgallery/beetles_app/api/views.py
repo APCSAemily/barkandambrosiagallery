@@ -7,7 +7,7 @@ from django.http import FileResponse
 from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
-from beetlesgallery.beetles_app.models import ImageAsset, Beetles, ImageLock
+from beetlesgallery.beetles_app.models import ImageAsset, Beetles, ImageLock, Taxon
 from .serializers import ImageAssetSerializer, BeetlesSerializer, SpeciesSerializer
 import json
 import zipfile
@@ -433,6 +433,22 @@ class BeetlesViewSet(viewsets.ModelViewSet):
         })
 
 
+# Columns pulled straight from the DB for the cached "list every species" call,
+# and the camelCase remapping SpeciesSerializer applies (kept in sync with it).
+_SPECIES_VALUE_FIELDS = (
+    "valid_species_id", "scientific_name", "scientific_name_authority",
+    "subfamily", "tribe", "subtribe", "genus", "species", "subspecies",
+    "authority", "authority_year", "original_genus",
+)
+_SPECIES_CAMEL_MAP = {
+    "scientific_name": "scientificName",
+    "scientific_name_authority": "scientificNameAuthority",
+    "authority_year": "authorityYear",
+    "original_genus": "originalGenus",
+}
+_SPECIES_FILTER_PARAMS = ("search", "subfamily", "genus", "tribe", "species")
+
+
 class SpeciesViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for species from the native Postgres Taxon table.
@@ -440,12 +456,46 @@ class SpeciesViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = SpeciesSerializer
     filter_backends = [filters.SearchFilter]
-    
+
     # Define the fields the frontend can search against
     search_fields = ['scientific_name', 'genus', 'species', 'subfamily', 'tribe']
 
+    def list(self, request, *args, **kwargs):
+        """Serve the full species list.
+
+        The unfiltered call returns every Taxon row (10k+) and the frontend
+        (annotation tool, taxonomy widgets) requests it wholesale on load.
+        Running it through the per-object DRF serializer every time is O(n) and
+        ~85% Python. Since the list only changes when the reference data
+        changes, build it once from a flat ``.values()`` query and cache it.
+
+        Any search/filter param means a small result set -- fall through to the
+        normal serializer path so search stays live and uncached.
+        """
+        if any(request.query_params.get(p) for p in _SPECIES_FILTER_PARAMS):
+            return super().list(request, *args, **kwargs)
+
+        import json
+        from django.core.cache import cache
+        from django.http import HttpResponse
+        from beetlesgallery.beetles_app.cache_keys import (
+            SPECIES_LIST_CACHE_KEY,
+            TAXONOMY_CACHE_TTL,
+        )
+
+        # Cache the finished JSON text, not the row list -- on a cache hit there
+        # is then no per-request query, serialization, or re-render.
+        payload = cache.get(SPECIES_LIST_CACHE_KEY)
+        if payload is None:
+            rows = [
+                {_SPECIES_CAMEL_MAP.get(k, k): v for k, v in row.items()}
+                for row in Taxon.objects.all().values(*_SPECIES_VALUE_FIELDS)
+            ]
+            payload = json.dumps(rows, ensure_ascii=False)
+            cache.set(SPECIES_LIST_CACHE_KEY, payload, TAXONOMY_CACHE_TTL)
+        return HttpResponse(payload, content_type="application/json")
+
     def get_queryset(self):
-        from beetlesgallery.beetles_app.models import Taxon
         qs = Taxon.objects.all()
 
         # Retain custom exact-match parameters

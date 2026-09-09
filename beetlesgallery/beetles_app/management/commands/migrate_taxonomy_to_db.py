@@ -29,7 +29,13 @@ class Command(BaseCommand):
             self._hydrate_taxon_table()
             self._hydrate_synonym_table()
             self._link_beetles_to_taxon()
-            
+
+        # The taxonomy just changed -- drop the cached browser tree / species list
+        # so the next request rebuilds them from the new data.
+        from beetlesgallery.beetles_app.cache_keys import invalidate_taxonomy_caches
+        invalidate_taxonomy_caches()
+        self.stdout.write("Cleared cached taxonomy browser tree and species list.")
+
         elapsed = time.time() - start_time
         self.stdout.write(self.style.SUCCESS(f"ETL Pipeline completed successfully in {elapsed:.2f} seconds."))
 
