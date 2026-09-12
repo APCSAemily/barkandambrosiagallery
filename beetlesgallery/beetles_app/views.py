@@ -341,6 +341,111 @@ def upload_file(request):
     messages.success(request, "Files received. Track the upload status below in the Activity Logs.")
     return redirect("data_management")
 
+def _build_gallery_filter_context(base_search_qs, active_filters):
+    """Build the (category, [filter dict, ...]) list the gallery template
+    renders as filter dropdowns. Runs ~1-2 queries per entry in FILTERS_CONFIG
+    (22 filters -> ~47 queries) -- expensive, and called by gallery() either
+    live (when a search/filter is active) or once per cache period (the
+    default, no-filters view). See gallery()'s "Build Dynamic Options" comment
+    for why only the default view is cacheable.
+    """
+    from collections import defaultdict
+    from django.db.models import Q
+    from .utils import filter_beetles_queryset, FILTERS_CONFIG
+
+    grouped_filters = defaultdict(list)
+
+    categories = []
+    seen_cats = set()
+    for cfg in FILTERS_CONFIG:
+        if cfg["category"] not in seen_cats:
+            categories.append(cfg["category"])
+            seen_cats.add(cfg["category"])
+
+    for cfg in FILTERS_CONFIG:
+        param = cfg["param"]
+        ctx_qs = filter_beetles_queryset(base_search_qs, active_filters, exclude_param=param)
+
+        options = []
+        has_na = False
+
+        if cfg["type"] == "db":
+            # 1. Fetch only REAL values, excluding nulls and blanks natively
+            field = cfg['field']
+
+            # Identify if field is Date or Decimal to avoid passing empty string "" to ORM
+            is_strict_type = field in ["image_asset__image_date_taken", "image_asset__resolution_in_ppmm"]
+
+            if is_strict_type:
+                raw_options = ctx_qs.exclude(**{f"{field}__isnull": True}) \
+                                    .values_list(field, flat=True) \
+                                    .distinct().order_by(field)
+            else:
+                raw_options = ctx_qs.exclude(**{f"{field}__isnull": True}) \
+                                    .exclude(**{f"{field}": ""}) \
+                                    .values_list(field, flat=True) \
+                                    .distinct().order_by(field)
+
+            for o in raw_options:
+                val = o.strftime("%Y-%m-%d") if hasattr(o, "strftime") else str(o).strip()
+                if val and val not in options:
+                    options.append(val)
+
+            # 2. Hard check the database to see if ANY blank/null records exist
+            if is_strict_type:
+                has_na = ctx_qs.filter(**{f"{field}__isnull": True}).exists()
+            else:
+                has_na = ctx_qs.filter(
+                    Q(**{f"{field}__isnull": True}) |
+                    Q(**{f"{field}": ""})
+                ).exists()
+
+        elif cfg["type"] == "bool":
+            options = ["Yes", "No"]
+            has_na = ctx_qs.filter(**{f"{cfg['field']}__isnull": True}).exists()
+
+        elif cfg["type"] == "ref":
+            field_name = f"taxon__{cfg['field']}"
+
+            # 1. Fetch only REAL taxonomy values
+            raw_options = ctx_qs.exclude(taxon__isnull=True) \
+                                .exclude(**{f"{field_name}__isnull": True}) \
+                                .exclude(**{f"{field_name}": ""}) \
+                                .values_list(field_name, flat=True) \
+                                .distinct().order_by(field_name)
+
+            for o in raw_options:
+                val = str(o).strip()
+                if val and val not in options:
+                    options.append(val)
+
+            # 2. Hard check if any ROI is unlinked OR its specific taxon rank is empty
+            has_na = ctx_qs.filter(
+                Q(taxon__isnull=True) |
+                Q(**{f"{field_name}__isnull": True}) |
+                Q(**{f"{field_name}": ""})
+            ).exists()
+
+        # 3. Safely insert None at the top of the list if blanks exist
+        if has_na:
+            options.insert(0, "None")
+
+        # Check if options exist OR if this filter is currently active
+        if options or active_filters.get(param):
+            grouped_filters[cfg["category"]].append({
+                "param": param,
+                "label": cfg["label"],
+                "options": options,
+                "selected": active_filters.get(param, []),
+            })
+
+    filter_context = []
+    for cat in categories:
+        if grouped_filters[cat]:
+            filter_context.append((cat, grouped_filters[cat]))
+    return filter_context
+
+
 def gallery(request):
     from .utils import build_query_q, filter_beetles_queryset, FILTERS_CONFIG
     NA = "None"
@@ -400,99 +505,36 @@ def gallery(request):
     final_qs = apply_filters(base_search_qs, active_filters, exclude_param=None)
 
     # 4. Build Dynamic Options
-    from collections import defaultdict
-    from django.db.models import Q
-    
-    grouped_filters = defaultdict(list)
-    
-    categories = []
-    seen_cats = set()
-    for cfg in FILTERS_CONFIG:
-        if cfg["category"] not in seen_cats:
-            categories.append(cfg["category"])
-            seen_cats.add(cfg["category"])
+    # These dropdown option lists cost ~1-2 queries per filter (22 filters ->
+    # ~47 queries) and were rebuilt from scratch on every single page load,
+    # even before anyone touched a filter -- that fixed cost is what made the
+    # Image Browser feel slow on every visit regardless of how much data
+    # there is (see perf/). They're also interdependent: each filter's
+    # options are computed excluding that filter but respecting every OTHER
+    # active filter and the search text, so they can't be cached
+    # per-combination without either a cache-key explosion or serving wrong
+    # (too-broad) options once someone starts filtering. What's safe to cache
+    # is the one case that covers the overwhelming majority of page loads:
+    # nobody has typed a search or picked a filter yet. See
+    # cache_keys.GALLERY_DEFAULT_FILTERS_CACHE_KEY for the (short-TTL, not
+    # signal-based) invalidation reasoning.
+    is_default_view = not raw_q and not active_filters and not any(
+        (size_min, size_max, res_min, res_max)
+    )
 
-    for cfg in FILTERS_CONFIG:
-        param = cfg["param"]
-        ctx_qs = filter_beetles_queryset(base_search_qs, active_filters, exclude_param=param)
-        
-        options = []
-        has_na = False
+    if is_default_view:
+        from django.core.cache import cache
+        from beetlesgallery.beetles_app.cache_keys import (
+            GALLERY_DEFAULT_FILTERS_CACHE_KEY,
+            GALLERY_DEFAULT_FILTERS_TTL,
+        )
 
-        if cfg["type"] == "db":
-            # 1. Fetch only REAL values, excluding nulls and blanks natively
-            field = cfg['field']
-            
-            # Identify if field is Date or Decimal to avoid passing empty string "" to ORM
-            is_strict_type = field in ["image_asset__image_date_taken", "image_asset__resolution_in_ppmm"]
-            
-            if is_strict_type:
-                raw_options = ctx_qs.exclude(**{f"{field}__isnull": True}) \
-                                    .values_list(field, flat=True) \
-                                    .distinct().order_by(field)
-            else:
-                raw_options = ctx_qs.exclude(**{f"{field}__isnull": True}) \
-                                    .exclude(**{f"{field}": ""}) \
-                                    .values_list(field, flat=True) \
-                                    .distinct().order_by(field)
-            
-            for o in raw_options:
-                val = o.strftime("%Y-%m-%d") if hasattr(o, "strftime") else str(o).strip()
-                if val and val not in options:
-                    options.append(val)
-                    
-            # 2. Hard check the database to see if ANY blank/null records exist
-            if is_strict_type:
-                has_na = ctx_qs.filter(**{f"{field}__isnull": True}).exists()
-            else:
-                has_na = ctx_qs.filter(
-                    Q(**{f"{field}__isnull": True}) | 
-                    Q(**{f"{field}": ""})
-                ).exists()
-
-        elif cfg["type"] == "bool":
-            options = ["Yes", "No"]
-            has_na = ctx_qs.filter(**{f"{cfg['field']}__isnull": True}).exists()
-            
-        elif cfg["type"] == "ref":
-            field_name = f"taxon__{cfg['field']}"
-            
-            # 1. Fetch only REAL taxonomy values
-            raw_options = ctx_qs.exclude(taxon__isnull=True) \
-                                .exclude(**{f"{field_name}__isnull": True}) \
-                                .exclude(**{f"{field_name}": ""}) \
-                                .values_list(field_name, flat=True) \
-                                .distinct().order_by(field_name)
-                                
-            for o in raw_options:
-                val = str(o).strip()
-                if val and val not in options:
-                    options.append(val)
-
-            # 2. Hard check if any ROI is unlinked OR its specific taxon rank is empty
-            has_na = ctx_qs.filter(
-                Q(taxon__isnull=True) | 
-                Q(**{f"{field_name}__isnull": True}) | 
-                Q(**{f"{field_name}": ""})
-            ).exists()
-
-        # 3. Safely insert None at the top of the list if blanks exist
-        if has_na:
-            options.insert(0, "None")
-
-        # Check if options exist OR if this filter is currently active
-        if options or active_filters.get(param):
-            grouped_filters[cfg["category"]].append({
-                "param": param,
-                "label": cfg["label"],
-                "options": options,
-                "selected": active_filters.get(param, []),
-            })
-
-    filter_context = []
-    for cat in categories:
-        if grouped_filters[cat]:
-            filter_context.append((cat, grouped_filters[cat]))
+        filter_context = cache.get(GALLERY_DEFAULT_FILTERS_CACHE_KEY)
+        if filter_context is None:
+            filter_context = _build_gallery_filter_context(base_search_qs, active_filters)
+            cache.set(GALLERY_DEFAULT_FILTERS_CACHE_KEY, filter_context, GALLERY_DEFAULT_FILTERS_TTL)
+    else:
+        filter_context = _build_gallery_filter_context(base_search_qs, active_filters)
 
     # 5. Pagination
     final_qs = final_qs.order_by("image_asset", "id").distinct("image_asset")

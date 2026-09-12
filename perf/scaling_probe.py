@@ -287,12 +287,18 @@ TARGETS = {
 }
 
 
-def _bust_taxonomy_cache():
-    """Drop any cached taxonomy payloads so a measurement reflects the current
-    row count, not a stale cache. No-op on branches without the cache layer."""
+def _bust_page_caches():
+    """Drop any cached page payloads (taxonomy tree/species list, gallery
+    default-view filters) so a measurement reflects the current row count, not
+    a stale cache from an earlier, smaller seed step. No-op on branches
+    without the cache layer."""
     try:
-        from beetlesgallery.beetles_app.cache_keys import invalidate_taxonomy_caches
+        from beetlesgallery.beetles_app.cache_keys import (
+            invalidate_taxonomy_caches,
+            invalidate_gallery_filter_cache,
+        )
         invalidate_taxonomy_caches()
+        invalidate_gallery_filter_cache()
     except Exception:
         pass
 
@@ -303,7 +309,7 @@ def _reset_perf(quiet=True):
     Beetles.objects.filter(image_asset__full_path_at_import__startswith=PERF_IMG_PREFIX).delete()
     ImageAsset.objects.filter(full_path_at_import__startswith=PERF_IMG_PREFIX).delete()
     Taxon.objects.filter(valid_species_id__startswith=PERF_TAXON_PREFIX).delete()
-    _bust_taxonomy_cache()
+    _bust_page_caches()
 
 
 def cleanup():
@@ -355,7 +361,7 @@ def run(args):
                         ).values_list("id", flat=True))
                     seed_specimens(need, made, taxon_ids)
                 made = target_total
-                _bust_taxonomy_cache()  # row count changed -> stale any taxonomy cache
+                _bust_page_caches()  # row count changed -> stale any page cache
 
             total_now = (base_taxa if scale == "taxa" else base_specimens) + made
             r = measure(client, cfg["url"], args.repeats)

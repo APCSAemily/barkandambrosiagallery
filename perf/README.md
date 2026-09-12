@@ -162,6 +162,11 @@ Deliberately narrow, on purpose:
 | `/api/v1/beetles/images-with-annotations/` | ~430 | **109** | flat in total data | ~2 queries per row on a 50-row page — N+1 |
 
 DB time was a small fraction of wall time on every page → the bottleneck was
-**Python** (tree building, serialization), not the queries themselves. The
-follow-up PR caches `/taxonomy/` and `/api/v1/species/`, bringing both from
-~O(n) to near-flat — see that PR's description for before/after numbers.
+**Python** (tree building, serialization), not the queries themselves. This
+branch caches `/taxonomy/` and `/api/v1/species/`, bringing both from ~O(n)
+to near-flat, and caches the Image Browser's default-view filter dropdowns
+(47 queries → 9 on a cache hit, confirmed fixed cost — see
+`test_gallery_default_filters_cache_hit_and_invalidates`). `/tools/annotate/`
+has the identical dropdown-building pattern but is not cached here — same
+fix, not yet applied there, since it wasn't the page reported as slow.
+See the commit history for full before/after numbers.

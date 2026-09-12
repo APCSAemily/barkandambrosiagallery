@@ -40,21 +40,25 @@ SEED_SPECIMENS = 2000
 REPEATS = 4
 
 # QUERY_CEILING is a hard failure if exceeded; BUDGET_MS is reported only (see
-# test_pages_within_budget). /taxonomy/ and the species list are now
-# cache-served on repeat hits, so their budgets are tight; the other pages are
-# unaffected by the caching change.
+# test_pages_within_budget). /taxonomy/, the species list, and the default-view
+# gallery filters are all cache-served on repeat hits, so their budgets/
+# ceilings are tight; /tools/annotate/ and the images API are unaffected by
+# either caching change (see cache_keys.py for why the gallery filter cache
+# doesn't cover /tools/annotate/'s identical-looking dropdown pattern too).
 BUDGET_MS = {
     "/taxonomy/": 300,
-    "/beetles/?per_page=12": 1200,
-    "/beetles/?per_page=100": 1800,
+    "/beetles/?per_page=12": 800,
+    "/beetles/?per_page=100": 1200,
     "/tools/annotate/": 1200,
     "/api/v1/species/?page_size=10000": 400,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 900,
 }
 QUERY_CEILING = {
     "/taxonomy/": 8,
-    "/beetles/?per_page=12": 80,
-    "/beetles/?per_page=100": 80,  # same as per_page=12 if the 47 queries are fixed cost, not per-row
+    # was 80 (47 queries/request, fixed cost); cached default view runs 9 -- see
+    # test_gallery_default_filters_cache_hit_and_invalidates
+    "/beetles/?per_page=12": 20,
+    "/beetles/?per_page=100": 20,
     "/tools/annotate/": 80,
     "/api/v1/species/?page_size=10000": 8,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 150,
@@ -163,3 +167,46 @@ class PagePerfTest(TestCase):
         # A taxonomy change clears the cache.
         invalidate_taxonomy_caches()
         self.assertIsNone(cache.get(TAXONOMY_BROWSER_CACHE_KEY), "cache not invalidated")
+
+    def test_gallery_default_filters_cache_hit_and_invalidates(self):
+        """The Image Browser's default (no search/filter) view must serve its
+        filter dropdowns from cache on repeat hits, a filtered/searched
+        request must NOT use that cache, and invalidation must clear it."""
+        from django.core.cache import cache
+        from beetlesgallery.beetles_app.cache_keys import (
+            GALLERY_DEFAULT_FILTERS_CACHE_KEY,
+            invalidate_gallery_filter_cache,
+        )
+
+        invalidate_gallery_filter_cache()
+
+        # First hit: cache miss, builds all 22 filters' options live.
+        with CaptureQueriesContext(connection) as ctx:
+            r1 = self.client.get("/beetles/", HTTP_HOST="localhost")
+        cold_queries = len(ctx.captured_queries)
+        self.assertEqual(r1.status_code, 200)
+        self.assertIsNotNone(cache.get(GALLERY_DEFAULT_FILTERS_CACHE_KEY),
+                              "default-view filter options were not cached")
+
+        # Repeat hit: cache hit, no per-request rebuild.
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get("/beetles/", HTTP_HOST="localhost")
+        warm_queries = len(ctx.captured_queries)
+
+        print(f"\n  /beetles/ (default)  cold {cold_queries} queries  ->  warm {warm_queries} queries\n")
+        self.assertLess(warm_queries, cold_queries,
+                         "cache hit ran as many queries as the miss - is caching working?")
+
+        # A filtered/searched request must stay live, not read (or write) the
+        # default-view cache -- otherwise it would serve wrong (too-broad or
+        # stale) options, or clobber the cached default view with a narrower
+        # one. Comparable query count to the cold miss, not to the cache hit.
+        with CaptureQueriesContext(connection) as ctx:
+            r2 = self.client.get("/beetles/?q=ips", HTTP_HOST="localhost")
+        self.assertEqual(r2.status_code, 200)
+        self.assertGreater(len(ctx.captured_queries), warm_queries,
+                            "a search request appears to have used the default-view cache")
+
+        # Invalidation clears it.
+        invalidate_gallery_filter_cache()
+        self.assertIsNone(cache.get(GALLERY_DEFAULT_FILTERS_CACHE_KEY), "cache not invalidated")
