@@ -68,14 +68,13 @@ jobs:
       - name: Run migrations
         run: pixi run python manage.py migrate
 
-      - name: Create a superuser (perf tests log in as staff)
-        run: |
-          pixi run python manage.py shell -c "
-          from django.contrib.auth import get_user_model
-          U = get_user_model()
-          if not U.objects.filter(is_superuser=True).exists():
-              U.objects.create_superuser('ci-admin', 'ci@example.com', 'ci-only-password')
-          "
-
+      # No separate "create a superuser" step: test_page_perf.py's own
+      # setUp() already creates one when none exists, since a fresh test
+      # database never has the dev admin account. (An earlier version of this
+      # workflow tried to do it here via `manage.py shell -c "..."`, which
+      # broke on nested shell quoting -- the single quotes around 'ci-admin'
+      # got eaten somewhere between bash and pixi's own shell, leaving Python
+      # looking at the bare text `ci-admin`, which parses as `ci - admin` and
+      # fails on the undefined name `ci`. Simplest fix: don't need the step.)
       - name: Run performance tests
         run: pixi run python manage.py test perf
