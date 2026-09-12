@@ -55,6 +55,11 @@ from beetlesgallery.beetles_app.models import Beetles, ImageAsset, Taxon
 _LOCAL_DB_HOSTS = {"db", "localhost", "127.0.0.1"}
 
 
+# GUARD Chris asked for (review comment): "add a check ... that refuses to run
+# unless settings.DEBUG is True and the database host is local (db, localhost,
+# or 127.0.0.1) ... A clear printed message and a clean exit is nicer than a
+# traceback ... an explicit flag like --i-know-this-is-not-prod is better than
+# an environment variable ... The --cleanup path needs the same guard."
 def _ensure_safe_to_run(force_unsafe: bool):
     """Refuse to run unless this is clearly a local dev environment.
 
@@ -402,6 +407,9 @@ def main():
     )
     args = ap.parse_args()
 
+    # GUARD Chris asked for: runs before EITHER branch below, so a normal run
+    # and --cleanup (the one that deletes outside a transaction) get the same
+    # protection.
     _ensure_safe_to_run(args.force_unsafe)
 
     if args.cleanup:

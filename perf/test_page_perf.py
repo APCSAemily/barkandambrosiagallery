@@ -68,8 +68,10 @@ QUERY_CEILING = {
 class PagePerfTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        # No escape hatch here (unlike the script) -- there is never a
-        # legitimate reason to run this suite against a non-local database.
+        # GUARD Chris asked for, applied here too (review comment: "add a
+        # check ... in the test's setUpTestData"). No escape hatch here
+        # (unlike the script) -- there is never a legitimate reason to run
+        # this suite against a non-local database.
         _ensure_safe_to_run(force_unsafe=False)
 
         _reset_perf()
