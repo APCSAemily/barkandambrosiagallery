@@ -151,22 +151,102 @@ Deliberately narrow, on purpose:
 - Query-count failures are real failures; render-time is reported only (see
   above) — the same reasoning applies doubly on a shared runner.
 
-## What the first run found (sample data, before the caching PR)
+## What the first run found (sample data, before any fix)
 
 | page | median ms | queries | scaling | note |
 |---|---:|---:|---|---|
 | `/taxonomy/` | ~860 | 4 | **O(n) in taxa** | loads every Taxon, builds whole tree in Python each request, no cache |
 | `/api/v1/species/?page_size=10000` | ~1060 | 3 | **O(n) in taxa** | DRF serializes 10k rows one object at a time; the annotate tab calls this on load |
-| `/beetles/` | ~825 | **47** | sub-linear time | filter-dropdown options rebuilt with ~1 query per filter per request |
-| `/tools/annotate/` | ~720 | 41 | flat | same filter-dropdown pattern |
-| `/api/v1/beetles/images-with-annotations/` | ~430 | **109** | flat in total data | ~2 queries per row on a 50-row page — N+1 |
+| `/beetles/` | ~825 | **47** | flat, fixed cost | filter-dropdown options rebuilt with ~1-2 queries per filter per request |
+| `/tools/annotate/` | ~720 | 41 | flat, fixed cost | same filter-dropdown pattern |
+| `/api/v1/beetles/images-with-annotations/` | ~430 | **109** | flat, fixed cost | ~2 queries per row on a 50-row page — N+1 |
 
 DB time was a small fraction of wall time on every page → the bottleneck was
-**Python** (tree building, serialization), not the queries themselves. This
-branch caches `/taxonomy/` and `/api/v1/species/`, bringing both from ~O(n)
-to near-flat, and caches the Image Browser's default-view filter dropdowns
-(47 queries → 9 on a cache hit, confirmed fixed cost — see
-`test_gallery_default_filters_cache_hit_and_invalidates`). `/tools/annotate/`
-has the identical dropdown-building pattern but is not cached here — same
-fix, not yet applied there, since it wasn't the page reported as slow.
-See the commit history for full before/after numbers.
+**Python** (tree building, serialization, or — for the Image Browser — see
+below), not the queries themselves.
+
+## Fixes
+
+### `/taxonomy/` — cache the built tree
+
+**Problem:** every visit rebuilt the whole Subfamily → Tribe → Genus → Species
+tree in Python from every `Taxon` row. Cost grew with species count (O(n)).
+
+**Fix:** build it once, cache it in Redis, invalidate when
+`migrate_taxonomy_to_db` re-imports the reference CSVs (`cache_keys.py` /
+`invalidate_taxonomy_caches()`).
+
+| | Before | After (cache hit) | After (cache miss, once per import) |
+|---|---:|---:|---:|
+| ~13k taxa | 935 ms, O(n) | ~110 ms | ~770 ms |
+| ~33k taxa | ~1.7 s | ~100 ms | ~700 ms |
+| queries | 4 | 3 | 4 |
+
+### `/api/v1/species/?page_size=10000` — cache the finished JSON, skip the serializer
+
+**Problem:** DRF's per-object serializer ran over every species row, on every
+request. The Data Curation tab loads this on open. Also O(n).
+
+**Fix:** for the unfiltered call only, build the list once with `.values()`
+(skips per-object model + serializer overhead), cache the finished JSON
+string, invalidate the same way as the tree. Any `?search=`/`?genus=` etc.
+still goes through the live, uncached path.
+
+| | Before | After (cache hit) |
+|---|---:|---:|
+| ~13k taxa | 795 ms, O(n) | ~67 ms |
+| ~33k taxa | ~1.7 s | ~95 ms |
+| queries | 3 | 2 (DB time 92 ms → 2 ms) |
+
+### `/beetles/` (Image Browser) — cache the default-view filter dropdowns
+
+**Problem:** this is the page reported as slow in practice. Its ~22 filter
+dropdowns (institution, country, species, ...) cost ~1-2 queries each — 47
+queries — rebuilt on **every** page load, even before anyone touched a
+filter. Confirmed via `image_browser` vs `image_browser_large_page` (same
+page, `per_page=12` vs `100`): both ran exactly 47 queries at every specimen
+count, proving it was fixed overhead, not per-image cost.
+
+**Fix:** cache the dropdown options, but only for the one case that covers
+the overwhelming majority of page loads — nobody has searched or filtered
+yet. A searched/filtered request stays live and uncached, because those
+options are interdependent (each filter's list depends on every *other*
+active filter) and can't be cached per-combination without either a
+cache-key explosion or serving wrong, too-broad options. TTL-only
+invalidation (5 min, no signal) — see `cache_keys.py` for why, unlike
+taxonomy, specimen data has no single "it just changed" hook to invalidate
+from.
+
+| | Before | After (cache hit) |
+|---|---:|---:|
+| queries, any specimen count (217 → 12,017) | 47 | **9** |
+| a `?q=`/`?country=` request | 47 | unchanged — correctly still live |
+
+`/tools/annotate/` has the identical dropdown-building pattern (41 queries)
+but wasn't the page reported as slow, so it's left uncached here — same fix
+would apply if it becomes worth doing.
+
+### Known remaining issue on `/beetles/` — not yet fixed
+
+Even with the query cache above, wall time still climbs with specimen count:
+217 → 72 ms, 1,017 → 91 ms, 4,017 → 170 ms, 12,017 → 522 ms — while queries
+stay flat at 9 and DB time tops out around 120 ms. Traced with `cProfile`:
+**~91-94% of request time is Django template rendering**, not the database.
+
+Root cause: `image_browser.html` loops `{% for p in paginator.page_range %}`
+**twice** (lines ~337 and ~668, an apparently duplicated pagination control),
+with no truncation. `paginator.page_range` is `range(1, num_pages + 1)`, and
+`num_pages = total_matches / per_page` — at 12,017 specimens and
+`per_page=12`, that's ~1,001 page numbers rendered, twice, on every request.
+That's an O(page count) template cost, structurally unrelated to the query
+count fix above.
+
+Proposed fix (not built): swap `paginator.page_range` for Django's built-in
+`paginator.get_elided_page_range(page_obj.number)` (bounds the rendered range
+to a small constant regardless of total pages), computed once in the view and
+passed to the template as a plain list, plus reuse `paginator.count` for
+`total_matches` instead of the separate `final_qs.count()` on the next line
+(currently a second, redundant full `COUNT` query doing the same
+`DISTINCT ON` scan `Paginator` already ran and cached).
+
+See the commit history for full before/after numbers on every fix above.
