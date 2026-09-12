@@ -19,8 +19,14 @@ Run inside the web container:
 Options:
     --quick        smaller sizes / fewer repeats (fast smoke run)
     --repeats N     timed requests per data point (default 5, median reported)
-    --only NAME     run one target only (taxonomy|gallery|annotate|api_species|api_images)
+    --only NAME     run one target only (see TARGETS below for the current list)
     --cleanup       delete any leftover rows tagged 'PERF-' / 'perf/' and exit
+
+Safety: refuses to run at all unless the DJANGO_DEBUG env var is "True" and the
+database host is local (db / localhost / 127.0.0.1) -- see
+_ensure_safe_to_run(). Both the seed-and-measure path and --cleanup write to
+whatever database the environment points at; this must never be a real
+database. Pass --i-know-this-is-not-prod to bypass the check if you are certain.
 """
 import argparse
 import os
@@ -41,6 +47,50 @@ from django.test import Client
 from django.test.utils import CaptureQueriesContext
 
 from beetlesgallery.beetles_app.models import Beetles, ImageAsset, Taxon
+
+# --- safety: refuse to run anywhere that isn't an obviously local dev DB ------
+_LOCAL_DB_HOSTS = {"", "db", "localhost", "127.0.0.1"}
+
+
+def _ensure_safe_to_run(force_unsafe: bool):
+    """Refuse to run unless this is clearly a local dev environment.
+
+    seed_taxa/seed_specimens insert tens of thousands of rows and rely on a
+    rollback to undo it; cleanup() deletes rows outside any transaction. Both
+    would be genuinely dangerous against a real database, so this checks the
+    DEBUG configuration and the configured DB host before touching anything,
+    and exits cleanly (no traceback) if either looks wrong.
+
+    Deliberately reads the DJANGO_DEBUG env var rather than settings.DEBUG:
+    Django's test runner (manage.py test) forces settings.DEBUG = False for
+    the duration of the run regardless of that env var (setup_test_environment
+    defaults debug_mode to False). Checking the runtime setting would block
+    the one workflow this project's CI is meant to run it under; the env var
+    is what the deploy/CI config actually controls.
+    """
+    from django.conf import settings
+
+    debug_ok = os.environ.get("DJANGO_DEBUG", "False") == "True"
+    host = (settings.DATABASES.get("default", {}).get("HOST") or "").strip().lower()
+    host_ok = host in _LOCAL_DB_HOSTS
+
+    if debug_ok and host_ok:
+        return
+
+    if force_unsafe:
+        print("!! --i-know-this-is-not-prod set: skipping the DEBUG/local-host safety check.")
+        print(f"!! DJANGO_DEBUG={debug_ok}  DATABASES.default.HOST={host or '(unset)'}\n")
+        return
+
+    print("Refusing to run: this doesn't look like a local dev database.\n")
+    print(f"  DJANGO_DEBUG (env var)  = {debug_ok}   (must be True)")
+    print(f"  DATABASES.default.HOST  = {host or '(unset)'!r}   "
+          f"(must be one of {sorted(_LOCAL_DB_HOSTS)})\n")
+    print("This script inserts synthetic rows and, for --cleanup, deletes rows")
+    print("outside any transaction. It must never run against a real database.")
+    print("If you are certain this is not production, re-run with --i-know-this-is-not-prod.")
+    sys.exit(1)
+
 
 # --- treebeard path helper (copied from migrate_taxonomy_to_db) -----------------
 _ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -187,15 +237,31 @@ def label_complexity(b):
 
 
 # --- targets ---------------------------------------------------------------
+# Taxa-scaling targets (taxonomy, api_species) top out well under the real
+# ceiling on species count (~8,000, per the project lead -- that number never
+# grows much further), so there's no point paying for a 25k/33k data point
+# that will never happen in production. That budget instead goes to the image
+# browser -- the page biologists actually complain about -- tested at two
+# page sizes so a query-count difference between them points at the filter
+# dropdowns (fixed cost) vs. per-row work (scales with page size).
 TARGETS = {
     "taxonomy": {
         "url": "/taxonomy/",
         "scale": "taxa",
-        "sizes": [500, 2000, 5000, 12000, 25000],
-        "sizes_quick": [500, 2000, 6000],
+        "sizes": [500, 1500, 3000, 5000, 8000],
+        "sizes_quick": [500, 2000, 5000],
     },
-    "gallery": {
+    "image_browser": {
         "url": "/beetles/?per_page=12",
+        "scale": "specimens",
+        "sizes": [200, 1000, 4000, 12000],
+        "sizes_quick": [100, 500, 2000],
+    },
+    "image_browser_large_page": {
+        # Same page, a page size closer to how people actually scroll through
+        # it, so we can see whether the cost is per-image or fixed overhead
+        # (e.g. the filter-dropdown queries) that doesn't care about page size.
+        "url": "/beetles/?per_page=100",
         "scale": "specimens",
         "sizes": [200, 1000, 4000, 12000],
         "sizes_quick": [100, 500, 2000],
@@ -209,8 +275,8 @@ TARGETS = {
     "api_species": {
         "url": "/api/v1/species/?page_size=10000",
         "scale": "taxa",
-        "sizes": [500, 2000, 5000, 12000, 25000],
-        "sizes_quick": [500, 2000, 6000],
+        "sizes": [500, 1500, 3000, 5000, 8000],
+        "sizes_quick": [500, 2000, 5000],
     },
     "api_images": {
         "url": "/api/v1/beetles/images-with-annotations/?page=1&page_size=50",
@@ -320,7 +386,14 @@ def main():
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--only", choices=list(TARGETS))
     ap.add_argument("--cleanup", action="store_true")
+    ap.add_argument(
+        "--i-know-this-is-not-prod", action="store_true", dest="force_unsafe",
+        help="Bypass the DEBUG/local-host safety check. Only use this when you "
+             "are certain the configured database is not a real one.",
+    )
     args = ap.parse_args()
+
+    _ensure_safe_to_run(args.force_unsafe)
 
     if args.cleanup:
         cleanup()

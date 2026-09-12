@@ -8,6 +8,9 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('beetles_app', '0010_categorymapping_taxon_synonym_beetles_taxon_and_more'),
+        # Must run after pg_trgm is enabled -- this migration's GinIndex
+        # operations below use opclasses=['gin_trgm_ops'].
+        ('beetles_app', '0010_1_enable_pg_trgm'),
     ]
 
     operations = [

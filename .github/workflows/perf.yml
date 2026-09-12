@@ -1,0 +1,81 @@
+name: Performance tests
+
+# PR-only for now, deliberately. No `push` trigger yet -- see perf/README.md.
+on:
+  pull_request:
+
+# This job touches nothing outside the runner: no repository secrets, no SSH,
+# no reference to the deploy server. Postgres and Redis are throwaway service
+# containers that exist only for the life of the job. That's intentional --
+# it means this workflow cannot reach production even by accident, and it's
+# also what perf/scaling_probe.py's safety check (DEBUG=True + a local DB
+# host) is designed to allow.
+jobs:
+  perf:
+    name: perf/ (page performance)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: beetles_user
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: beetles_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U beetles_user -d beetles_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # DEBUG=True + a localhost DB host is what lets scaling_probe.py's
+      # _ensure_safe_to_run() proceed -- see perf/README.md.
+      DJANGO_DEBUG: "True"
+      DJANGO_SECRET_KEY: "ci-only-key-not-a-secret"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: beetles_user
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: beetles_db
+      CELERY_BROKER_URL: "redis://localhost:6379/0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+          environments: default
+
+      - name: Install environment
+        run: pixi install --frozen
+
+      - name: Run migrations
+        run: pixi run python manage.py migrate
+
+      - name: Create a superuser (perf tests log in as staff)
+        run: |
+          pixi run python manage.py shell -c "
+          from django.contrib.auth import get_user_model
+          U = get_user_model()
+          if not U.objects.filter(is_superuser=True).exists():
+              U.objects.create_superuser('ci-admin', 'ci@example.com', 'ci-only-password')
+          "
+
+      - name: Run performance tests
+        run: pixi run python manage.py test perf

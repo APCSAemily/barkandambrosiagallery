@@ -1,16 +1,20 @@
 """
-Page performance regression tests (pass/fail against a time budget).
+Page performance regression tests.
 
 Isolated from the app: reuses the seeding helpers from scaling_probe, seeds a
-fixed synthetic dataset, and asserts each page renders under a millisecond
-budget and without a query-count blow-up. All inside a transaction that is
-rolled back - the dev database is left untouched.
+fixed synthetic dataset, and checks each page's query count and render time.
+Query counts are deterministic and asserted as hard failures -- that's what
+catches an N+1 getting reintroduced. Millisecond timings are noisy on shared
+CI runners, so they're only reported (printed), never asserted. All DB writes
+happen inside a transaction that is rolled back - the dev database is left
+untouched.
 
-Run:
+Run (either works once migration 0010_1 has created the pg_trgm extension in
+the test database -- see perf/README.md):
     docker compose run --rm web pixi run python -m unittest perf.test_page_perf -v
+    docker compose run --rm web pixi run python manage.py test perf
 
-Tune BUDGET_MS / QUERY_CEILING to your machine; treat these as "don't regress"
-guards, not absolute targets. Numbers are wall-clock in the container.
+Tune BUDGET_MS / QUERY_CEILING to your machine and data volume.
 """
 import os
 import statistics
@@ -27,19 +31,22 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.test import Client
 
-from perf.scaling_probe import seed_taxa, seed_specimens, _reset_perf
+from beetlesgallery.beetles_app.models import Taxon
+from perf.scaling_probe import seed_taxa, seed_specimens, _reset_perf, _ensure_safe_to_run
 
 # Fixed synthetic dataset for the test (added on top of whatever is already there)
 SEED_TAXA = 5000
 SEED_SPECIMENS = 2000
 REPEATS = 4
 
-# Budgets (median wall-clock ms) and hard query ceilings per request.
-# /taxonomy/ and the species list are now cache-served on repeat hits, so their
-# budgets are tight; the other pages are unchanged by this PR.
+# QUERY_CEILING is a hard failure if exceeded; BUDGET_MS is reported only (see
+# test_pages_within_budget). /taxonomy/ and the species list are now
+# cache-served on repeat hits, so their budgets are tight; the other pages are
+# unaffected by the caching change.
 BUDGET_MS = {
     "/taxonomy/": 300,
     "/beetles/?per_page=12": 1200,
+    "/beetles/?per_page=100": 1800,
     "/tools/annotate/": 1200,
     "/api/v1/species/?page_size=10000": 400,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 900,
@@ -47,6 +54,7 @@ BUDGET_MS = {
 QUERY_CEILING = {
     "/taxonomy/": 8,
     "/beetles/?per_page=12": 80,
+    "/beetles/?per_page=100": 80,  # same as per_page=12 if the 47 queries are fixed cost, not per-row
     "/tools/annotate/": 80,
     "/api/v1/species/?page_size=10000": 8,
     "/api/v1/beetles/images-with-annotations/?page=1&page_size=50": 150,
@@ -56,19 +64,25 @@ QUERY_CEILING = {
 class PagePerfTest(TestCase):
     @classmethod
     def setUpTestData(cls):
+        # No escape hatch here (unlike the script) -- there is never a
+        # legitimate reason to run this suite against a non-local database.
+        _ensure_safe_to_run(force_unsafe=False)
+
         _reset_perf()
         seed_taxa(SEED_TAXA, 0)
         taxon_ids = list(
-            __import__("beetlesgallery.beetles_app.models", fromlist=["Taxon"])
-            .Taxon.objects.filter(valid_species_id__startswith="PERF-")
+            Taxon.objects.filter(valid_species_id__startswith="PERF-")
             .values_list("id", flat=True)
         )
         seed_specimens(SEED_SPECIMENS, 0, taxon_ids)
 
     def setUp(self):
         self.client = Client()
-        user = get_user_model().objects.filter(is_superuser=True).first()
-        assert user, "no superuser - run createsuperuser"
+        User = get_user_model()
+        user = User.objects.filter(is_superuser=True).first()
+        if user is None:
+            # A throwaway manage.py test database has no dev admin account.
+            user = User.objects.create_superuser("perf-test-admin", "", "not-a-real-password")
         self.client.force_login(user)
 
     def _profile(self, url):
@@ -83,22 +97,26 @@ class PagePerfTest(TestCase):
         return resp.status_code, statistics.median(times), max(qcounts)
 
     def test_pages_within_budget(self):
+        """Query counts are deterministic and asserted as hard failures -- a
+        rising count is exactly what catches an N+1 getting reintroduced.
+        Millisecond budgets are wall-clock and noisy (especially on shared CI
+        runners), so they're only printed as PASS/WARN, never asserted."""
         rows = []
         failures = []
         for url, budget in BUDGET_MS.items():
             code, ms, q = self._profile(url)
-            rows.append((url, code, ms, q))
+            over_budget = ms > budget
+            rows.append((url, code, ms, budget, over_budget, q))
             if code != 200:
                 failures.append(f"{url}: HTTP {code}")
-            if ms > budget:
-                failures.append(f"{url}: {ms:.0f} ms > budget {budget} ms")
             if q > QUERY_CEILING[url]:
                 failures.append(f"{url}: {q} queries > ceiling {QUERY_CEILING[url]}")
 
         print(f"\n  (seeded +{SEED_TAXA} taxa, +{SEED_SPECIMENS} specimens)\n")
-        print(f"  {'url':<58} {'code':>4} {'ms':>8} {'queries':>8}")
-        for url, code, ms, q in rows:
-            print(f"  {url:<58} {code:>4} {ms:>8.0f} {q:>8}")
+        print(f"  {'url':<58} {'code':>4} {'ms':>8} {'budget':>8} {'':<6} {'queries':>7}")
+        for url, code, ms, budget, over_budget, q in rows:
+            flag = "WARN" if over_budget else "ok"
+            print(f"  {url:<58} {code:>4} {ms:>8.0f} {budget:>8} {flag:<6} {q:>7}")
         print()
 
         self.assertEqual(failures, [], "\n  - " + "\n  - ".join(failures) if failures else "")
@@ -115,24 +133,32 @@ class PagePerfTest(TestCase):
         invalidate_taxonomy_caches()
         cache.delete(TAXONOMY_BROWSER_CACHE_KEY)
 
-        # First hit: cache miss, builds the tree.
-        t0 = time.perf_counter()
-        r1 = self.client.get("/taxonomy/", HTTP_HOST="localhost")
-        cold_ms = (time.perf_counter() - t0) * 1000
+        # First hit: cache miss, builds the tree (queries the Taxon table).
+        with CaptureQueriesContext(connection) as ctx:
+            t0 = time.perf_counter()
+            r1 = self.client.get("/taxonomy/", HTTP_HOST="localhost")
+            cold_ms = (time.perf_counter() - t0) * 1000
+        cold_queries = len(ctx.captured_queries)
         self.assertEqual(r1.status_code, 200)
         self.assertIsNotNone(cache.get(TAXONOMY_BROWSER_CACHE_KEY), "tree was not cached")
 
         # Repeat hits: cache hit, no per-request rebuild.
-        warm = []
+        warm, warm_queries = [], []
         for _ in range(REPEATS):
-            t0 = time.perf_counter()
-            self.client.get("/taxonomy/", HTTP_HOST="localhost")
-            warm.append((time.perf_counter() - t0) * 1000)
+            with CaptureQueriesContext(connection) as ctx:
+                t0 = time.perf_counter()
+                self.client.get("/taxonomy/", HTTP_HOST="localhost")
+                warm.append((time.perf_counter() - t0) * 1000)
+            warm_queries.append(len(ctx.captured_queries))
         warm_ms = statistics.median(warm)
+        warm_q = max(warm_queries)
 
-        print(f"\n  /taxonomy/  cold {cold_ms:.0f} ms  ->  warm {warm_ms:.0f} ms\n")
-        self.assertLess(warm_ms, 150, f"cached hit still slow: {warm_ms:.0f} ms")
-        self.assertLess(warm_ms, cold_ms, "cache hit was not faster than the miss")
+        print(f"\n  /taxonomy/  cold {cold_ms:.0f} ms / {cold_queries} queries  ->  "
+              f"warm {warm_ms:.0f} ms / {warm_q} queries\n")
+        # Deterministic, hard-asserted: a cache hit must not re-run the
+        # taxon-table query the miss did. Timing is reported above, not asserted.
+        self.assertLess(warm_q, cold_queries,
+                         "cache hit ran as many queries as the miss - is caching working?")
 
         # A taxonomy change clears the cache.
         invalidate_taxonomy_caches()
