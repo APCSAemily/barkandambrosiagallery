@@ -68,6 +68,14 @@ jobs:
       - name: Run migrations
         run: pixi run python manage.py migrate
 
+      # Required even though DEBUG=True is set above: Django's test runner
+      # forces settings.DEBUG=False for the duration of `manage.py test`
+      # (see _ensure_safe_to_run's comment in scaling_probe.py), which
+      # switches static file serving to whitenoise's manifest storage --
+      # every page using {% static %} 404s on ValueError without this.
+      - name: Collect static files
+        run: pixi run python manage.py collectstatic --noinput
+
       # No separate "create a superuser" step: test_page_perf.py's own
       # setUp() already creates one when none exists, since a fresh test
       # database never has the dev admin account. (An earlier version of this
