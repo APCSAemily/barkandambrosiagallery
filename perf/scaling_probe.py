@@ -49,7 +49,10 @@ from django.test.utils import CaptureQueriesContext
 from beetlesgallery.beetles_app.models import Beetles, ImageAsset, Taxon
 
 # --- safety: refuse to run anywhere that isn't an obviously local dev DB ------
-_LOCAL_DB_HOSTS = {"", "db", "localhost", "127.0.0.1"}
+# Exactly the three hosts named in review: db (docker compose service name),
+# localhost, 127.0.0.1. Deliberately not also treating an unset/empty HOST as
+# safe -- narrower than "would probably be fine" on purpose.
+_LOCAL_DB_HOSTS = {"db", "localhost", "127.0.0.1"}
 
 
 def _ensure_safe_to_run(force_unsafe: bool):
