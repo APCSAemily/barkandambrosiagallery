@@ -1,0 +1,70 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Runs entirely on the GitHub runner: Postgres and Redis are throwaway service
+# containers, and no repository secrets are used, so this cannot reach the
+# production server.
+jobs:
+  test:
+    name: Django tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: beetles_user
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: beetles_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U beetles_user -d beetles_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DJANGO_SECRET_KEY: "ci-only-key-not-a-secret"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,testserver"
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: beetles_user
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: beetles_db
+      CELERY_BROKER_URL: "redis://localhost:6379/0"
+      REDIS_CACHE_URL: "redis://localhost:6379/1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+          environments: default
+
+      - name: Install environment
+        run: pixi install --frozen
+
+      # The test runner builds its own empty database by running every
+      # migration, so this also catches migrations that fail on a fresh DB.
+      - name: Run tests
+        run: pixi run python manage.py test beetlesgallery --noinput -v 2
