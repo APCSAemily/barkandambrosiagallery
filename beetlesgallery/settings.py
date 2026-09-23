@@ -74,6 +74,7 @@ MIDDLEWARE = [
     'simple_history.middleware.HistoryRequestMiddleware',  # Added for simple_history
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'beetlesgallery.beetles_app.middleware.UserTimezoneMiddleware',  # Show times in the viewer's timezone
 ]
 
 ROOT_URLCONF = 'beetlesgallery.urls'

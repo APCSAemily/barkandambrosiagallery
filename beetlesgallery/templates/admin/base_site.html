@@ -1,0 +1,5 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{# Same timezone cookie as base.html so admin pages also show local time #}
+{% block extrahead %}{{ block.super }}<script src="{% static 'js/timezone_cookie.js' %}"></script>{% endblock %}

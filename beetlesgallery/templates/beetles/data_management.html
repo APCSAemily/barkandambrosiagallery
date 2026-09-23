@@ -84,7 +84,7 @@
       </p>
       <p class="text-xs text-gray-500 mt-1">
         File name on download: <code id="filename-preview"
-          class="bg-gray-100 px-2 py-0.5 rounded">taxonomy_ref_YYYY-MM-DD_HH-MM_UTC.csv</code>
+          class="bg-gray-100 px-2 py-0.5 rounded">valid_species_YYYYMMDD_HHMMSS.csv</code>
       </p>
     </div>
 
@@ -1299,13 +1299,13 @@
         download_url: "{% url 'download_taxonomy_ref' %}",
         upload_url: "{% url 'admin_valid_species' %}",
         version: "{{ species_ref_status.label|default:'unavailable' }}",
-        filename: "taxonomy_ref_YYYY-MM-DD_HH-MM_UTC.csv"
+        filename: "valid_species_YYYYMMDD_HHMMSS.csv"
       },
       described_names: {
         download_url: "{% url 'download_described_names_ref' %}",
         upload_url: "{% url 'admin_described_names' %}",
         version: "{{ described_names_ref_status.label|default:'unavailable' }}",
-        filename: "described_names_ref_YYYY-MM-DD_HH-MM_UTC.csv"
+        filename: "described_names_YYYYMMDD_HHMMSS.csv"
       }
     };
 
