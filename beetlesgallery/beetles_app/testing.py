@@ -1,12 +1,17 @@
 """
-Small builders shared by the logic tests (issue #206, part 2).
+Small builders shared by the logic and page tests (issue #206, parts 2 and 3).
 
 Deliberately not named ``test_*.py`` so Django's test discovery does not treat
 it as a test module.
 """
 import itertools
+import tempfile
+
+from django.core.cache import cache
+from django.test import override_settings
 
 from beetlesgallery.beetles_app.models import Beetles, ImageAsset, Taxon
+from beetlesgallery.beetles_app.test_pages import PageTestCase
 
 _seq = itertools.count(1)
 
@@ -45,3 +50,27 @@ def make_beetle(image=None, taxon=None, bbox=None, **fields):
         fields.update(BBOX)
         fields["bbox_is_validated"] = bbox == "validated"
     return Beetles.objects.create(image_asset=image, **fields)
+
+
+# The gallery caches filter dropdowns and match counts in Redis in production;
+# tests use a private in-memory cache so nothing leaks between tests (or into Redis).
+LOCMEM_CACHE = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+
+@override_settings(
+    CACHES=LOCMEM_CACHE,
+    # The production hasher is deliberately slow (it dominated the run time here).
+    PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
+)
+class PageBehaviourCase(PageTestCase):
+    """PageTestCase (one user per access level, plain static files) plus an
+    empty cache, a throwaway MEDIA_ROOT and a fast password hasher."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.addCleanup(cache.clear)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.media_root = tmp.name
+        self.enterContext(override_settings(MEDIA_ROOT=tmp.name))

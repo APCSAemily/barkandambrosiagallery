@@ -7,6 +7,7 @@ behaviour tests build on the same users and helpers.
 """
 import uuid
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -53,7 +54,13 @@ SUPERUSER_PAGES = [
 ]
 
 
-@override_settings(STORAGES=PLAIN_STATIC)
+# WhiteNoise walks every file under STATIC_ROOT each time the test client builds its
+# middleware (once per test), which took seconds per test on a Docker volume.
+# Tests never fetch static files, so they run without it.
+NO_WHITENOISE = [m for m in settings.MIDDLEWARE if "whitenoise" not in m.lower()]
+
+
+@override_settings(STORAGES=PLAIN_STATIC, MIDDLEWARE=NO_WHITENOISE)
 class PageTestCase(TestCase):
     """Base class with one user of each access level."""
 
