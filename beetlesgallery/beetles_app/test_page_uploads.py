@@ -107,6 +107,21 @@ class UploadViewTests(PageBehaviourCase):
     def test_oversized_zip_is_rejected(self):
         self.assertRejectedBeforeBatchCreated(self.upload(), "too large")
 
+    @override_settings(MAX_UPLOAD_TOTAL_BYTES=10)
+    def test_upload_over_the_total_limit_is_rejected_with_advice(self):
+        response = self.upload()
+        self.assertRejectedBeforeBatchCreated(response, "too large")
+        self.assertTrue(any("smaller batches" in m for m in self.messages(response)), self.messages(response))
+
+    def test_size_messages_are_in_readable_units(self):
+        with override_settings(MAX_UPLOAD_SIZE_ZIP=10, MAX_UPLOAD_TOTAL_BYTES=2 * 1024 ** 3):
+            messages = self.messages(self.upload())
+        self.assertTrue(any("1 KB" in m and "2.00 GB" in m for m in messages), messages)
+
+    def test_limits_default_to_two_gigabytes(self):
+        from django.conf import settings
+        self.assertEqual(settings.MAX_UPLOAD_SIZE_ZIP, 2 * 1024 ** 3)
+        self.assertEqual(settings.MAX_UPLOAD_TOTAL_BYTES, 2 * 1024 ** 3)
     def test_corrupt_zip_is_rejected(self):
         self.assertRejectedBeforeBatchCreated(
             self.upload(zipped=("images.zip", b"this is not a zip")), "corrupt"
@@ -178,3 +193,79 @@ class UploadAccessTests(PageBehaviourCase):
         response = self.client.get(reverse("data_management"))
 
         self.assertEqual(list(response.context["batches"]), [mine])
+
+class UploadModalTests(PageBehaviourCase):
+    """The upload dialog on My Uploads tells people the size limit up front."""
+
+    def modal(self):
+        self.client.force_login(self.staff)
+        return self.client.get(reverse("data_management")).content.decode()
+
+    def test_dialog_states_the_two_gigabyte_limit(self):
+        self.assertIn("must be less than 2 GB", self.modal())
+
+    def test_dialog_lets_the_browser_check_the_size_before_uploading(self):
+        self.assertIn('id="form-upload-new" data-max-bytes="2147483648"', self.modal())
+    def test_update_and_reference_dialogs_state_and_enforce_their_limits(self):
+        self.client.force_login(self.superuser)
+        page = self.client.get(reverse("data_management")).content.decode()
+        self.assertIn('id="form-update-existing" data-max-bytes="10485760"', page)
+        self.assertIn('id="form-upload-taxonomy" data-max-bytes="104857600"', page)
+        self.assertIn("the CSV must be less than 10 MB", page)
+        self.assertIn("the CSV must be less than 100 MB", page)
+
+
+class ReferenceCsvLimitTests(PageBehaviourCase):
+    """The taxonomy reference pages refuse oversized CSVs before the slow database rebuild."""
+
+    PAGES = [
+        ("admin_valid_species", "reference/valid_species.csv"),
+        ("admin_described_names", "reference/described_names.csv"),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.superuser)
+        patcher = mock.patch("beetlesgallery.beetles_app.views.call_command")
+        self.rebuild = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def post(self, page, size):
+        return self.client.post(reverse(page), {"csv_file": SimpleUploadedFile("ref.csv", b"x" * size)})
+
+    @override_settings(MAX_UPLOAD_SIZE_TAXONOMY=10)
+    def test_oversized_reference_is_refused_and_nothing_is_rebuilt(self):
+        from django.core.files.storage import default_storage
+        for page, storage_key in self.PAGES:
+            with self.subTest(page=page):
+                response = self.post(page, 100)
+                self.assertRedirects(response, reverse(page), fetch_redirect_response=False)
+                msgs = [str(m) for m in get_messages(response.wsgi_request)]
+                self.assertTrue(any("Reference .csv is too large" in m for m in msgs), msgs)
+                self.assertFalse(default_storage.exists(storage_key))
+        self.rebuild.assert_not_called()
+
+    def test_reference_within_the_limit_is_saved_and_rebuilt(self):
+        from django.core.files.storage import default_storage
+        for page, storage_key in self.PAGES:
+            with self.subTest(page=page):
+                self.rebuild.reset_mock()
+                self.post(page, 100)
+                self.assertTrue(default_storage.exists(storage_key))
+                self.rebuild.assert_called_once_with("migrate_taxonomy_to_db")
+
+    def test_limit_defaults_to_100_mb(self):
+        from django.conf import settings
+        self.assertEqual(settings.MAX_UPLOAD_SIZE_TAXONOMY, 100 * 1024 ** 2)
+
+
+class UpdateCsvLimitTests(PageBehaviourCase):
+    @override_settings(MAX_UPLOAD_SIZE_CSV=10)
+    def test_oversized_update_csv_is_refused_with_readable_sizes(self):
+        from beetlesgallery.beetles_app.models import UpdateBatch
+        self.client.force_login(self.staff)
+        response = self.client.post("/updates/", {"csv_file": SimpleUploadedFile("u.csv", b"x" * 100)})
+        self.assertRedirects(response, reverse("data_management"), fetch_redirect_response=False)
+        msgs = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertTrue(any("too large (1 KB)" in m for m in msgs), msgs)
+        self.assertEqual(UpdateBatch.objects.count(), 0)
