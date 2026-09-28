@@ -163,3 +163,22 @@ class ApiPermissionTests(PageTestCase):
     def test_beetles_api_loads_for_staff(self):
         self.client.force_login(self.staff)
         self.assertEqual(self.client.get("/api/v1/beetles/").status_code, 200)
+
+
+class AdminCoverageTests(PageTestCase):
+    """Every app table is reachable in the Django admin (#217)."""
+
+    def test_every_model_is_registered(self):
+        from django.apps import apps
+        from django.contrib import admin
+
+        missing = [
+            m.__name__ for m in apps.get_app_config("beetles_app").get_models()
+            if m not in admin.site._registry and not m.__name__.startswith("Historical")
+        ]
+        self.assertEqual(missing, [])
+
+    def test_pathogen_interaction_changelist_loads(self):
+        self.client.force_login(self.superuser)
+        url = reverse("admin:beetles_app_pathogeninteraction_changelist")
+        self.assertEqual(self.client.get(url).status_code, 200)
