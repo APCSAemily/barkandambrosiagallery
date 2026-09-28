@@ -67,10 +67,14 @@ def playable_rois():
 
 
 def check_rois():
-    """ROIs with a validated, well-formed label to score against."""
+    """
+    ROIs with a validated, well-formed label to score against. ROIs with an open
+    player report are left out until staff have looked at them.
+    """
     return playable_rois().filter(bbox_is_validated=True, taxon__isnull=False).exclude(
         Q(taxon__subfamily="") | Q(taxon__subfamily__isnull=True)
         | Q(taxon__genus="") | Q(taxon__genus__isnull=True)
+        | Q(game_reports__status="open")
     )
 
 
@@ -100,6 +104,19 @@ def _random_ids(qs, n):
 def _seen(player, mode, is_check):
     """Subquery of ROIs this player already answered in this mode."""
     return GameAnswer.objects.filter(player=player, mode=mode, is_check=is_check).values("roi_id")
+
+
+def revealed_ids(player):
+    """
+    Validated ROIs whose answer this player has been shown in round feedback: every
+    scored item, and every validated partner in a pair. They are never scored for this
+    player again, so feedback can't be memorised into a better score.
+    """
+    ids = set(GameAnswer.objects.filter(player=player, is_check=True).values_list("roi_id", flat=True))
+    ids |= set(
+        GameAnswer.objects.filter(player=player, mode="pair", roi_b__isnull=False).values_list("roi_b_id", flat=True)
+    )
+    return ids
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +165,11 @@ def _pick_near(candidates, n, target):
     return chosen
 
 
-def _sample(qs, n, target, seen=None, exclude=()):
+def _sample(qs, n, target, seen=None, exclude=(), allow_seen=True):
     """
     n ids from qs near the target difficulty, preferring ones the player hasn't seen.
-    Falls back to seen items when the pool is too small to fill the round.
+    Falls back to seen items when the pool is too small to fill the round, unless
+    ``allow_seen`` is off (scored items are never repeated).
     """
     if n <= 0:
         return []
@@ -160,7 +178,7 @@ def _sample(qs, n, target, seen=None, exclude=()):
     if seen is not None:
         fresh = fresh.exclude(id__in=seen)
     ids = _pick_near(_random_ids(fresh, n * oversample), n, target)
-    if len(ids) < n:
+    if len(ids) < n and allow_seen:
         rest = qs.exclude(id__in=list(exclude) + ids)
         ids += _pick_near(_random_ids(rest, (n - len(ids)) * oversample), n - len(ids), target)
     return ids
@@ -252,17 +270,17 @@ def focus_filter(player):
 def build_classify_items(player, size):
     n_checks, n_open = _split_round(player, "classify", size)
     target = target_difficulty(player)
-    seen_checks = _seen(player, "classify", True)
+    revealed = list(revealed_ids(player))
     seen_open = _seen(player, "classify", False)
     focus = focus_filter(player)
 
     def pick_checks(n, exclude=()):
-        exclude = [c["a"] for c in exclude]
+        exclude = [c["a"] for c in exclude] + revealed
         ids = []
         n_focus = n // 2 if focus is not None else 0
         if n_focus:
-            ids = _sample(check_rois().filter(focus), n_focus, target, seen_checks, exclude)
-        ids += _sample(check_rois(), n - len(ids), target, seen_checks, exclude + ids)
+            ids = _sample(check_rois().filter(focus), n_focus, target, exclude=exclude, allow_seen=False)
+        ids += _sample(check_rois(), n - len(ids), target, exclude=exclude + ids, allow_seen=False)
         return [{"a": str(i), "b": None, "check": True} for i in ids]
 
     def pick_open(n):
@@ -273,7 +291,7 @@ def build_classify_items(player, size):
     return checks + opens
 
 
-def _partner_for(anchor, target):
+def _partner_for(anchor, target, exclude=()):
     """
     A validated ROI to pair with ``anchor``, at a randomly chosen relation
     (same species / genus / tribe / subfamily / different), so answers are spread
@@ -282,7 +300,7 @@ def _partner_for(anchor, target):
     For an unvalidated anchor its current (unchecked) label is only used to aim the
     pairing; the answer is what we record.
     """
-    pool = check_rois().exclude(id=anchor.id)
+    pool = check_rois().exclude(id=anchor.id).exclude(id__in=list(exclude))
     if anchor.image_asset_id:
         pool = pool.exclude(image_asset_id=anchor.image_asset_id)
     taxon = anchor.taxon
@@ -318,14 +336,19 @@ def _partner_for(anchor, target):
 def build_pair_items(player, size):
     n_checks, n_open = _split_round(player, "pair", size)
     target = target_difficulty(player)
-    seen_checks = _seen(player, "pair", True)
+    revealed = list(revealed_ids(player))
     seen_open = _seen(player, "pair", False)
 
     def make_pairs(anchor_qs, n, seen, is_check, exclude=()):
         items = []
-        anchor_ids = _sample(anchor_qs, n, target, seen, [c["a"] for c in exclude])
+        exclude = [c["a"] for c in exclude]
+        if is_check:
+            anchor_ids = _sample(anchor_qs, n, target, exclude=exclude + revealed, allow_seen=False)
+        else:
+            anchor_ids = _sample(anchor_qs, n, target, seen, exclude)
         for anchor in Beetles.objects.select_related("taxon").filter(id__in=anchor_ids):
-            partner = _partner_for(anchor, target)
+            # A scored pair must not lean on a partner whose label the player has been shown.
+            partner = _partner_for(anchor, target, revealed if is_check else ())
             if partner is None:
                 continue
             items.append({
@@ -336,7 +359,7 @@ def build_pair_items(player, size):
 
     checks, opens = _fill(
         n_checks, n_open,
-        lambda n, exclude=(): make_pairs(check_rois(), n, seen_checks, True, exclude),
+        lambda n, exclude=(): make_pairs(check_rois(), n, None, True, exclude),
         lambda n: make_pairs(open_rois(), n, seen_open, False),
     )
     return checks + opens
@@ -454,8 +477,8 @@ def _rank_counts():
     """Aggregate expressions: correct and judged counts for each rank."""
     exprs = {}
     for r in RANKS:
-        exprs[f"{r}_ok"] = Count("id", filter=Q(**{f"correct_{r}": True}))
-        exprs[f"{r}_n"] = Count("id", filter=Q(**{f"correct_{r}__isnull": False}))
+        exprs[f"{r}_ok"] = Count("id", filter=Q(score_hold=False, **{f"correct_{r}": True}))
+        exprs[f"{r}_n"] = Count("id", filter=Q(score_hold=False, **{f"correct_{r}__isnull": False}))
     return exprs
 
 

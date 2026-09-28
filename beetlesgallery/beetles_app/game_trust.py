@@ -86,7 +86,7 @@ def skill_counts(player):
     stats = {}
     seen = set()
     answers = (
-        GameAnswer.objects.filter(player=player, mode="classify", is_check=True, skipped=False)
+        GameAnswer.objects.filter(player=player, mode="classify", is_check=True, skipped=False, score_hold=False)
         .order_by("answered_at")
         .values("roi_id", "ref_subfamily", "ref_tribe", "ref_genus",
                 *[f"correct_{r}" for r in RANKS])
@@ -343,6 +343,11 @@ def player_report(player):
         "proven": proven,
         "progressing": progressing[:12],
         "monthly": monthly,
+        "recent_rounds": list(
+            player.game_rounds.filter(finished_at__isnull=False)
+            .annotate(labelled=Count("answers", filter=Q(answers__skipped=False)))
+            .order_by("-finished_at")[:10]
+        ),
         "needed": needed,
         "min_lower_bound": game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
         "siblings": game_setting("GAME_TRUST_SIBLINGS", 2),

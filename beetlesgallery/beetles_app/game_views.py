@@ -15,11 +15,12 @@ from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_trust
-from .models import Beetles, GameAnswer, GameRound, ImageLock, LabelReview, Taxon
+from . import game, game_feedback, game_trust
+from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
 MODES = {m.value: m.label for m in GameRound.Mode}
 PAIR_CHOICES = [(c.value, c.label) for c in GameAnswer.PairAnswer]
@@ -67,6 +68,56 @@ def game_report(request):
 @staff_member_required
 def game_player_report(request, user_id):
     return _render_report(request, get_object_or_404(get_user_model(), id=user_id))
+
+
+@login_required
+def game_round_review(request, round_id):
+    """Feedback on a finished round: each answer next to what the database says."""
+    rnd = get_object_or_404(GameRound, id=round_id)
+    if rnd.player != request.user and not request.user.is_staff:
+        raise Http404("No such round")
+    if rnd.finished_at is None:
+        return redirect("game_play", mode=rnd.mode)
+    feedback = game_feedback.round_feedback(rnd)
+    return render(request, "beetles/game_round_review.html", {
+        "round": rnd,
+        "feedback": feedback,
+        "feedback_json": feedback["items"],
+        "is_self": rnd.player == request.user,
+        "reasons": GameReport.Reason.choices,
+    })
+
+
+@login_required
+@require_POST
+def game_report_roi(request):
+    """A player reports an ROI from one of their finished rounds as looking wrong."""
+    body = _json_body(request) or {}
+    rnd = GameRound.objects.filter(id=body.get("round"), player=request.user).first() if _is_uuid(body.get("round")) else None
+    if rnd is None or rnd.finished_at is None:
+        return JsonResponse({"error": "You can report images from your finished rounds."}, status=404)
+    answer = rnd.answers.filter(index=body.get("index")).first() if isinstance(body.get("index"), int) else None
+    if answer is None:
+        return JsonResponse({"error": "Unknown item."}, status=404)
+    roi_id = str(body.get("roi") or "")
+    if roi_id not in {str(answer.roi_id), str(answer.roi_b_id)}:
+        return JsonResponse({"error": "Unknown image."}, status=400)
+    reason = body.get("reason")
+    if reason not in GameReport.Reason.values:
+        return JsonResponse({"error": "Please choose a reason."}, status=400)
+    roi = answer.roi if str(answer.roi_id) == roi_id else answer.roi_b
+    report = game_feedback.create_report(request.user, roi, reason, str(body.get("note") or ""), answer)
+    return JsonResponse({"status": report.status, "reason": report.get_reason_display()})
+
+
+def _is_uuid(value):
+    import uuid as _uuid
+
+    try:
+        _uuid.UUID(str(value))
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +180,7 @@ def _finish(rnd):
     game.finish_round(rnd)
     summary = game.player_summary(rnd.player)
     summary["round_labelled"] = rnd.answers.filter(skipped=False).count()
-    return {"done": True, "summary": summary}
+    return {"done": True, "summary": summary, "review_url": reverse("game_round_review", args=[rnd.id])}
 
 
 @login_required
@@ -353,7 +404,26 @@ def game_proposals(request):
         str(entry["roi"].id): _proposal_json(entry, latest.get(entry["roi"].id))
         for entry in game.consensus(roi_ids=roi_ids)
     }
-    return JsonResponse({"proposals": proposals})
+    reports = {}
+    for r in GameReport.objects.filter(roi_id__in=roi_ids, status=GameReport.Status.OPEN).select_related("reporter"):
+        reports.setdefault(str(r.roi_id), []).append({
+            "reason": r.get_reason_display(), "note": r.note, "reporter": r.reporter.username,
+            "created_at": r.created_at.isoformat(), "was_validated": r.was_validated,
+        })
+    return JsonResponse({"proposals": proposals, "reports": reports})
+
+
+@staff_member_required
+@require_POST
+def game_resolve_reports(request, roi_id):
+    """Close the open player reports on one ROI (see game_feedback.resolve_reports)."""
+    roi = get_object_or_404(Beetles, id=roi_id)
+    body = _json_body(request) or {}
+    outcome = body.get("outcome")
+    if outcome not in (GameReport.Status.CORRECTED, GameReport.Status.CONFIRMED):
+        return JsonResponse({"error": "outcome must be corrected or confirmed"}, status=400)
+    closed = game_feedback.resolve_reports(roi, outcome, request.user, str(body.get("note") or ""))
+    return JsonResponse({"closed": closed})
 
 
 @staff_member_required
@@ -434,6 +504,8 @@ def game_review(request):
     if only_trusted:
         entries = [e for e in entries if e["trusted_rank"]]
     return render(request, "beetles/game_review.html", {
+        "open_reports": GameReport.objects.filter(status=GameReport.Status.OPEN)
+        .select_related("reporter", "roi__taxon").order_by("created_at")[:200],
         "ranks": game.RANKS,
         "players": _player_rows(),
         "consensus": entries[:200],
