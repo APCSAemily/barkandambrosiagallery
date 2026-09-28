@@ -12,8 +12,11 @@ from .serializers import ImageAssetSerializer, BeetlesSerializer, SpeciesSeriali
 import json
 import zipfile
 import os
+import logging
 from io import BytesIO
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class IsStaffUser(IsAuthenticated):
@@ -368,9 +371,13 @@ class BeetlesViewSet(viewsets.ModelViewSet):
                         results.append(serializer.data)
                         
             return Response(results, status=status.HTTP_200_OK)
-        except Exception as e:
+        except Exception:
             # If ANY serializer fails, the entire transaction rolls back
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            logger.exception("Bulk update failed in ImageAssetViewSet.bulk_update")
+            return Response(
+                {"error": "Bulk update failed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=False, methods=['get'], url_path='images-with-annotations')
     def images_with_annotations(self, request):
