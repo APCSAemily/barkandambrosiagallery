@@ -29,3 +29,29 @@ def remove_filter(context, field, value=None):
         del query['page']
         
     return query.urlencode()
+
+@register.filter
+def digit_groups(value):
+    """
+    Render a whole number with its digits in groups of three, each group a span with
+    extra space before it (e.g. 70000 -> "70 000"), so large counts are easy to read.
+    Non-numbers are returned unchanged.
+    """
+    from django.utils.safestring import mark_safe
+
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return value
+    digits = str(abs(number))
+    groups = []
+    while digits:
+        groups.insert(0, digits[-3:])
+        digits = digits[:-3]
+    gap = ' style="margin-left:0.4em"'
+    spans = "".join(
+        f'<span class="digit-group"{gap if i else ""}>{group}</span>'
+        for i, group in enumerate(groups)
+    )
+    # Only digits and fixed markup go into the string, so it is safe to mark as such.
+    return mark_safe(("-" if number < 0 else "") + spans)
