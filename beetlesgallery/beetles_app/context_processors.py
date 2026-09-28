@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils import timezone
 from beetlesgallery.beetles_app.models import Taxon
 
 def species_ref_status(request):
@@ -6,14 +7,14 @@ def species_ref_status(request):
     Expose the taxonomy reference status dict site-wide natively from Postgres:
     {
       "version": "<version string>",
-      "label": "<UTC label or None>",
+      "label": "<label with last sync in the viewer's timezone>",
       "updating": <bool>
     }
     """
     try:
         latest_taxon = Taxon.objects.order_by("-updated_at").first()
         if latest_taxon:
-            t_label = f"Database Managed (Last Sync: {latest_taxon.updated_at.strftime('%Y-%m-%d %H:%M UTC')})"
+            t_label = f"Database Managed (Last Sync: {timezone.localtime(latest_taxon.updated_at).strftime('%Y-%m-%d %H:%M %Z')})"
         else:
             t_label = "Database Managed (v2.0)"
     except Exception:

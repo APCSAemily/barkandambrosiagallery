@@ -695,7 +695,7 @@ def beetle_detail(request, beetle_id):
     from beetlesgallery.beetles_app.models import Taxon
     latest_taxon_update = Taxon.objects.order_by("-updated_at").values_list("updated_at", flat=True).first()
     if latest_taxon_update:
-        ref_version = f"Database Managed (Last CSV Sync: {latest_taxon_update.strftime('%Y-%m-%d %H:%M UTC')})"
+        ref_version = f"Database Managed (Last CSV Sync: {timezone.localtime(latest_taxon_update).strftime('%Y-%m-%d %H:%M %Z')})"
     else:
         ref_version = "Database Managed (No Sync History)"
 
@@ -897,7 +897,7 @@ def data_management(request):
             from beetlesgallery.beetles_app.models import Taxon
             latest_taxon = Taxon.objects.order_by("-updated_at").first()
             if latest_taxon and latest_taxon.updated_at: 
-                t_label = f"Database Managed (Last Sync: {latest_taxon.updated_at.strftime('%Y-%m-%d %H:%M UTC')})"
+                t_label = f"Database Managed (Last Sync: {timezone.localtime(latest_taxon.updated_at).strftime('%Y-%m-%d %H:%M %Z')})"
                 t_timestamp = latest_taxon.updated_at.isoformat()
             else:
                 t_label = "Database Managed (v2.0)"
@@ -1098,7 +1098,7 @@ def download_taxonomy_ref(request):
     except Exception:
         raise Http404("Taxonomy reference file is not available.")
 
-    filename = f"valid_species_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"valid_species_{timezone.localtime().strftime('%Y%m%d_%H%M%S')}.csv"
     resp = FileResponse(f, content_type="text/csv")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
@@ -1111,7 +1111,7 @@ def download_described_names_ref(request):
     except Exception:
         raise Http404("Described names reference file is not available.")
 
-    filename = f"described_names_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"described_names_{timezone.localtime().strftime('%Y%m%d_%H%M%S')}.csv"
     resp = FileResponse(f, content_type="text/csv")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
