@@ -1307,8 +1307,12 @@
     }
     // 2. Fallback to Text Error
     else if (errorMessage) {
-      // Escape quotes/newlines for safe inline JS
-      const safeMsg = errorMessage.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+      // Escape backslashes/quotes/newlines for safe inline JS
+      const safeMsg = errorMessage
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\r?\n/g, '\\n');
       html += `<button onclick="viewText('${safeMsg}', '${linkText}')" class="ml-2 text-xs ${linkClass} underline hover:no-underline">${linkText}</button>`;
     }
 
