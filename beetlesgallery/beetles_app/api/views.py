@@ -165,6 +165,7 @@ class BeetlesViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Beetles.objects.select_related(
             'image_asset',
+            'taxon',
             'bbox_created_by',
             'bbox_validated_by'
         ).filter(is_deleted=False)
@@ -357,8 +358,6 @@ class BeetlesViewSet(viewsets.ModelViewSet):
             has_unvalidated_boxes=Exists(unvalidated_rois)
         )
 
-        total_count = image_qs.count()
-
         # PERFORMANCE: Only compute heavy aggregate stats on initial page load (page 1)
         stats_data = None
         if page_num == 1:
@@ -386,6 +385,7 @@ class BeetlesViewSet(viewsets.ModelViewSet):
 
         paginator = Paginator(image_qs, page_size)
         page_obj = paginator.get_page(page_num)
+        total_count = paginator.count
 
         ImageLock.cleanup_expired_locks()
 
