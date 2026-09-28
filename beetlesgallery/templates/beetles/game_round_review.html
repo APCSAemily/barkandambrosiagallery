@@ -87,6 +87,13 @@
   const IS_SELF = {{ is_self|yesno:"true,false" }};
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const safeImageUrl = (raw) => {
+    try {
+      const parsed = new URL(String(raw ?? ""), window.location.origin);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
+    } catch (_) {}
+    return "";
+  };
 
   const VERDICT = {
     right: ['<i class="fi fi-rr-check"></i> Right', "bg-green-100 text-green-800 border-green-200"],
@@ -231,7 +238,9 @@
   }
 
   function openLightbox(url, box) {
-    $("lightbox-img").src = url;
+    const safeUrl = safeImageUrl(url);
+    if (!safeUrl) return;
+    $("lightbox-img").src = safeUrl;
     const b = $("lightbox-box");
     b.style.left = box[0] * 100 + "%"; b.style.top = box[1] * 100 + "%";
     b.style.width = box[2] * 100 + "%"; b.style.height = box[3] * 100 + "%";
