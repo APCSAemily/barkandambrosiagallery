@@ -23,7 +23,7 @@
     <a href="{% url 'game_home' %}" class="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Back to game home">
       <i class="fi fi-rr-angle-left text-lg"></i>
     </a>
-    <h1 class="flex-1 font-bold text-gray-900 text-lg">
+    <h1 class="flex-1 font-semibold text-gray-900 text-lg tracking-tight">
       {% if mode == 'classify' %}Name the beetle{% else %}Spot the relatives{% endif %}
     </h1>
     <span id="progress-text" class="text-sm text-gray-500 tabular-nums"></span>
@@ -149,6 +149,8 @@
   let roundId = null;
   let item = null;
   let busy = false;
+  let shownAt = 0;
+  const prefetched = [];
 
   // ---------- helpers ----------
   async function api(url, body) {
@@ -160,7 +162,11 @@
     const res = await fetch(url, opts);
     let data = {};
     try { data = await res.json(); } catch (e) { /* not JSON */ }
-    if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+    if (!res.ok) {
+      const err = new Error(data.error || "Something went wrong. Please try again.");
+      err.status = res.status;
+      throw err;
+    }
     return data;
   }
 
@@ -208,6 +214,19 @@
     $("lightbox").classList.remove("hidden");
   }
   $("lightbox").addEventListener("click", () => $("lightbox").classList.add("hidden"));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("lightbox").classList.add("hidden");
+  });
+
+  // Warm the browser cache with the next item's photos while this one is answered.
+  function prefetch(urls) {
+    prefetched.length = 0;
+    (urls || []).forEach((url) => {
+      const img = new Image();
+      img.src = url;
+      prefetched.push(img);
+    });
+  }
 
   // ---------- rounds ----------
   async function startRound() {
@@ -262,6 +281,8 @@
     resetAnswer();
     show("stage");
     window.scrollTo({ top: 0 });
+    shownAt = Date.now();
+    prefetch(item.prefetch);
   }
 
   async function send(extra) {
@@ -272,7 +293,7 @@
     try {
       const data = await api(
         root.dataset.answerUrl.replace("00000000-0000-0000-0000-000000000000", roundId),
-        Object.assign({ index: item.index }, extra)
+        Object.assign({ index: item.index, elapsed_ms: Date.now() - shownAt }, extra)
       );
       if (data.done) {
         finish(data.summary);
@@ -281,6 +302,12 @@
         await showItem(data.item);
       }
     } catch (e) {
+      busy = false;
+      if (e.status === 409) {
+        // Out of step (another tab, double tap): pick the round up where the server has it.
+        await startRound();
+        return;
+      }
       showError(e.message);
       updateSubmit();
     } finally {

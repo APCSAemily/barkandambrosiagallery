@@ -1,5 +1,5 @@
 """
-Beetle ID game: picking items, scoring answers, player reliability and label consensus.
+Beetle ID game: picking items, scoring answers, player statistics and label consensus.
 
 Two modes:
   classify  one region of interest (ROI) is shown; the player names its subfamily,
@@ -8,19 +8,27 @@ Two modes:
 
 Some items in every round are "checks": items with a validated answer
 (``Beetles.bbox_is_validated``). Only checks are scored, and the player is never told
-which items they were. Answers on the other items are the labels we collect; staff see
-them combined by each player's reliability.
+which items they were. Answers on the other items are the labels we collect.
+
+Items are matched to players by difficulty (RoiDifficulty): newer or weaker players
+get easier images, and the target rises as they play. Some checks are aimed at the
+branches a player has been labelling, so they get the chance to prove themselves
+there (see game_trust.py for how expertise and trusted labels work).
 
 The views live in game_views.py; this module has no request handling.
 """
+import math
 import random
+import uuid
 from collections import defaultdict
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
+from django.utils import timezone
 
-from .models import Beetles, GameAnswer, GameRound
+from .models import Beetles, GameAnswer, GameRound, RoiDifficulty
 
 RANKS = ("subfamily", "tribe", "genus", "species")
 
@@ -35,6 +43,12 @@ def game_setting(name, default):
 # ---------------------------------------------------------------------------
 # Item pools
 # ---------------------------------------------------------------------------
+# A usable reference taxon has at least subfamily and genus. This also drops the
+# handful of malformed rows in the species list whose columns are shifted (their
+# "subfamily" is a species epithet and genus is blank).
+COMPLETE_TAXON = ~Q(subfamily__isnull=True) & ~Q(subfamily="") & ~Q(genus__isnull=True) & ~Q(genus="")
+
+
 def playable_rois():
     """ROIs that can be shown: a live bounding box on a live image with a file."""
     return (
@@ -53,8 +67,11 @@ def playable_rois():
 
 
 def check_rois():
-    """ROIs with a validated label to score against."""
-    return playable_rois().filter(bbox_is_validated=True, taxon__isnull=False)
+    """ROIs with a validated, well-formed label to score against."""
+    return playable_rois().filter(bbox_is_validated=True, taxon__isnull=False).exclude(
+        Q(taxon__subfamily="") | Q(taxon__subfamily__isnull=True)
+        | Q(taxon__genus="") | Q(taxon__genus__isnull=True)
+    )
 
 
 def open_rois():
@@ -62,20 +79,122 @@ def open_rois():
     return playable_rois().filter(bbox_is_validated=False)
 
 
-def _random_ids(qs, n, exclude=()):
+def _random_ids(qs, n):
+    """
+    Up to n ids from qs in random order.
+
+    Starts at a random UUID and walks the primary key index, wrapping around, instead
+    of ORDER BY random(), which has to sort the whole table. Beetles ids are random
+    UUIDs, so the window is a random sample.
+    """
     if n <= 0:
         return []
-    if exclude:
-        qs = qs.exclude(id__in=list(exclude))
-    return list(qs.order_by("?").values_list("id", flat=True)[:n])
-
-
-def _pick_fresh(qs, n, seen):
-    """Up to n random ids from qs, preferring ones the player has not seen yet."""
-    ids = _random_ids(qs, n, exclude=seen)
+    pivot = uuid.uuid4()
+    ids = list(qs.filter(id__gte=pivot).order_by("id").values_list("id", flat=True)[:n])
     if len(ids) < n:
-        ids += _random_ids(qs, n - len(ids), exclude=set(ids))
+        ids += list(qs.filter(id__lt=pivot).order_by("id").values_list("id", flat=True)[: n - len(ids)])
+    random.shuffle(ids)
     return ids
+
+
+def _seen(player, mode, is_check):
+    """Subquery of ROIs this player already answered in this mode."""
+    return GameAnswer.objects.filter(player=player, mode=mode, is_check=is_check).values("roi_id")
+
+
+# ---------------------------------------------------------------------------
+# Difficulty
+# ---------------------------------------------------------------------------
+UNKNOWN_DIFFICULTY = 0.5
+
+
+def target_difficulty(player):
+    """
+    The difficulty this player's next items should sit around, from 0 (easy) to 1.
+
+    Starts easy, rises with every finished round, and rises faster for accurate
+    players, so the game always gets harder over time. GAME_DIFFICULTY_* settings.
+    """
+    rounds = GameRound.objects.filter(player=player, finished_at__isnull=False).count()
+    summary = player_summary(player)
+    skill = max(0.0, (summary["accuracy"] or 0.5) - 0.5) * 2  # 0 at coin-flip, 1 at perfect
+    target = (
+        game_setting("GAME_DIFFICULTY_START", 0.2)
+        + game_setting("GAME_DIFFICULTY_PER_ROUND", 0.02) * rounds
+        + game_setting("GAME_DIFFICULTY_SKILL_WEIGHT", 0.3) * skill
+    )
+    return min(game_setting("GAME_DIFFICULTY_MAX", 0.9), target)
+
+
+def _difficulties(ids):
+    known = {
+        d.roi_id: d.value for d in RoiDifficulty.objects.filter(roi_id__in=ids)
+    }
+    return {i: (known.get(i) if known.get(i) is not None else UNKNOWN_DIFFICULTY) for i in ids}
+
+
+def _pick_near(candidates, n, target):
+    """Pick n of the candidate ids, favouring those whose difficulty is near target."""
+    if len(candidates) <= n:
+        return list(candidates)
+    diff = _difficulties(candidates)
+    pool = list(candidates)
+    chosen = []
+    for _ in range(n):
+        weights = [math.exp(-((diff[i] - target) / 0.2) ** 2) + 1e-3 for i in pool]
+        pick = random.choices(pool, weights=weights)[0]
+        pool.remove(pick)
+        chosen.append(pick)
+    return chosen
+
+
+def _sample(qs, n, target, seen=None, exclude=()):
+    """
+    n ids from qs near the target difficulty, preferring ones the player hasn't seen.
+    Falls back to seen items when the pool is too small to fill the round.
+    """
+    if n <= 0:
+        return []
+    oversample = game_setting("GAME_CANDIDATE_OVERSAMPLE", 6)
+    fresh = qs.exclude(id__in=list(exclude))
+    if seen is not None:
+        fresh = fresh.exclude(id__in=seen)
+    ids = _pick_near(_random_ids(fresh, n * oversample), n, target)
+    if len(ids) < n:
+        rest = qs.exclude(id__in=list(exclude) + ids)
+        ids += _pick_near(_random_ids(rest, (n - len(ids)) * oversample), n - len(ids), target)
+    return ids
+
+
+def update_difficulty(roi_ids):
+    """Recompute game_difficulty for these ROIs from all answers on them."""
+    roi_ids = list(set(roi_ids))
+    rows = defaultdict(lambda: {"ok": 0, "n": 0, "answers": 0, "genus": defaultdict(int)})
+    for ans in GameAnswer.objects.filter(roi_id__in=roi_ids, skipped=False, mode="classify"):
+        row = rows[ans.roi_id]
+        row["answers"] += 1
+        for r in RANKS:
+            ok = getattr(ans, f"correct_{r}")
+            if ok is not None:
+                row["n"] += 1
+                row["ok"] += int(ok)
+        if ans.genus:
+            row["genus"][ans.genus.lower()] += 1
+    for roi_id in roi_ids:
+        row = rows.get(roi_id)
+        if not row or not row["answers"]:
+            continue
+        if row["n"]:
+            # Scored item: smoothed error rate across judged ranks.
+            value = 1 - (row["ok"] + 1) / (row["n"] + 2)
+        elif row["genus"]:
+            # Unvalidated item: how much players disagree on the genus.
+            value = 1 - max(row["genus"].values()) / sum(row["genus"].values())
+        else:
+            continue
+        RoiDifficulty.objects.update_or_create(
+            roi_id=roi_id, defaults={"game_difficulty": round(value, 4), "game_answers": row["answers"]}
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -102,40 +221,59 @@ def _split_round(player, mode, size):
     return n_checks, size - n_checks
 
 
-def _seen_roi_ids(player, mode, is_check):
-    return set(
-        GameAnswer.objects.filter(player=player, mode=mode, is_check=is_check)
-        .values_list("roi_id", flat=True)
-    )
-
-
 def _fill(n_checks, n_open, pick_checks, pick_open):
     """Pick checks and open items, topping up from the other pool when one runs short."""
     checks = pick_checks(n_checks)
     opens = pick_open(n_open + (n_checks - len(checks)))
     if len(opens) < n_open:
-        checks += pick_checks(n_open - len(opens), exclude={c["a"] for c in checks})
+        checks += pick_checks(n_open - len(opens), exclude=checks)
     return checks, opens
+
+
+def focus_filter(player):
+    """
+    Checks aimed at the branches this player has been labelling but hasn't proven
+    themselves in yet, so their labels there can become trusted. None if there are none.
+    """
+    from .game_trust import skills_for
+
+    recent = (
+        GameAnswer.objects.filter(player=player, mode="classify", is_check=False, skipped=False)
+        .order_by("-answered_at").values_list("tribe", "genus")[:100]
+    )
+    proven = {(s.rank, s.branch.lower()) for s in skills_for(player) if s.proven}
+    genera = {g for _, g in recent if g and ("species", g.lower()) not in proven}
+    tribes = {t for t, _ in recent if t and ("genus", t.lower()) not in proven}
+    if not genera and not tribes:
+        return None
+    return Q(taxon__genus__in=genera) | Q(taxon__tribe__in=tribes)
 
 
 def build_classify_items(player, size):
     n_checks, n_open = _split_round(player, "classify", size)
-    seen_checks = _seen_roi_ids(player, "classify", True)
-    seen_open = _seen_roi_ids(player, "classify", False)
+    target = target_difficulty(player)
+    seen_checks = _seen(player, "classify", True)
+    seen_open = _seen(player, "classify", False)
+    focus = focus_filter(player)
 
     def pick_checks(n, exclude=()):
-        ids = _pick_fresh(check_rois(), n, seen_checks | set(exclude))
+        exclude = [c["a"] for c in exclude]
+        ids = []
+        n_focus = n // 2 if focus is not None else 0
+        if n_focus:
+            ids = _sample(check_rois().filter(focus), n_focus, target, seen_checks, exclude)
+        ids += _sample(check_rois(), n - len(ids), target, seen_checks, exclude + ids)
         return [{"a": str(i), "b": None, "check": True} for i in ids]
 
     def pick_open(n):
-        ids = _pick_fresh(open_rois(), n, seen_open)
+        ids = _sample(open_rois(), n, target, seen_open)
         return [{"a": str(i), "b": None, "check": False} for i in ids]
 
     checks, opens = _fill(n_checks, n_open, pick_checks, pick_open)
     return checks + opens
 
 
-def _partner_for(anchor, exclude_ids):
+def _partner_for(anchor, target):
     """
     A validated ROI to pair with ``anchor``, at a randomly chosen relation
     (same species / genus / tribe / subfamily / different), so answers are spread
@@ -144,13 +282,17 @@ def _partner_for(anchor, exclude_ids):
     For an unvalidated anchor its current (unchecked) label is only used to aim the
     pairing; the answer is what we record.
     """
-    pool = check_rois().exclude(id__in=list(exclude_ids))
+    pool = check_rois().exclude(id=anchor.id)
     if anchor.image_asset_id:
         pool = pool.exclude(image_asset_id=anchor.image_asset_id)
     taxon = anchor.taxon
-    if taxon is None:
-        ids = _random_ids(pool, 1)
+
+    def one(qs):
+        ids = _sample(qs, 1, target)
         return ids[0] if ids else None
+
+    if taxon is None:
+        return one(pool)
 
     # relation: (filter, whether the anchor has the ranks the filter needs)
     relations = {
@@ -166,27 +308,24 @@ def _partner_for(anchor, exclude_ids):
     random.shuffle(order)
     for rel in order:
         condition, usable = relations[rel]
-        if not usable:
-            continue
-        ids = _random_ids(pool.filter(condition), 1)
-        if ids:
-            return ids[0]
-    ids = _random_ids(pool, 1)
-    return ids[0] if ids else None
+        if usable:
+            partner = one(pool.filter(condition))
+            if partner:
+                return partner
+    return one(pool)
 
 
 def build_pair_items(player, size):
     n_checks, n_open = _split_round(player, "pair", size)
-    seen_checks = _seen_roi_ids(player, "pair", True)
-    seen_open = _seen_roi_ids(player, "pair", False)
+    target = target_difficulty(player)
+    seen_checks = _seen(player, "pair", True)
+    seen_open = _seen(player, "pair", False)
 
     def make_pairs(anchor_qs, n, seen, is_check, exclude=()):
         items = []
-        anchors = Beetles.objects.select_related("taxon").filter(
-            id__in=_pick_fresh(anchor_qs, n, seen | set(exclude))
-        )
-        for anchor in anchors:
-            partner = _partner_for(anchor, {anchor.id})
+        anchor_ids = _sample(anchor_qs, n, target, seen, [c["a"] for c in exclude])
+        for anchor in Beetles.objects.select_related("taxon").filter(id__in=anchor_ids):
+            partner = _partner_for(anchor, target)
             if partner is None:
                 continue
             items.append({
@@ -203,6 +342,15 @@ def build_pair_items(player, size):
     return checks + opens
 
 
+def resumable_round(player, mode):
+    """The player's latest unfinished round in this mode, if recent enough to pick up again."""
+    since = timezone.now() - timedelta(hours=game_setting("GAME_RESUME_HOURS", 12))
+    return (
+        GameRound.objects.filter(player=player, mode=mode, finished_at__isnull=True, started_at__gte=since)
+        .order_by("-started_at").first()
+    )
+
+
 def start_round(player, mode, size=None):
     """Create a round with freshly picked items in random order. Returns None if nothing is playable."""
     size = size or game_setting("GAME_ROUND_SIZE", 10)
@@ -212,6 +360,17 @@ def start_round(player, mode, size=None):
         return None
     random.shuffle(items)
     return GameRound.objects.create(player=player, mode=mode, items=items)
+
+
+def finish_round(rnd):
+    """Close a round and refresh everything derived from its answers."""
+    from .game_trust import recompute_skills
+
+    if rnd.finished_at is None:
+        rnd.finished_at = timezone.now()
+        rnd.save(update_fields=["finished_at"])
+    recompute_skills(rnd.player)
+    update_difficulty(rnd.answers.values_list("roi_id", flat=True))
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +509,7 @@ def leaderboard(limit=50, sort="labelled"):
     return rows[:limit]
 
 
-def player_reliability():
+def player_reliability(player_ids=None):
     """
     {player_id: {mode: {rank: {"ok", "n", "accuracy", "weight"}}}} from check answers,
     plus mode "all" combining both modes.
@@ -360,8 +519,10 @@ def player_reliability():
     accuracy as they answer more checks.
     """
     out = defaultdict(dict)
-    rows = GameAnswer.objects.filter(is_check=True).values("player", "mode").annotate(**_rank_counts())
-    for row in rows:
+    qs = GameAnswer.objects.filter(is_check=True)
+    if player_ids is not None:
+        qs = qs.filter(player_id__in=list(player_ids))
+    for row in qs.values("player", "mode").annotate(**_rank_counts()):
         out[row["player"]][row["mode"]] = row
     result = {}
     for pid, modes in out.items():
@@ -397,6 +558,7 @@ def implied_labels(answer):
     Classify: what the player picked. Pair: the ranks the player says the unvalidated
     ROI shares with its validated partner, taken from the partner's taxon. "Different
     subfamily" and "not sure" say nothing positive, so they imply nothing.
+    Species values are "Genus species".
     """
     if answer.skipped:
         return {}
@@ -417,52 +579,74 @@ def implied_labels(answer):
     return {r: values[r] for r in RANKS[: depth + 1] if values[r]}
 
 
-def consensus(limit=None):
+def consensus(limit=None, roi_ids=None):
     """
-    Reliability-weighted votes for each unvalidated ROI that has answers.
+    Reliability-weighted votes for each unvalidated ROI that has answers, with the
+    trusted-expert verdict from game_trust.
 
     Returns a list of dicts sorted by number of answers (most first):
-    {"roi": Beetles, "answers": int, "ranks": {rank: {"value", "support", "votes"}}}
+    {"roi", "answers", "players", "ranks": {rank: {"value", "support", "votes",
+    "trusted", "trusted_votes"}}, "trusted_rank", "taxon"}
     ``support`` is the winning value's share of the total vote weight at that rank.
     """
-    reliability = player_reliability()
+    from .game_trust import TrustContext
+
     answers = (
         GameAnswer.objects.filter(is_check=False, skipped=False)
         .select_related("roi", "roi__taxon", "roi_b__taxon")
-        .order_by("roi_id")
+        .order_by("roi_id", "answered_at")
     )
+    if roi_ids is not None:
+        answers = answers.filter(roi_id__in=list(roi_ids))
+    answers = list(answers)
+    player_ids = {a.player_id for a in answers}
+    reliability = player_reliability(player_ids)
+    trust = TrustContext(player_ids)
+
     per_roi = {}
-    for ans in answers.iterator(chunk_size=2000):
+    for ans in answers:
         entry = per_roi.setdefault(ans.roi_id, {
-            "roi": ans.roi, "answers": 0, "players": set(),
-            "tally": {r: defaultdict(float) for r in RANKS},
-            "count": {r: defaultdict(int) for r in RANKS},
+            "roi": ans.roi, "answers": 0, "players": set(), "votes": [],
         })
         entry["answers"] += 1
         entry["players"].add(ans.player_id)
-        weights = reliability.get(ans.player_id, {}).get("all") or default_weight()
-        for rank, value in implied_labels(ans).items():
-            entry["tally"][rank][value] += weights[rank]["weight"]
-            entry["count"][rank][value] += 1
+        labels = implied_labels(ans)
+        if labels:
+            entry["votes"].append((ans.player_id, labels))
 
     results = []
     for entry in per_roi.values():
         ranks = {}
         for r in RANKS:
-            tally = entry["tally"][r]
+            tally, count = defaultdict(float), defaultdict(int)
+            display = {}
+            for pid, labels in entry["votes"]:
+                if r not in labels:
+                    continue
+                key = labels[r].lower()
+                display.setdefault(key, labels[r])
+                weights = reliability.get(pid, {}).get("all") or default_weight()
+                tally[key] += weights[r]["weight"]
+                count[key] += 1
             if not tally:
                 ranks[r] = None
                 continue
-            value = max(tally, key=tally.get)
+            key = max(tally, key=tally.get)
             ranks[r] = {
-                "value": value,
-                "support": tally[value] / sum(tally.values()),
-                "votes": entry["count"][r][value],
+                "value": display[key],
+                "support": tally[key] / sum(tally.values()),
+                "votes": count[key],
             }
+        verdict = trust.verdict(entry["votes"], ranks)
+        for r in RANKS:
+            if ranks[r]:
+                ranks[r].update(verdict["ranks"][r])
         results.append({
             "roi": entry["roi"], "answers": entry["answers"],
             "players": len(entry["players"]), "ranks": ranks,
             "rank_list": [(r, ranks[r]) for r in RANKS],
+            "trusted_rank": verdict["trusted_rank"],
+            "taxon": verdict["taxon"],
         })
     results.sort(key=lambda e: (-e["answers"], str(e["roi"].id)))
     return results[:limit] if limit else results

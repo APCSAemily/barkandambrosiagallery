@@ -2,20 +2,35 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-6">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Game review</h1>
-      <p class="text-sm text-gray-500">{{ rounds }} rounds, {{ answers }} answers. Accuracy is measured on validated ROIs (<code>bbox_is_validated</code>) only; players are not told which items those are.</p>
+      <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">Game review</h1>
+      <p class="text-sm text-gray-500">
+        {{ rounds }} rounds, {{ answers }} answers. Accuracy is measured on validated ROIs (<code>bbox_is_validated</code>) only;
+        players are not told which items those are.
+      </p>
     </div>
-    <div class="flex gap-2 text-sm">
-      <a href="{% url 'game_export' 'labels' %}" class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"><i class="fi fi-rr-download"></i> Label consensus CSV</a>
+    <div class="flex flex-wrap gap-2 text-sm">
+      <a href="{% url 'game_export' 'labels' %}" class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"><i class="fi fi-rr-download"></i> Label proposals CSV</a>
       <a href="{% url 'game_export' 'players' %}" class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"><i class="fi fi-rr-download"></i> Player reliability CSV</a>
+      <a href="{% url 'game_export' 'skills' %}" class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"><i class="fi fi-rr-download"></i> Expertise CSV</a>
     </div>
   </div>
 
-  <h2 class="text-lg font-bold text-gray-900 mb-2">Player reliability</h2>
-  <p class="text-xs text-gray-500 mb-3">Correct / judged per rank on validated items. Empty cells have no judged answers yet.</p>
-  <div class="overflow-x-auto border border-gray-100 rounded-xl mb-10">
+  <div class="mb-8 p-4 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg">
+    <p class="font-semibold text-gray-800 mb-1">How labels become expert-backed</p>
+    <p>
+      A player is an expert at a rank within a branch (species within a genus, genus within a tribe, tribe within a subfamily,
+      or subfamily overall) after at least {{ needed }} validated examples there with a 95% Wilson lower bound on accuracy of at least 90%.
+      A proposal is expert-backed at a rank when an expert for that exact branch agrees and no expert disagrees, and every rank above it is
+      expert-backed too. Branches with too few validated ROIs to ever test instead accept players proven in two or more related branches
+      (e.g. other genera of the same tribe). Accept or dismiss proposals on the <a class="underline" href="{% url 'tool_annotate' %}">annotation page</a>.
+    </p>
+  </div>
+
+  <h2 class="text-lg font-semibold text-gray-900 mb-2">Players</h2>
+  <p class="text-xs text-gray-500 mb-3">Correct / judged per rank on validated items. Click a player for their full report.</p>
+  <div class="overflow-x-auto border border-gray-200 rounded-lg mb-10">
     <table class="w-full text-sm whitespace-nowrap">
       <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
         <tr>
@@ -23,6 +38,7 @@
           <th class="px-3 py-2 text-right" rowspan="2">Labelled</th>
           <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Name the beetle</th>
           <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Spot the relatives</th>
+          <th class="px-3 py-2 text-left border-l border-gray-200" rowspan="2">Expert in</th>
         </tr>
         <tr>
           {% for r in ranks %}<th class="px-3 py-1 text-right {% if forloop.first %}border-l border-gray-200{% endif %}">{{ r }}</th>{% endfor %}
@@ -32,7 +48,7 @@
       <tbody>
         {% for p in players %}
         <tr class="border-t border-gray-100">
-          <td class="px-3 py-2 font-medium">{{ p.username }}</td>
+          <td class="px-3 py-2 font-medium"><a class="text-blue-600 hover:underline" href="{% url 'game_player_report' p.id %}">{{ p.username }}</a></td>
           <td class="px-3 py-2 text-right tabular-nums">{{ p.labelled }}</td>
           {% for cell in p.classify %}
           <td class="px-3 py-2 text-right tabular-nums {% if forloop.first %}border-l border-gray-100{% endif %}">
@@ -44,22 +60,31 @@
             {% if cell.n %}{% widthratio cell.accuracy 1 100 %}% <span class="text-gray-400 text-xs">{{ cell.ok }}/{{ cell.n }}</span>{% endif %}
           </td>
           {% endfor %}
+          <td class="px-3 py-2 border-l border-gray-100 text-xs text-gray-600 whitespace-normal min-w-[12rem]">
+            {% for s in p.proven %}<span class="inline-block mr-1 mb-1 px-1.5 py-0.5 rounded bg-green-50 text-green-800 border border-green-200"><i class="fi fi-rr-shield-check"></i> {{ s.rank }}{% if s.branch %}: {{ s.branch }}{% endif %}</span>{% empty %}<span class="text-gray-300">—</span>{% endfor %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="10" class="px-3 py-6 text-center text-gray-400">No players yet.</td></tr>
+        <tr><td colspan="11" class="px-3 py-6 text-center text-gray-400">No players yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <h2 class="text-lg font-bold text-gray-900 mb-2">Labels for unvalidated ROIs</h2>
+  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-2">
+    <h2 class="text-lg font-semibold text-gray-900">Label proposals for unvalidated ROIs</h2>
+    <div class="flex text-sm bg-gray-100 rounded-lg p-1 self-start">
+      <a href="?" class="px-3 py-1.5 rounded-md {% if not only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">All</a>
+      <a href="?trusted=1" class="px-3 py-1.5 rounded-md {% if only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Expert-backed</a>
+    </div>
+  </div>
   <p class="text-xs text-gray-500 mb-3">
     Votes from both modes, weighted by each player's reliability at that rank. A pair answer such as
     &ldquo;same genus&rdquo; votes for the validated partner's subfamily, tribe and genus.
-    Support is the winning name's share of the weighted vote. Top 200 by number of answers; the CSV has all of them.
-    Nothing here changes gallery records.
+    Percent = the winning name's share of the weighted vote; <i class="fi fi-rr-shield-check text-green-700"></i> = expert-backed.
+    Showing {{ consensus|length }} of {{ consensus_total }} (most answered first); the CSV has all of them.
   </p>
-  <div class="overflow-x-auto border border-gray-100 rounded-xl">
+  <div class="overflow-x-auto border border-gray-200 rounded-lg">
     <table class="w-full text-sm whitespace-nowrap">
       <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
         <tr>
@@ -76,13 +101,13 @@
           <td class="px-3 py-2 text-gray-500">{{ entry.roi.taxon.scientific_name|default:"—" }}</td>
           <td class="px-3 py-2 text-right tabular-nums">{{ entry.answers }} <span class="text-gray-400 text-xs">({{ entry.players }} player{{ entry.players|pluralize }})</span></td>
           {% for r, vote in entry.rank_list %}
-          <td class="px-3 py-2">
-            {% if vote %}{{ vote.value }} <span class="text-gray-400 text-xs">{% widthratio vote.support 1 100 %}% · {{ vote.votes }}</span>{% else %}<span class="text-gray-300">—</span>{% endif %}
+          <td class="px-3 py-2 {% if vote.trusted %}font-semibold text-gray-900{% endif %}">
+            {% if vote %}{{ vote.value }} <span class="text-gray-400 text-xs font-normal">{% widthratio vote.support 1 100 %}% · {{ vote.votes }}</span>{% if vote.trusted %} <i class="fi fi-rr-shield-check text-green-700" title="Expert-backed ({{ vote.trusted_votes }})"></i>{% endif %}{% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>
           {% endfor %}
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="px-3 py-6 text-center text-gray-400">No answers on unvalidated ROIs yet.</td></tr>
+        <tr><td colspan="7" class="px-3 py-6 text-center text-gray-400">No proposals{% if only_trusted %} backed by experts{% endif %} yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

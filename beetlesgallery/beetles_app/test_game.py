@@ -6,6 +6,7 @@ import json
 
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from beetlesgallery.beetles_app import game
 from beetlesgallery.beetles_app.models import GameAnswer, GameRound, Taxon
@@ -166,9 +167,10 @@ class ClassifyApiTests(GameCase):
         rnd, item = self.play("classify")
 
         # The payload must not say which ROI this is or whether it is scored.
-        self.assertEqual(set(item), {"index", "position", "total", "images"})
+        self.assertEqual(set(item), {"index", "position", "total", "images", "prefetch"})
         self.assertEqual(set(item["images"][0]), {"url", "box"})
         self.assertNotIn(str(check.id), json.dumps(item))
+        self.assertEqual(len(item["prefetch"]), 1)  # the other item's photo
 
         answer = {"subfamily": "Scolytinae", "tribe": "Xyleborini", "genus": "Xyleborus", "species": "affinis"}
         res = self.post("game_answer", dict(answer, index=item["index"]), rnd.id)
@@ -314,3 +316,273 @@ class ConsensusTests(GameCase):
         self.client.force_login(self.staff)
         csv_text = self.client.get(reverse("game_export", args=["labels"])).content.decode()
         self.assertIn(str(target.id), csv_text)
+
+
+# ---------------------------------------------------------------------------
+# Expertise, trusted proposals, difficulty and rounds
+# ---------------------------------------------------------------------------
+from unittest import mock  # noqa: E402
+
+from beetlesgallery.beetles_app import game_trust  # noqa: E402
+from beetlesgallery.beetles_app.models import ImageLock, LabelReview, PlayerSkill, RoiDifficulty  # noqa: E402
+
+# Small thresholds so a handful of answers proves competence: answers_needed() == 3.
+SMALL_TRUST = dict(GAME_TRUST_MIN_JUDGED=3, GAME_TRUST_MIN_LOWER_BOUND=0.4)
+
+
+class WilsonTests(SimpleTestCase):
+    def test_default_thresholds_need_35_perfect_answers(self):
+        self.assertEqual(game_trust.answers_needed(), 35)
+        self.assertTrue(game_trust.is_proven(35, 35))
+        self.assertFalse(game_trust.is_proven(34, 35))
+        self.assertFalse(game_trust.is_proven(14, 14))
+
+    @override_settings(**SMALL_TRUST)
+    def test_small_thresholds(self):
+        self.assertEqual(game_trust.answers_needed(), 3)
+
+
+@override_settings(**SMALL_TRUST)
+class TrustCase(GameCase):
+    def setUp(self):
+        super().setUp()
+        self.t_xylo = make_taxon(subfamily="Scolytinae", tribe="Xyleborini", genus="Xylosandrus",
+                                 species="crassiusculus", scientific_name="Xylosandrus crassiusculus")
+        self.t_ambro = make_taxon(subfamily="Scolytinae", tribe="Xyleborini", genus="Ambrosiodmus",
+                                  species="minor", scientific_name="Ambrosiodmus minor")
+
+    def answer(self, player, roi, taxon=None, check=True, correct=True, **given):
+        rnd = GameRound.objects.create(player=player, mode="classify", items=[])
+        fields = dict(given)
+        if check:
+            ref = roi.taxon
+            fields.update(ref_subfamily=ref.subfamily, ref_tribe=ref.tribe, ref_genus=ref.genus, ref_species=ref.species)
+            for r in game.RANKS:
+                fields[f"correct_{r}"] = correct
+        return GameAnswer.objects.create(round=rnd, player=player, mode="classify", index=0, roi=roi,
+                                         is_check=check, **fields)
+
+    def prove(self, player, taxon, n=3, correct=True):
+        for _ in range(n):
+            self.answer(player, self.roi(taxon), correct=correct)
+        game_trust.recompute_skills(player)
+
+    def label(self, player, roi, taxon):
+        return self.answer(player, roi, check=False, subfamily=taxon.subfamily, tribe=taxon.tribe,
+                           genus=taxon.genus, species=taxon.species)
+
+
+
+class TrustTests(TrustCase):
+    def test_skills_are_per_rank_and_branch(self):
+        self.prove(self.user, self.t_affinis)
+        skills = {(s.rank, s.branch): s for s in PlayerSkill.objects.filter(player=self.user)}
+        self.assertTrue(skills[("species", "Xyleborus")].proven)
+        self.assertTrue(skills[("genus", "Xyleborini")].proven)
+        self.assertTrue(skills[("tribe", "Scolytinae")].proven)
+        self.assertTrue(skills[("subfamily", "")].proven)
+        self.assertIsNotNone(skills[("species", "Xyleborus")].proven_at)
+
+    def test_wrong_answers_do_not_prove(self):
+        self.prove(self.user, self.t_affinis, correct=False)
+        self.assertFalse(PlayerSkill.objects.filter(player=self.user, proven=True).exists())
+
+    def test_replaying_the_same_roi_counts_once(self):
+        roi = self.roi(self.t_affinis)
+        for _ in range(5):
+            self.answer(self.user, roi)
+        game_trust.recompute_skills(self.user)
+        skill = PlayerSkill.objects.get(player=self.user, rank="species", branch="Xyleborus")
+        self.assertEqual((skill.judged, skill.proven), (1, False))
+
+    def test_expert_label_is_trusted_down_to_species(self):
+        self.prove(self.user, self.t_affinis)
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_ferr)
+        [entry] = game.consensus(roi_ids=[target.id])
+        self.assertEqual(entry["trusted_rank"], "species")
+        self.assertEqual(entry["taxon"], self.t_ferr)
+
+    def test_non_expert_label_is_not_trusted(self):
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_ferr)
+        [entry] = game.consensus(roi_ids=[target.id])
+        self.assertEqual(entry["trusted_rank"], "")
+        self.assertFalse(entry["ranks"]["genus"]["trusted"])
+
+    def test_expertise_in_another_testable_genus_does_not_carry_over(self):
+        self.prove(self.user, self.t_plat)  # Platypus expert only
+        for _ in range(3):
+            self.roi(self.t_affinis)  # Xyleborus is testable
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_affinis)
+        [entry] = game.consensus(roi_ids=[target.id])
+        # Subfamily-level skill is overall, so that part is trusted; nothing below it.
+        self.assertEqual(entry["trusted_rank"], "subfamily")
+
+    def test_expert_disagreement_blocks_trust(self):
+        self.prove(self.user, self.t_affinis)
+        self.prove(self.staff, self.t_affinis)
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_affinis)
+        self.label(self.staff, target, self.t_ferr)
+        [entry] = game.consensus(roi_ids=[target.id])
+        self.assertEqual(entry["trusted_rank"], "genus")
+
+    def test_untestable_genus_trusted_via_sibling_genera(self):
+        # Xylosandrus has no validated ROIs, so it can't be tested directly.
+        self.prove(self.user, self.t_affinis)  # Xyleborus
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_xylo)
+        [entry] = game.consensus(roi_ids=[target.id])
+        self.assertEqual(entry["trusted_rank"], "genus")  # one sibling genus is not enough
+
+        self.prove(self.user, self.t_ambro)  # second genus in Xyleborini
+        from django.core.cache import cache
+        cache.clear()
+        [entry] = game.consensus(roi_ids=[target.id])
+        self.assertEqual(entry["trusted_rank"], "species")
+
+
+class ProposalApiTests(TrustCase):
+    def test_proposals_for_image_and_accept(self):
+        self.prove(self.user, self.t_affinis)
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_ferr)
+        url = reverse("game_proposals")
+
+        self.client.force_login(self.user)
+        self.assertRedirectsToLogin(self.client.get(url, {"image_asset": target.image_asset_id}))
+
+        self.client.force_login(self.staff)
+        data = self.client.get(url, {"image_asset": target.image_asset_id}).json()["proposals"]
+        proposal = data[str(target.id)]
+        self.assertEqual(proposal["trusted_rank"], "species")
+        self.assertEqual(proposal["taxon"]["valid_species_id"], self.t_ferr.valid_species_id)
+        self.assertIsNone(proposal["review"])
+
+        res = self.post("game_proposal_review", {"decision": "accept"}, target.id)
+        self.assertEqual(res.status_code, 200, res.content)
+        target.refresh_from_db()
+        self.assertEqual(target.taxon, self.t_ferr)
+        self.assertFalse(target.bbox_is_validated)
+        review = LabelReview.objects.get()
+        self.assertEqual((review.decision, review.reviewed_by, review.trusted_rank), ("accepted", self.staff, "species"))
+
+        proposal = self.client.get(url, {"image_asset": target.image_asset_id}).json()["proposals"][str(target.id)]
+        self.assertEqual(proposal["review"]["decision"], "accepted")
+
+    def test_dismiss_and_genus_only(self):
+        target = self.roi(validated=False)
+        self.answer(self.user, target, check=False, subfamily="Scolytinae", tribe="Xyleborini", genus="Xyleborus")
+        self.client.force_login(self.staff)
+        self.assertEqual(self.post("game_proposal_review", {"decision": "accept"}, target.id).status_code, 400)
+        self.assertEqual(self.post("game_proposal_review", {"decision": "dismiss"}, target.id).status_code, 200)
+        self.assertEqual(LabelReview.objects.get().decision, "dismissed")
+
+    def test_locked_image_is_refused(self):
+        target = self.roi(validated=False)
+        self.label(self.user, target, self.t_ferr)
+        ImageLock.objects.create(image_asset=target.image_asset, locked_by=self.superuser)
+        self.client.force_login(self.staff)
+        self.assertEqual(self.post("game_proposal_review", {"decision": "accept"}, target.id).status_code, 409)
+
+    def test_annotation_page_loads_proposal_ui(self):
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(reverse("tool_annotate")), "loadGameProposals")
+
+
+class DifficultyTests(GameCase):
+    def test_game_difficulty_from_answers(self):
+        roi = self.roi(self.t_affinis)
+        rnd = GameRound.objects.create(player=self.user, mode="classify", items=[])
+        for i in range(4):
+            GameAnswer.objects.create(round=rnd, player=self.user, mode="classify", index=i, roi=roi,
+                                      is_check=True, genus="Platypus", correct_genus=False)
+        game.update_difficulty([roi.id])
+        self.assertGreater(RoiDifficulty.objects.get(roi=roi).game_difficulty, 0.7)
+
+    def test_model_difficulty_wins(self):
+        roi = self.roi(self.t_affinis)
+        diff = RoiDifficulty.objects.create(roi=roi, model_difficulty=0.1, game_difficulty=0.9)
+        self.assertEqual(diff.value, 0.1)
+
+    def test_target_rises_with_rounds(self):
+        start = game.target_difficulty(self.user)
+        for _ in range(5):
+            GameRound.objects.create(player=self.user, mode="classify", items=[], finished_at=timezone.now())
+        self.assertGreater(game.target_difficulty(self.user), start)
+
+    def test_pick_near_prefers_matching_difficulty(self):
+        easy = [self.roi(self.t_affinis) for _ in range(5)]
+        hard = [self.roi(self.t_affinis) for _ in range(5)]
+        for r in easy:
+            RoiDifficulty.objects.create(roi=r, model_difficulty=0.05)
+        for r in hard:
+            RoiDifficulty.objects.create(roi=r, model_difficulty=0.95)
+        ids = [r.id for r in easy + hard]
+        picked = game._pick_near(ids, 5, target=0.1)
+        self.assertEqual(set(picked), {r.id for r in easy})
+
+
+class RoundFlowTests(GameCase):
+    @override_settings(GAME_ROUND_SIZE=3)
+    def test_reload_resumes_the_round(self):
+        for _ in range(3):
+            self.roi(self.t_affinis)
+        rnd, item = self.play("classify")
+        self.post("game_answer", {"index": item["index"], "genus": "Xyleborus"}, rnd.id)
+        again, item2 = self.play("classify")
+        self.assertEqual(again.id, rnd.id)
+        self.assertEqual(item2["position"], 2)
+
+    def test_focus_targets_branches_the_player_labels(self):
+        self.assertIsNone(game.focus_filter(self.user))
+        rnd = GameRound.objects.create(player=self.user, mode="classify", items=[])
+        GameAnswer.objects.create(round=rnd, player=self.user, mode="classify", index=0,
+                                  roi=self.roi(validated=False), tribe="Xyleborini", genus="Xyleborus")
+        focused = game.check_rois().filter(game.focus_filter(self.user))
+        inside, outside = self.roi(self.t_affinis), self.roi(self.t_plat)
+        self.assertIn(inside, focused)
+        self.assertNotIn(outside, focused)
+
+    def test_malformed_taxa_are_not_offered(self):
+        # A shifted row from the real species list: epithet in the subfamily column.
+        make_taxon(subfamily="alienus", tribe="", genus="", species="", scientific_name="Glochiphorus alienus")
+        self.client.force_login(self.user)
+        options = self.client.get(reverse("game_taxa"), {"rank": "subfamily"}).json()["options"]
+        self.assertNotIn("alienus", [o["value"] for o in options])
+
+    def test_response_time_is_recorded(self):
+        self.roi(self.t_affinis)
+        with override_settings(GAME_ROUND_SIZE=1):
+            rnd, item = self.play("classify")
+        self.post("game_answer", {"index": item["index"], "genus": "Xyleborus", "elapsed_ms": 4200}, rnd.id)
+        self.assertEqual(GameAnswer.objects.get().response_ms, 4200)
+
+
+class ReportTests(GameCase):
+    def test_own_report(self):
+        self.client.force_login(self.user)
+        self.assertRedirectsToLogin(self.client.get(reverse("game_player_report", args=[self.staff.id])))
+        res = self.client.get(reverse("game_report"))
+        self.assertContains(res, "My performance")
+
+    def test_staff_can_view_any_report(self):
+        self.client.force_login(self.staff)
+        res = self.client.get(reverse("game_player_report", args=[self.user.id]))
+        self.assertContains(res, self.user.username)
+        self.assertEqual(self.client.get(reverse("game_export", args=["skills"]))["Content-Type"], "text/csv")
+
+
+@override_settings(**SMALL_TRUST, GAME_REPORT_MIN_JUDGED=2)
+class ReportPrivacyTests(TrustCase):
+    def test_report_only_shows_groups_the_player_named(self):
+        # Scored items were Xyleborus; the player called them Platypus every time.
+        for _ in range(2):
+            self.answer(self.user, self.roi(self.t_affinis), correct=False, subfamily="Platypodinae",
+                        tribe="Platypodini", genus="Platypus")
+        game_trust.recompute_skills(self.user)
+        progressing = game_trust.player_report(self.user)["progressing"]
+        self.assertNotIn("Xyleborus", [s.branch for s in progressing])
+        self.assertEqual([s.rank for s in progressing], ["subfamily"])

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <div class="flex items-center gap-3 mb-6">
+    <a href="{% if is_self %}{% url 'game_home' %}{% else %}{% url 'game_review' %}{% endif %}" class="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Back">
+      <i class="fi fi-rr-angle-left text-lg"></i>
+    </a>
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
+        {% if is_self %}My performance{% else %}{{ player.username }}{% endif %}
+      </h1>
+      <p class="text-sm text-gray-500">Updated at the end of each round.</p>
+    </div>
+  </div>
+
+  <!-- Headline numbers -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Labelled</div>
+      <div class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ report.summary.labelled }}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Accuracy</div>
+      <div class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+        {% if report.summary.accuracy is not None %}{% widthratio report.summary.accuracy 1 100 %}%{% else %}<span class="text-gray-400">&ndash;</span>{% endif %}
+      </div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Rounds</div>
+      <div class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ report.rounds }}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Expert areas</div>
+      <div class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ report.proven|length }}</div>
+    </div>
+  </div>
+
+  <!-- Challenge level -->
+  <div class="mb-8">
+    <div class="flex items-baseline justify-between mb-1">
+      <h2 class="text-lg font-semibold text-gray-900">Challenge level</h2>
+      <span class="text-sm text-gray-500 tabular-nums">{% widthratio report.challenge 1 100 %} / 100</span>
+    </div>
+    <div class="h-2 bg-gray-100 rounded-full overflow-hidden" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{% widthratio report.challenge 1 100 %}" aria-label="Challenge level">
+      <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio report.challenge 1 100 %}%"></div>
+    </div>
+    <p class="mt-2 text-xs text-gray-500">Images get harder as you play and as your accuracy grows.</p>
+  </div>
+
+  <!-- Expertise -->
+  <div class="mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Expertise</h2>
+    <p class="text-xs text-gray-500 mb-3">
+      You become an expert in a group once you've named at least {{ report.needed }} of its beetles with very high accuracy
+      (we need to be 95% sure your accuracy is at least {% widthratio report.min_lower_bound 1 100 %}%).
+      Experts' labels are flagged to our curators as trusted.
+    </p>
+
+    {% if report.proven %}
+    <ul class="border border-gray-200 rounded-lg divide-y divide-gray-100 mb-4">
+      {% for s in report.proven %}
+      <li class="flex items-center gap-3 px-4 py-3">
+        <i class="fi fi-rr-shield-check text-green-700 text-lg"></i>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-gray-900">
+            {{ s.rank|capfirst }} ID{% if s.branch %} in <span class="{% if s.rank == 'species' %}italic{% endif %}">{{ s.branch }}</span>{% endif %}
+          </div>
+          <div class="text-xs text-gray-500">{{ s.correct }} of {{ s.judged }} correct{% if s.proven_at %} · expert since {{ s.proven_at|date:"M j, Y" }}{% endif %}</div>
+        </div>
+        <span class="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-800 border border-green-200">Expert</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if report.progressing %}
+    <h3 class="text-sm font-semibold text-gray-700 mb-2">On the way</h3>
+    <ul class="space-y-3">
+      {% for s in report.progressing %}
+      <li>
+        <div class="flex items-baseline justify-between text-sm">
+          <span class="text-gray-900 truncate">{{ s.rank|capfirst }} ID{% if s.branch %} in <span class="{% if s.rank == 'species' %}italic{% endif %}">{{ s.branch }}</span>{% endif %}</span>
+          <span class="text-xs text-gray-500 tabular-nums ml-2 shrink-0">{{ s.judged }}/{{ report.needed }} · {% widthratio s.accuracy 1 100 %}% right</span>
+        </div>
+        <div class="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title="{{ s.judged }} of {{ report.needed }} answers, {{ s.correct }} correct">
+          <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio s.progress 1 100 %}%"></div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif not report.proven %}
+    <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">Play &ldquo;Name the beetle&rdquo; to start building expertise.</p>
+    {% endif %}
+  </div>
+
+  <!-- By rank -->
+  <div class="mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Accuracy by rank</h2>
+    <div class="border border-gray-200 rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+          <tr>
+            <th class="py-2 pl-4 pr-2 text-left">Rank</th>
+            <th class="py-2 px-2 text-right">Name the beetle</th>
+            <th class="py-2 pl-2 pr-4 text-right">Spot the relatives</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report.by_rank %}
+          <tr class="border-t border-gray-100">
+            <td class="py-2.5 pl-4 pr-2 text-gray-900">{{ row.rank|capfirst }}</td>
+            <td class="py-2.5 px-2 text-right tabular-nums">
+              {% if row.classify.n %}{% widthratio row.classify.accuracy 1 100 %}% <span class="text-xs text-gray-400">of {{ row.classify.n }}</span>{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}
+            </td>
+            <td class="py-2.5 pl-2 pr-4 text-right tabular-nums">
+              {% if row.pair.n %}{% widthratio row.pair.accuracy 1 100 %}% <span class="text-xs text-gray-400">of {{ row.pair.n }}</span>{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trend -->
+  <div class="mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Last six months</h2>
+    {% if report.monthly %}
+    <div class="border border-gray-200 rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+          <tr>
+            <th class="py-2 pl-4 pr-2 text-left">Month</th>
+            <th class="py-2 px-2 text-right">Labelled</th>
+            <th class="py-2 pl-2 pr-4 text-left w-1/2">Accuracy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in report.monthly %}
+          <tr class="border-t border-gray-100">
+            <td class="py-2.5 pl-4 pr-2 text-gray-900 whitespace-nowrap">{{ m.month|date:"M Y" }}</td>
+            <td class="py-2.5 px-2 text-right tabular-nums">{{ m.labelled }}</td>
+            <td class="py-2.5 pl-2 pr-4">
+              {% if m.accuracy is not None %}
+              <div class="flex items-center gap-2" title="{{ m.judged }} scored ranks">
+                <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio m.accuracy 1 100 %}%"></div>
+                </div>
+                <span class="text-xs text-gray-600 tabular-nums w-9 text-right">{% widthratio m.accuracy 1 100 %}%</span>
+              </div>
+              {% else %}<span class="text-gray-300">&ndash;</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">No games played in the last six months.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -190,6 +190,25 @@ GAME_CALIBRATION_CHECKS = 20          # scored answers before a player counts as
 GAME_CHECK_RATIO_NEW = 0.6            # share of validated (scored) items while calibrating
 GAME_CHECK_RATIO_KNOWN = 0.2          # ... and afterwards
 GAME_MIN_JUDGED_FOR_ACCURACY = 10     # judged ranks needed before an accuracy is shown
+GAME_REPORT_MIN_JUDGED = 5            # scored answers before a group shows on a player's report
+GAME_RESUME_HOURS = 12                # an unfinished round is picked up again within this time
+
+# Item difficulty (0 easy .. 1 hard): the target starts low and rises with every round
+GAME_DIFFICULTY_START = 0.2
+GAME_DIFFICULTY_PER_ROUND = 0.02
+GAME_DIFFICULTY_SKILL_WEIGHT = 0.3    # accurate players get harder items sooner
+GAME_DIFFICULTY_MAX = 0.9
+GAME_CANDIDATE_OVERSAMPLE = 6         # candidates drawn per slot before matching difficulty
+
+# Trusted labels (beetles_app/game_trust.py). A player is proven at a rank within a
+# branch (e.g. species within one genus) with at least MIN_JUDGED scored answers there
+# and a Wilson lower bound (Z = 1.96 -> 95%) of at least MIN_LOWER_BOUND. With the
+# defaults a perfect record proves competence after 35 answers.
+GAME_TRUST_MIN_JUDGED = 15
+GAME_TRUST_MIN_LOWER_BOUND = 0.9
+GAME_TRUST_Z = 1.96
+GAME_TRUST_SIBLINGS = 2               # related branches needed where a branch can't be tested
+GAME_TRUST_MIN_VOTES = 1              # trusted players needed to back a label
 
 # Upload Constraints
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
