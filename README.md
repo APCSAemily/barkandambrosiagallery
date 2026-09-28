@@ -22,29 +22,47 @@ If you are cloning this repository for the first time (or setting up a new machi
 
 1. **Clone the Repository**
 ```bash
-git clone https://github.com/your-org/beetlesgallery.git
-cd beetlesgallery
+git clone https://github.com/ChristopherMarais/barkandambrosiagallery.git
+cd barkandambrosiagallery
 
 ```
 
 
-2. **Build the Environment**
-This builds the Docker container and installs all Python (Pixi) and JavaScript (npm) dependencies.
+2. **Create the `.env` File**
+Docker Compose will not start without a `.env` file in the project root. For local development it only needs debug mode turned on. Without it, pages fail with `Missing staticfiles manifest entry`.
+```
+DJANGO_DEBUG=True
+
+```
+
+
+3. **Build the Environment**
+This builds the Docker container and installs the Python (Pixi) dependencies.
 ```bash
 docker compose build
 
 ```
 
 
-3. **Initialize the Database**
-Run the migrations to create the database schema.
+4. **Install JavaScript Dependencies**
+The Docker build does not install the npm packages that Tailwind needs. This puts them in `node_modules/` in your project folder.
 ```bash
+docker compose run --rm web pixi run install-js
+
+```
+
+
+5. **Initialize the Database**
+Start the database and enable the `pg_trgm` extension (the migrations add trigram indexes and fail without it). Then run the migrations to create the database schema.
+```bash
+docker compose up -d --wait db
+docker compose exec db psql -U beetles_user -d beetles_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 docker compose run --rm web pixi run migrate
 
 ```
 
 
-4. **Create an Admin User**
+6. **Create an Admin User**
 You need this to access the upload tools and admin panel.
 ```bash
 docker compose run --rm web pixi run python manage.py createsuperuser
@@ -66,8 +84,8 @@ docker compose up -d
 
 ```
 
-* **View the site:** [http://localhost:8000](https://www.google.com/search?q=http://localhost:8000)
-* **Stop the site:** Press `Ctrl+C` in the terminal.
+* **View the site:** [http://localhost:8000](http://localhost:8000)
+* **Stop the site:** `docker compose down` (your database and uploads stay in Docker volumes).
 
 ### **Step B: Editing Code (Python & HTML)**
 
@@ -77,16 +95,17 @@ docker compose up -d
 
 Because we use Tailwind, changing classes in HTML (e.g., `text-red-500` to `text-blue-500`) requires recompiling the CSS file.
 
-1. Open a **new terminal** window (keep `docker compose up` running in the first one).
+1. Open a **new terminal** window.
 2. Run the CSS watcher:
 ```bash
-docker compose run --rm web pixi run build-css
+docker compose run --rm web pixi run watch-css
 
 ```
 
 
-* *Note: This command runs in "watch mode" (it will stay open).*
+* *Note: This command runs in "watch mode" (it will stay open). Press `Ctrl+C` to stop it.*
 * As you save HTML or JS files, you will see it regenerate `style.css` instantly.
+* For a one-time rebuild without watching, use `pixi run build-css` instead of `pixi run watch-css`.
 
 
 
@@ -117,7 +136,7 @@ docker compose run --rm web pixi run migrate
 
 
 * **JavaScript:** Edit `package.json`.
-* Run `docker compose build` to update.
+* Run `docker compose run --rm web pixi run install-js` to update `node_modules/` and `package-lock.json`.
 
 
 
@@ -170,14 +189,16 @@ git push origin main
 | Goal | Command |
 | --- | --- |
 | **Start Site** | `docker compose up` |
-| **Watch CSS** | `docker compose run --rm web pixi run build-css` |
+| **Stop Site** | `docker compose down` |
+| **Watch CSS** | `docker compose run --rm web pixi run watch-css` |
+| **Install JS Dependencies** | `docker compose run --rm web pixi run install-js` |
 | **Apply DB Changes** | `docker compose run --rm web pixi run migrate` |
 | **Create Migration** | `docker compose run --rm web pixi run python manage.py makemigrations` |
 | **Create Admin (Locally)** | `docker compose run --rm web pixi run python manage.py createsuperuser` |
 | **Create Admin (Server)** | `docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -it web pixi run python manage.py createsuperuser` |
 | **Rebuild Container** | `docker compose build` |
 | **Run Arbitrary Command** | `docker compose run --rm web pixi run python manage.py <command>` |
-| **Rebuild CSS** | `docker compose run --rm web pixi run npx tailwindcss -i ./beetlesgallery/static/css/input.css -o ./beetlesgallery/static/css/style.css --watch` |
+| **Rebuild CSS (Once)** | `docker compose run --rm web pixi run build-css` |
 | **Rebuild Taxonomy Tree** | `docker compose run --rm web pixi run python manage.py build_taxonomy_tree` |
 
 
