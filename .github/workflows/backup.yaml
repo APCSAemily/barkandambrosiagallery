@@ -1,5 +1,8 @@
 name: Dropbox Backup
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # FAST BACKUP: Runs every Sunday at 2:00 AM UTC
