@@ -9,6 +9,7 @@ import os
 import math
 import requests
 import time
+import logging
 from datetime import date, timedelta
 from io import BytesIO
 
@@ -38,6 +39,8 @@ import pandas as pd
 from io import BytesIO, StringIO
 
 MODAL_API_URL = "https://christophermarais--ibbi-api-fastapi-app.modal.run/analyze"
+
+logger = logging.getLogger(__name__)
 
 # Custom decorator for superuser-only views
 def superuser_required(view_func):
@@ -1560,6 +1563,8 @@ def tool_classify(request):
                 "message": "The AI model is waking up (Cold Start). Please try again in 1 minute."
             }, status=504)
         except Exception:
+            # Details go to the server log, not to the browser.
+            logger.exception("AI classification request failed")
             return JsonResponse({
                 "status": "error", 
                 "message": "Processing failed. Please try again later."
