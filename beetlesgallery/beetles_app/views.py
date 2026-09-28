@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.urls import reverse
 from django.conf import settings
 from django.contrib import messages
-from django.utils.http import http_date
+from django.utils.http import http_date, url_has_allowed_host_and_scheme
 from django.http import HttpResponseNotAllowed, FileResponse, HttpResponse, Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import login, update_session_auth_hash, get_user_model
@@ -1495,7 +1495,14 @@ def create_specimen_for_image(request, image_id):
     _run_update_batch(request, row_data, f"add_specimen_{image_asset.id.hex[:8]}.csv")
     
     messages.success(request, "Update queued successfully. Changes will appear shortly.")
-    return redirect(request.META.get('HTTP_REFERER', 'image_browser'))
+    referer = request.META.get('HTTP_REFERER')
+    if referer and url_has_allowed_host_and_scheme(
+        url=referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(referer)
+    return redirect(reverse('image_browser'))
 
 
 def _run_update_batch(request, row_data, filename):
