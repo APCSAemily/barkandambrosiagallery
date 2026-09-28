@@ -108,7 +108,7 @@ class Command(BaseCommand):
 
         try:
             df = pd.read_csv(batch.file.path)
-            df.columns = [str(c).strip() for c in df.columns]
+            df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
         except Exception as e:
             self._fail(batch, f"Cannot read CSV: {e}")
             return
@@ -196,6 +196,7 @@ class Command(BaseCommand):
             taxon_map = {t.valid_species_id: t for t in Taxon.objects.all()}
             
             with transaction.atomic():
+                images_to_unvalidate = {}
                 for plan in updates_plan:
                     obj = plan["beetle"]
                     b_data = plan["b_data"]
@@ -211,6 +212,9 @@ class Command(BaseCommand):
                             val = _to_float(v)
                         elif k == "bbox_is_validated":
                             val = _to_bool(v)
+                            if val is False:
+                                obj.bbox_validated_by = None
+                                obj.bbox_validated_at = None
                         elif k in ["depicts_valid_name_id", "depicts_described_name_id"]:
                             val = _none(v)
                             if val is not None:
@@ -254,7 +258,11 @@ class Command(BaseCommand):
                         has_i_change = False
                         for k, v in i_data.items():
                             if k == "image_has_multiple_individuals": val = _to_bool(v)
-                            elif k == "is_validated": val = _to_bool(v)
+                            elif k == "is_validated":
+                                val = _to_bool(v)
+                                # Devalidating a validated image cascades to all its ROIs (applied after the loop)
+                                if val is False and img.is_validated:
+                                    images_to_unvalidate[img.id] = img
                             elif k == "resolution_in_ppmm": val = _to_decimal(v)
                             elif k == "image_date_taken": val = _to_date(v)
                             else: val = _none(v)
@@ -266,6 +274,10 @@ class Command(BaseCommand):
                         
                         if has_i_change:
                             img.save()
+
+                # Run after all ROI saves so stale in-memory ROIs can't re-validate the image
+                for img in images_to_unvalidate.values():
+                    img.unvalidate(user=batch.uploaded_by)
 
             batch.rows_changed = changed_count
             batch.mark_applied_and_archive()

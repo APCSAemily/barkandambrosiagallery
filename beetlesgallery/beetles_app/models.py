@@ -86,6 +86,36 @@ class ImageAsset(models.Model):
         for beetle in self.specimens.filter(is_deleted=False):
             beetle.delete(deleted_by=deleted_by)
 
+    def unvalidate(self, user=None):
+        """
+        Staff action: move the image and all of its active ROIs back to unvalidated.
+        Clears the ROI validation audit stamps.
+        """
+        roi_updates = dict(bbox_is_validated=False, bbox_validated_by=None, bbox_validated_at=None)
+        if user:
+            roi_updates["last_updated_by"] = user
+            self.last_updated_by = user
+        self.specimens.filter(is_deleted=False).update(**roi_updates)
+        self.is_validated = False
+        self.save(update_fields=['is_validated', 'last_updated_by', 'updated_at'])
+
+    def validate(self, user=None):
+        """
+        Staff action: validate every active ROI that has a bounding box.
+        Follows the same rule as the Beetles post_save signal: an image with no
+        boxed ROIs cannot be validated. Returns the resulting is_validated.
+        """
+        boxed_rois = self.specimens.filter(is_deleted=False, bbox_x__isnull=False)
+        roi_updates = dict(bbox_is_validated=True, bbox_validated_at=timezone.now())
+        if user:
+            roi_updates["bbox_validated_by"] = user
+            roi_updates["last_updated_by"] = user
+            self.last_updated_by = user
+        boxed_rois.filter(bbox_is_validated=False).update(**roi_updates)
+        self.is_validated = boxed_rois.exists()
+        self.save(update_fields=['is_validated', 'last_updated_by', 'updated_at'])
+        return self.is_validated
+
     def __str__(self):
         return f"Image {self.image_sha256[:8] if self.image_sha256 else 'NoSHA'} ({self.full_path_at_import})"
 
@@ -295,6 +325,31 @@ class Beetles(models.Model):
     def has_bbox(self) -> bool:
         """Check if this Beetle record has bounding box annotation data."""
         return self.bbox_x is not None
+
+    def unvalidate(self, user=None):
+        """
+        Unvalidates this ROI. Its save will trigger the post_save signal,
+        which automatically moves the parent ImageAsset to unvalidated as well.
+        """
+        self.bbox_is_validated = False
+        self.bbox_validated_by = None
+        self.bbox_validated_at = None
+        if user:
+            self.last_updated_by = user
+        self.save(update_fields=['bbox_is_validated', 'bbox_validated_by', 'bbox_validated_at', 'last_updated_by', 'last_updated_at'])
+
+    def validate(self, user=None):
+        """
+        Validates this ROI. Its save will trigger the post_save signal.
+        If all other ROIs on the image are validated, the parent ImageAsset
+        will automatically move to validated as well.
+        """
+        self.bbox_is_validated = True
+        if user:
+            self.bbox_validated_by = user
+            self.last_updated_by = user
+        self.bbox_validated_at = timezone.now()
+        self.save(update_fields=['bbox_is_validated', 'bbox_validated_by', 'bbox_validated_at', 'last_updated_by', 'last_updated_at'])
 
     # ---------
     # Helpers: content-addressed relative paths based on sha256
@@ -1098,3 +1153,203 @@ class PathogenInteraction(models.Model):
     def __str__(self):
         return f"{self.beetle_host} - {self.pathogen} ({self.category})"
 
+
+
+# -----------------------------
+# Beetle ID game
+# -----------------------------
+class GameRound(models.Model):
+    """
+    One round of the Beetle ID game for one player.
+
+    The items are chosen when the round starts and stored in ``items`` so the
+    client never picks what it is shown. Each item is a dict:
+    {"a": <Beetles id>, "b": <Beetles id or None>, "check": bool, "flip": bool}.
+    "check" items have a validated answer and are scored; the client is never told which.
+    """
+
+    class Mode(models.TextChoices):
+        CLASSIFY = "classify", "Classify"
+        PAIR = "pair", "Compare pairs"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_rounds"
+    )
+    mode = models.CharField(max_length=10, choices=Mode.choices, db_index=True)
+    items = models.JSONField(default=list)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "game_round"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.get_mode_display()} round by {self.player} ({self.started_at:%Y-%m-%d})"
+
+
+class GameAnswer(models.Model):
+    """
+    One answered item of a round.
+
+    Classify: ``roi`` is the region shown and the four rank fields hold the answer
+    (blank = the player stopped before that rank).
+    Pair: ``roi`` and ``roi_b`` are the two regions and ``pair_answer`` is the deepest
+    rank the player says they share. On unvalidated pairs ``roi`` is the unvalidated one.
+
+    ``correct_<rank>`` is only filled for check items: True/False when that rank was
+    judged, None when it was not answered or has no reference value.
+    """
+
+    class PairAnswer(models.TextChoices):
+        DIFFERENT = "different", "Different subfamily"
+        SUBFAMILY = "subfamily", "Same subfamily"
+        TRIBE = "tribe", "Same tribe"
+        GENUS = "genus", "Same genus"
+        SPECIES = "species", "Same species"
+        UNSURE = "unsure", "Not sure"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    round = models.ForeignKey(GameRound, on_delete=models.CASCADE, related_name="answers")
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_answers"
+    )
+    mode = models.CharField(max_length=10, choices=GameRound.Mode.choices, db_index=True)
+    index = models.PositiveSmallIntegerField(help_text="Position of the item in its round.")
+    is_check = models.BooleanField(default=False, db_index=True)
+    skipped = models.BooleanField(default=False)
+
+    roi = models.ForeignKey(Beetles, on_delete=models.CASCADE, related_name="game_answers")
+    roi_b = models.ForeignKey(
+        Beetles, on_delete=models.CASCADE, null=True, blank=True, related_name="game_answers_as_b"
+    )
+
+    subfamily = models.CharField(max_length=100, blank=True)
+    tribe = models.CharField(max_length=100, blank=True)
+    genus = models.CharField(max_length=100, blank=True)
+    species = models.CharField(max_length=100, blank=True)
+    pair_answer = models.CharField(max_length=10, choices=PairAnswer.choices, blank=True)
+
+    correct_subfamily = models.BooleanField(null=True, blank=True)
+    correct_tribe = models.BooleanField(null=True, blank=True)
+    correct_genus = models.BooleanField(null=True, blank=True)
+    correct_species = models.BooleanField(null=True, blank=True)
+
+    # Reference label of ``roi`` when the answer was scored (check items only), kept so
+    # per-branch expertise survives later taxonomy or label edits.
+    ref_subfamily = models.CharField(max_length=100, blank=True)
+    ref_tribe = models.CharField(max_length=100, blank=True)
+    ref_genus = models.CharField(max_length=100, blank=True)
+    ref_species = models.CharField(max_length=100, blank=True)
+
+    response_ms = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Time from the item appearing to the answer, as reported by the browser."
+    )
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "game_answer"
+        constraints = [
+            models.UniqueConstraint(fields=["round", "index"], name="game_answer_round_index_uniq"),
+        ]
+        indexes = [
+            models.Index(fields=["player", "mode", "is_check"], name="game_answer_player_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.player} #{self.index} ({self.mode})"
+
+
+class PlayerSkill(models.Model):
+    """
+    How well a player identifies one rank within one branch of the taxonomy, from
+    their scored "Name the beetle" answers. Recomputed whenever they finish a round.
+
+      rank=species,   branch=<genus>      species ID within that genus
+      rank=genus,     branch=<tribe>      genus ID within that tribe
+      rank=tribe,     branch=<subfamily>  tribe ID within that subfamily
+      rank=subfamily, branch=""           subfamily ID overall
+
+    ``proven`` means enough answers with a high enough Wilson lower bound
+    (GAME_TRUST_* settings). ``proven_at`` is when it last became proven.
+    """
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_skills"
+    )
+    rank = models.CharField(max_length=10)
+    branch = models.CharField(max_length=100, blank=True)
+    correct = models.PositiveIntegerField(default=0)
+    judged = models.PositiveIntegerField(default=0)
+    lower_bound = models.FloatField(default=0.0)
+    proven = models.BooleanField(default=False, db_index=True)
+    proven_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "game_player_skill"
+        constraints = [
+            models.UniqueConstraint(fields=["player", "rank", "branch"], name="game_skill_uniq"),
+        ]
+
+    def __str__(self):
+        where = f" in {self.branch}" if self.branch else ""
+        return f"{self.player} {self.rank}{where}: {self.correct}/{self.judged}"
+
+
+class LabelReview(models.Model):
+    """A staff decision on a game label proposal for one ROI (accepted or dismissed)."""
+
+    class Decision(models.TextChoices):
+        ACCEPTED = "accepted", "Accepted"
+        DISMISSED = "dismissed", "Dismissed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    roi = models.ForeignKey(Beetles, on_delete=models.CASCADE, related_name="label_reviews")
+    decision = models.CharField(max_length=10, choices=Decision.choices)
+    subfamily = models.CharField(max_length=100, blank=True)
+    tribe = models.CharField(max_length=100, blank=True)
+    genus = models.CharField(max_length=100, blank=True)
+    species = models.CharField(max_length=100, blank=True)
+    taxon = models.ForeignKey("Taxon", on_delete=models.SET_NULL, null=True, blank=True)
+    trusted_rank = models.CharField(
+        max_length=10, blank=True, help_text="Deepest rank backed by a proven expert when reviewed."
+    )
+    answers = models.PositiveIntegerField(default=0, help_text="Game answers on the ROI when reviewed.")
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="game_label_reviews"
+    )
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "game_label_review"
+        ordering = ["-reviewed_at"]
+
+
+class RoiDifficulty(models.Model):
+    """
+    How hard an ROI is to identify, used to match items to players.
+
+    ``model_difficulty`` is for classifier output (e.g. 1 - top confidence), to be filled
+    by a future upload or pipeline; when set it takes precedence. ``game_difficulty`` is
+    learned from game answers: the error rate on scored items, or disagreement between
+    players on unvalidated ones. Both run from 0 (easy) to 1 (hard).
+    """
+
+    roi = models.OneToOneField(Beetles, on_delete=models.CASCADE, primary_key=True, related_name="difficulty")
+    model_difficulty = models.FloatField(null=True, blank=True)
+    model_name = models.CharField(max_length=100, blank=True)
+    model_updated_at = models.DateTimeField(null=True, blank=True)
+    game_difficulty = models.FloatField(null=True, blank=True)
+    game_answers = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "game_roi_difficulty"
+
+    @property
+    def value(self):
+        if self.model_difficulty is not None:
+            return self.model_difficulty
+        return self.game_difficulty

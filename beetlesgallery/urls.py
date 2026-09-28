@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.views.static import serve
 
 from beetlesgallery.beetles_app import views as beetles_views
+from beetlesgallery.beetles_app import game_views
 from beetlesgallery.beetles_app.views import LoginViewWithRedirectMessage, PostOnlyLogoutView
 
 urlpatterns = [
@@ -35,6 +36,8 @@ urlpatterns = [
     path('interactions/', beetles_views.interactions_preview, name='interactions_preview'),
 
     path('beetles/<uuid:beetle_id>/', beetles_views.beetle_detail, name='beetle_detail'),
+    path('beetles/<uuid:beetle_id>/toggle-validation/', beetles_views.toggle_beetle_validation, name='toggle_beetle_validation'),
+    path('images/<uuid:image_id>/toggle-validation/', beetles_views.toggle_image_validation, name='toggle_image_validation'),
     path("beetles/add_specimen/<uuid:image_id>/", beetles_views.create_specimen_for_image, name="create_specimen_for_image"),
 
     # --- Tools ---
@@ -49,6 +52,20 @@ urlpatterns = [
     path('update_single/<uuid:beetle_id>/', beetles_views.update_single_beetle, name='update_single_beetle'),
     path('tools/classify/', beetles_views.tool_classify, name='tool_classify'),
     path('tools/annotate/', beetles_views.tool_annotate, name='tool_annotate'),
+
+    # --- Beetle ID game ---
+    path('game/', game_views.game_home, name='game_home'),
+    path('game/play/<str:mode>/', game_views.game_play, name='game_play'),
+    path('game/api/start/', game_views.game_start, name='game_start'),
+    path('game/me/', game_views.game_report, name='game_report'),
+    path('game/players/<int:user_id>/', game_views.game_player_report, name='game_player_report'),
+    path('game/api/proposals/', game_views.game_proposals, name='game_proposals'),
+    path('game/api/proposals/<uuid:roi_id>/review/', game_views.game_proposal_review, name='game_proposal_review'),
+    path('game/api/round/<uuid:round_id>/answer/', game_views.game_answer, name='game_answer'),
+    path('game/api/taxa/', game_views.game_taxa, name='game_taxa'),
+    path('game/api/taxa/search/', game_views.game_taxa_search, name='game_taxa_search'),
+    path('game/review/', game_views.game_review, name='game_review'),
+    path('game/review/<str:kind>.csv', game_views.game_export, name='game_export'),
 
     # --- API ---
     path('api/v1/', include('beetlesgallery.beetles_app.api.urls')),

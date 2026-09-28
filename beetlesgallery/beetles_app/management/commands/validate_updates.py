@@ -150,7 +150,7 @@ class Command(BaseCommand):
 
         try:
             df = pd.read_csv(batch.file.path)
-            df.columns = [str(c).strip() for c in df.columns]
+            df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
         except Exception as e:
             errors.append(f"Cannot open CSV: {e}")
             return self._finalize(batch, errors, dry_run)

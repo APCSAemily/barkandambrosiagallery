@@ -3,7 +3,8 @@ from django.utils.html import format_html, mark_safe
 from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
-    Taxon, Synonym, CategoryMapping
+    Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
+    PlayerSkill, LabelReview, RoiDifficulty,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -783,3 +784,46 @@ class CategoryMappingAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None): return request.user.is_superuser
 
 
+
+
+# ---------- Beetle ID game ----------
+@admin.register(GameRound)
+class GameRoundAdmin(admin.ModelAdmin):
+    list_display = ("id", "player", "mode", "started_at", "finished_at")
+    list_filter = ("mode", "started_at")
+    search_fields = ("player__username",)
+    readonly_fields = ("id", "player", "mode", "items", "started_at", "finished_at")
+
+
+@admin.register(GameAnswer)
+class GameAnswerAdmin(admin.ModelAdmin):
+    list_display = (
+        "player", "mode", "is_check", "skipped", "subfamily", "tribe", "genus", "species",
+        "pair_answer", "correct_subfamily", "correct_tribe", "correct_genus", "correct_species",
+        "answered_at",
+    )
+    list_filter = ("mode", "is_check", "skipped", "answered_at")
+    search_fields = ("player__username", "genus", "species")
+    raw_id_fields = ("round", "roi", "roi_b")
+    list_select_related = ("player",)
+
+
+@admin.register(PlayerSkill)
+class PlayerSkillAdmin(admin.ModelAdmin):
+    list_display = ("player", "rank", "branch", "correct", "judged", "lower_bound", "proven", "proven_at")
+    list_filter = ("rank", "proven")
+    search_fields = ("player__username", "branch")
+    readonly_fields = ("player", "rank", "branch", "correct", "judged", "lower_bound", "proven", "proven_at", "updated_at")
+
+
+@admin.register(LabelReview)
+class LabelReviewAdmin(admin.ModelAdmin):
+    list_display = ("roi", "decision", "genus", "species", "trusted_rank", "answers", "reviewed_by", "reviewed_at")
+    list_filter = ("decision", "trusted_rank", "reviewed_at")
+    raw_id_fields = ("roi", "taxon")
+
+
+@admin.register(RoiDifficulty)
+class RoiDifficultyAdmin(admin.ModelAdmin):
+    list_display = ("roi", "model_difficulty", "model_name", "game_difficulty", "game_answers", "updated_at")
+    raw_id_fields = ("roi",)

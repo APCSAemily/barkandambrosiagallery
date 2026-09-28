@@ -1314,8 +1314,8 @@ def update_upload(request):
     errors = []
     try:
         df = pd.read_csv(batch.file.path)
-        # normalize headers (strip)
-        df.columns = [str(c).strip() for c in df.columns]
+        # normalize headers (strip whitespace and UTF-8 BOM)
+        df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
     except Exception as e:
         batch.mark_rejected_and_move(f"Cannot open CSV: {e}")
         messages.error(request, "Update rejected: cannot open CSV.")
@@ -1382,7 +1382,7 @@ def update_single_beetle(request, beetle_id):
         "collection_country", "collection_stateProvince", "specimen_sex", 
         "specimen_type_status", "image_notes", "specimen_notes"
     ]
-    
+
     for f in fields:
         val = request.POST.get(f)
         if f == "image_has_multiple_individuals":
@@ -1392,6 +1392,75 @@ def update_single_beetle(request, beetle_id):
     _run_update_batch(request, row_data, f"single_edit_{beetle.id}.csv")
     messages.success(request, "Update queued successfully. Changes will appear shortly.")
     return redirect("beetle_detail", beetle_id=beetle_id)
+
+
+@staff_member_required
+@require_POST
+def toggle_beetle_validation(request, beetle_id):
+    """
+    Staff action to toggle ROI validation between validated and unvalidated.
+    If unvalidated, parent image also moves to unvalidated.
+    """
+    beetle = get_object_or_404(Beetles, pk=beetle_id)
+    target_state = request.POST.get("state")  # optional explicit 'validate' or 'unvalidate'
+    
+    if target_state == "unvalidate" or (target_state is None and beetle.bbox_is_validated):
+        beetle.unvalidate(user=request.user)
+        msg = f"ROI {beetle.depicts_specimen or str(beetle.id)[:8]} has been marked as UNVALIDATED. The image is now unvalidated."
+        status_code = "unvalidated"
+    else:
+        beetle.validate(user=request.user)
+        msg = f"ROI {beetle.depicts_specimen or str(beetle.id)[:8]} has been marked as VALIDATED."
+        status_code = "validated"
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({
+            "success": True,
+            "status": status_code,
+            "bbox_is_validated": beetle.bbox_is_validated,
+            "image_is_validated": beetle.image_asset.is_validated if beetle.image_asset else False,
+            "message": msg
+        })
+
+    messages.success(request, msg)
+    return redirect("beetle_detail", beetle_id=beetle.id)
+
+
+@staff_member_required
+@require_POST
+def toggle_image_validation(request, image_id):
+    """
+    Staff action to move an entire image and all its ROIs between validated and unvalidated.
+    """
+    image_asset = get_object_or_404(ImageAsset, pk=image_id)
+    target_state = request.POST.get("state")
+    
+    first_beetle = image_asset.specimens.filter(is_deleted=False).first()
+    redirect_target = first_beetle.id if first_beetle else None
+
+    if target_state == "unvalidate" or (target_state is None and image_asset.is_validated):
+        image_asset.unvalidate(user=request.user)
+        msg = "Image and all its Regions of Interest have been marked as UNVALIDATED."
+        status_code = "unvalidated"
+    elif image_asset.validate(user=request.user):
+        msg = "Image and all its Regions of Interest have been marked as VALIDATED."
+        status_code = "validated"
+    else:
+        msg = "Image has no bounding boxes, so it cannot be validated."
+        status_code = "unvalidated"
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({
+            "success": True,
+            "status": status_code,
+            "is_validated": image_asset.is_validated,
+            "message": msg
+        })
+
+    messages.success(request, msg)
+    if redirect_target:
+        return redirect("beetle_detail", beetle_id=redirect_target)
+    return redirect("beetles_image_browser")
 
 
 @staff_member_required
