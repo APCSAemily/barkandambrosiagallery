@@ -261,18 +261,20 @@ class ValidBatchImportTests(UploadPipelineCase):
         self.assertEqual(beetle.image_asset.image_sha256, sha256(photo))
         self.assertEqual(beetle.history.first().history_user, self.staff)
 
-    # KNOWN BUG: pd.read_csv (import_validated.py:274) leaves the date as a str and _to_date (import_validated.py:75-86) only converts date/datetime/Timestamp, so every CSV date is saved as NULL.
-    @expectedFailure
     def test_image_date_taken_from_the_csv_is_saved(self):
-        batch = self.stage_batch(
-            [{"full_path_at_import": "dated.jpg", "image_date_taken": "2024-05-17"}],
-            {"dated.jpg": image_bytes()},
-        )
+        batch = self.stage_batch([
+            {"full_path_at_import": "dated.jpg", "image_date_taken": "2024-05-17"},
+            {"full_path_at_import": "timed.jpg", "image_date_taken": "2024-05-18 10:30:00"},
+            {"full_path_at_import": "impossible.jpg", "image_date_taken": "2024-13-45"},
+        ], {"dated.jpg": image_bytes(), "timed.jpg": image_bytes(), "impossible.jpg": image_bytes()})
 
         self.run_pipeline(batch)
 
         self.assertEqual(batch.status, UploadBatch.Status.IMPORTED)
-        self.assertEqual(ImageAsset.objects.get().image_date_taken, date(2024, 5, 17))
+        self.assertEqual(
+            dict(ImageAsset.objects.values_list("full_path_at_import", "image_date_taken")),
+            {"dated.jpg": date(2024, 5, 17), "timed.jpg": date(2024, 5, 18), "impossible.jpg": None},
+        )
 
     # KNOWN BUG: import_validated.py:492 looks up the ImageAsset by full_path_at_import, so a new photo with an already-imported path is linked to the old photo and its own file is left unreferenced.
     @expectedFailure
