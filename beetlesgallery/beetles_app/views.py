@@ -334,7 +334,7 @@ def upload_file(request):
     if pd is None:
         print("DEBUG: pd is None; returning early (no worker spawned)", flush=True)
         messages.warning(request, "Uploaded. Note: server missing pandas; skipping quick XLSX checks.")
-        return redirect("my_upload")
+        return redirect("data_management")
 
     errors = []
     try:
@@ -343,7 +343,7 @@ def upload_file(request):
     except Exception as e:
         batch.mark_rejected_and_move(f"Cannot open CSV: {e}")
         messages.error(request, "Upload rejected: cannot open CSV.")
-        return redirect("my_upload")
+        return redirect("data_management")
 
     # Required headers
     missing = REQUIRED_COLS - set(df.columns)
@@ -360,7 +360,7 @@ def upload_file(request):
         reason = "; ".join(map(str, errors))[:2000]
         batch.mark_rejected_and_move(reason)
         messages.error(request, "Upload rejected: " + reason)
-        return redirect("my_upload")
+        return redirect("data_management")
 
     # Pass preflight; full validator will hash images, check 1:1 mapping, etc.
     # Kick off background processing for this batch (validate + import)
@@ -847,11 +847,7 @@ def start_batch_download(request):
 
     if mode == "ids":
         # Accept common patterns
-        raw_ids_str = (request.POST.get("selected_ids") or "").strip()
-        raw_ids_list = request.POST.getlist("selected_ids")
-
-        if not raw_ids_str and raw_ids_list:
-            raw_ids_str = ",".join(raw_ids_list)
+        raw_ids_str = ",".join(request.POST.getlist("selected_ids")).strip()
 
         if not raw_ids_str:
             alt_list = (

@@ -171,22 +171,25 @@ def _parse_numeric(value: str):
 
 def _parse_date_prefix(v: str):
     s = (v or "").strip()
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
-        y, m, d = map(int, s.split("-"))
-        return date(y, m, d), None
-    if re.fullmatch(r"\d{4}-\d{2}", s):
-        y, m = map(int, s.split("-"))
-        start = date(y, m, 1)
-        if m == 12:
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+            y, m, d = map(int, s.split("-"))
+            return date(y, m, d), None
+        if re.fullmatch(r"\d{4}-\d{2}", s):
+            y, m = map(int, s.split("-"))
+            start = date(y, m, 1)
+            if m == 12:
+                end = date(y + 1, 1, 1)
+            else:
+                end = date(y, m + 1, 1)
+            return start, end
+        if re.fullmatch(r"\d{4}", s):
+            y = int(s)
+            start = date(y, 1, 1)
             end = date(y + 1, 1, 1)
-        else:
-            end = date(y, m + 1, 1)
-        return start, end
-    if re.fullmatch(r"\d{4}", s):
-        y = int(s)
-        start = date(y, 1, 1)
-        end = date(y + 1, 1, 1)
-        return start, end
+            return start, end
+    except ValueError:
+        pass
     return None, None
 
 def _normalize_bool(v: str):
@@ -217,7 +220,7 @@ def _clause_to_q(field_label: str, value: str, ignored):
         ref_map = {"scientific name": "scientific_name", "genus": "genus", "species": "species"}
         taxon_field = ref_map.get(norm)
         
-        if value and value.strip().upper() == "None":
+        if value and value.strip().upper() == "NONE":
             return Q(taxon__isnull=True)
             
         if not value or value.strip() == "":
@@ -232,7 +235,7 @@ def _clause_to_q(field_label: str, value: str, ignored):
         ignored.append(f"unknown field '{field_label}'")
         return None
 
-    if value is None or value == "" or value.strip().upper() == "None":
+    if value is None or value == "" or value.strip().upper() == "NONE":
         if model_field == "image_asset__image_date_taken":
             return Q(**{f"{model_field}__isnull": True})
         return (Q(**{f"{model_field}__isnull": True}) | Q(**{f"{model_field}": ""}))
