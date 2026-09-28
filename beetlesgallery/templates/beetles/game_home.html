@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Beetle ID Game</h1>
+    <p class="mt-1 text-sm sm:text-base text-gray-500">
+      Help name the beetles in our images. Every answer helps build better labels for the gallery.
+    </p>
+  </div>
+
+  <!-- Your stats (only change when a round ends) -->
+  <div class="grid grid-cols-2 gap-3 mb-6">
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Beetles labelled</div>
+      <div class="mt-1 text-2xl font-bold text-gray-900">{{ summary.labelled }}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Accuracy</div>
+      <div class="mt-1 text-2xl font-bold text-gray-900">
+        {% if summary.accuracy is not None %}{% widthratio summary.accuracy 1 100 %}%{% else %}<span class="text-gray-400">&ndash;</span>{% endif %}
+      </div>
+      {% if summary.accuracy is None %}
+      <div class="text-xs text-gray-400 mt-1">Play a few rounds to see it</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Modes -->
+  <div class="flex flex-col gap-3 mb-8">
+    <a href="{% url 'game_play' 'classify' %}"
+      class="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-2xl shadow-sm active:bg-gray-50 hover:shadow-md transition-all">
+      <div class="p-3 bg-gray-100 text-gray-700 rounded-xl"><i class="fi fi-rr-search text-2xl"></i></div>
+      <div class="flex-1">
+        <h2 class="font-bold text-gray-900 text-lg">Name the beetle</h2>
+        <p class="text-sm text-gray-500">See one beetle and give its subfamily, tribe, genus and species. Stop at whatever rank you're sure of.</p>
+      </div>
+      <i class="fi fi-rr-angle-right text-gray-400"></i>
+    </a>
+    <a href="{% url 'game_play' 'pair' %}"
+      class="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-2xl shadow-sm active:bg-gray-50 hover:shadow-md transition-all">
+      <div class="p-3 bg-gray-100 text-gray-700 rounded-xl"><i class="fi fi-rr-copy-alt text-2xl"></i></div>
+      <div class="flex-1">
+        <h2 class="font-bold text-gray-900 text-lg">Spot the relatives</h2>
+        <p class="text-sm text-gray-500">See two beetles and say how closely related they are.</p>
+      </div>
+      <i class="fi fi-rr-angle-right text-gray-400"></i>
+    </a>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-lg font-bold text-gray-900">Leaderboard</h2>
+      <div class="flex text-sm bg-gray-100 rounded-lg p-1">
+        <a href="?sort=labelled" class="px-3 py-1.5 rounded-md {% if sort == 'labelled' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Labelled</a>
+        <a href="?sort=accuracy" class="px-3 py-1.5 rounded-md {% if sort == 'accuracy' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Accuracy</a>
+      </div>
+    </div>
+
+    {% if leaderboard %}
+    <div class="border border-gray-100 rounded-2xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+          <tr>
+            <th class="py-2 pl-4 pr-2 text-left w-10">#</th>
+            <th class="py-2 px-2 text-left">Player</th>
+            <th class="py-2 px-2 text-right">Labelled</th>
+            <th class="py-2 pl-2 pr-4 text-right">Accuracy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in leaderboard %}
+          <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-amber-50 font-semibold{% endif %}">
+            <td class="py-2.5 pl-4 pr-2 text-gray-400">{{ row.position }}</td>
+            <td class="py-2.5 px-2 text-gray-900 truncate max-w-[9rem]">{{ row.username }}</td>
+            <td class="py-2.5 px-2 text-right tabular-nums">{{ row.labelled }}</td>
+            <td class="py-2.5 pl-2 pr-4 text-right tabular-nums">
+              {% if row.accuracy is not None %}{% widthratio row.accuracy 1 100 %}%{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-2xl">No one has played yet. Be the first!</p>
+    {% endif %}
+    <p class="mt-2 text-xs text-gray-400">Scores update at the end of each round.</p>
+  </div>
+
+  {% if user.is_staff %}
+  <a href="{% url 'game_review' %}" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900">
+    <i class="fi fi-rr-chart-histogram"></i> Staff: review game labels and player reliability
+  </a>
+  {% endif %}
+</div>
+{% endblock %}

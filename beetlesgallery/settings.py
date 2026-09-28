@@ -184,6 +184,13 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "image_browser"
 LOGOUT_REDIRECT_URL = "image_browser"
 
+# Beetle ID game (beetles_app/game.py)
+GAME_ROUND_SIZE = 10                  # items per round
+GAME_CALIBRATION_CHECKS = 20          # scored answers before a player counts as calibrated
+GAME_CHECK_RATIO_NEW = 0.6            # share of validated (scored) items while calibrating
+GAME_CHECK_RATIO_KNOWN = 0.2          # ... and afterwards
+GAME_MIN_JUDGED_FOR_ACCURACY = 10     # judged ranks needed before an accuracy is shown
+
 # Upload Constraints
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_UPLOAD_SIZE_XLSX = 10 * 1024 * 1024

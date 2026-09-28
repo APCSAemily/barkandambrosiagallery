@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+  /* Crops keep their aspect ratio and fit the screen whatever the photo's shape */
+  .game-crop { display: block; margin: 0 auto; max-width: 100%; width: auto; height: auto; border-radius: 0.75rem; background: #f3f4f6; }
+  .game-crop-single { max-height: 48vh; }
+  .game-crop-pair { max-height: 36vh; }
+  .game-option.selected { border-color: #111827; background: #111827; color: #fff; }
+  .game-select { -webkit-appearance: none; appearance: none; background-image: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="game" class="max-w-2xl mx-auto -mt-4 sm:mt-0" data-mode="{{ mode }}"
+  data-start-url="{% url 'game_start' %}"
+  data-answer-url="{% url 'game_answer' '00000000-0000-0000-0000-000000000000' %}"
+  data-taxa-url="{% url 'game_taxa' %}"
+  data-search-url="{% url 'game_taxa_search' %}">
+
+  <!-- Header + progress -->
+  <div class="flex items-center gap-3 mb-3">
+    <a href="{% url 'game_home' %}" class="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Back to game home">
+      <i class="fi fi-rr-angle-left text-lg"></i>
+    </a>
+    <h1 class="flex-1 font-bold text-gray-900 text-lg">
+      {% if mode == 'classify' %}Name the beetle{% else %}Spot the relatives{% endif %}
+    </h1>
+    <span id="progress-text" class="text-sm text-gray-500 tabular-nums"></span>
+  </div>
+  <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">
+    <div id="progress-bar" class="h-full bg-gray-900 transition-all duration-300" style="width: 0%"></div>
+  </div>
+
+  <div id="error" class="hidden mb-4 p-3 rounded-xl border bg-red-50 border-red-200 text-red-700 text-sm"></div>
+
+  <!-- Loading -->
+  <div id="loading" class="py-20 text-center text-gray-400">
+    <i class="fi fi-rr-spinner animate-spin inline-block text-3xl"></i>
+    <p class="mt-2 text-sm">Loading&hellip;</p>
+  </div>
+
+  <!-- Question -->
+  <div id="stage" class="hidden">
+    <div id="images" class="{% if mode == 'pair' %}grid grid-cols-2 gap-2 items-center{% endif %} mb-2"></div>
+    <p class="text-center text-xs text-gray-400 mb-4">Tap a photo to see the whole image.</p>
+
+    {% if mode == 'classify' %}
+    <div class="space-y-3">
+      <div class="relative">
+        <label for="search" class="sr-only">Search for a genus or species</label>
+        <i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        <input id="search" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+          placeholder="Search genus or species&hellip;"
+          class="w-full pl-10 pr-3 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <ul id="search-results" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg"></ul>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subfamily</span>
+          <select data-rank="subfamily" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Tribe</span>
+          <select data-rank="tribe" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Genus</span>
+          <select data-rank="genus" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Species</span>
+          <select data-rank="species" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
+        </label>
+      </div>
+      <p class="text-xs text-gray-400">Only go as far as you're confident. Leave the rest as &ldquo;Not sure&rdquo;.</p>
+    </div>
+    {% else %}
+    <p class="text-center font-semibold text-gray-900 mb-3">How closely related are these two beetles?</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {% for value, label in pair_choices %}
+      <button type="button" data-choice="{{ value }}"
+        class="game-option w-full px-4 py-3.5 text-left text-base font-medium border-2 border-gray-200 rounded-xl active:scale-[0.99] transition-all">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Actions stay reachable under the thumb on phones -->
+    <div class="sticky bottom-0 -mx-6 px-6 pt-3 pb-4 mt-4 bg-white/95 backdrop-blur border-t border-gray-100 flex gap-3">
+      <button type="button" id="skip"
+        class="px-4 py-3.5 text-base font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">
+        Skip
+      </button>
+      <button type="button" id="submit" disabled
+        class="flex-1 px-4 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl disabled:bg-gray-300 disabled:cursor-not-allowed">
+        Next
+      </button>
+    </div>
+  </div>
+
+  <!-- Round summary -->
+  <div id="summary" class="hidden py-6 text-center">
+    <div class="inline-flex p-4 bg-gray-100 rounded-full mb-4"><i class="fi fi-rr-trophy text-3xl text-gray-700"></i></div>
+    <h2 class="text-2xl font-bold text-gray-900">Round complete!</h2>
+    <p class="mt-1 text-gray-500">Thanks for helping label the collection.</p>
+    <div class="grid grid-cols-3 gap-2 my-6">
+      <div class="p-3 bg-gray-50 rounded-2xl">
+        <div class="text-2xl font-bold text-gray-900" id="sum-round">0</div>
+        <div class="text-xs text-gray-500">this round</div>
+      </div>
+      <div class="p-3 bg-gray-50 rounded-2xl">
+        <div class="text-2xl font-bold text-gray-900" id="sum-total">0</div>
+        <div class="text-xs text-gray-500">labelled in total</div>
+      </div>
+      <div class="p-3 bg-gray-50 rounded-2xl">
+        <div class="text-2xl font-bold text-gray-900" id="sum-accuracy">&ndash;</div>
+        <div class="text-xs text-gray-500">accuracy</div>
+      </div>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <button type="button" id="again" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl">Play another round</button>
+      <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-200 rounded-xl">Leaderboard</a>
+    </div>
+  </div>
+</div>
+
+<!-- Full image viewer -->
+<div id="lightbox" class="hidden fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-3" role="dialog" aria-label="Whole image">
+  <button type="button" class="absolute top-3 right-3 p-3 text-white text-xl" aria-label="Close"><i class="fi fi-rr-cross"></i></button>
+  <div class="relative inline-block">
+    <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
+    <div id="lightbox-box" class="absolute border-2 border-amber-400 rounded-sm pointer-events-none"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const root = document.getElementById("game");
+  const MODE = root.dataset.mode;
+  const RANKS = ["subfamily", "tribe", "genus", "species"];
+  const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  const $ = (id) => document.getElementById(id);
+
+  let roundId = null;
+  let item = null;
+  let busy = false;
+
+  // ---------- helpers ----------
+  async function api(url, body) {
+    const opts = body === undefined ? {} : {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify(body),
+    };
+    const res = await fetch(url, opts);
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+    return data;
+  }
+
+  function showError(msg) {
+    $("error").textContent = msg;
+    $("error").classList.toggle("hidden", !msg);
+  }
+
+  function show(which) {
+    ["loading", "stage", "summary"].forEach((id) => $(id).classList.toggle("hidden", id !== which));
+  }
+
+  // Draw the bounding box region (plus a little context) onto a canvas.
+  function drawCrop(canvas, img, box) {
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const [bx, by, bw, bh] = box;
+    const pad = 0.08;
+    const x0 = Math.max(0, bx - bw * pad), y0 = Math.max(0, by - bh * pad);
+    const x1 = Math.min(1, bx + bw * (1 + pad)), y1 = Math.min(1, by + bh * (1 + pad));
+    const sx = x0 * W, sy = y0 * H, sw = Math.max(1, (x1 - x0) * W), sh = Math.max(1, (y1 - y0) * H);
+    const scale = Math.min(1, 1400 / Math.max(sw, sh));
+    canvas.width = Math.round(sw * scale);
+    canvas.height = Math.round(sh * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  }
+
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("An image failed to load."));
+      img.src = url;
+    });
+  }
+
+  function openLightbox(url, box) {
+    const img = $("lightbox-img");
+    const b = $("lightbox-box");
+    img.src = url;
+    b.style.left = box[0] * 100 + "%";
+    b.style.top = box[1] * 100 + "%";
+    b.style.width = box[2] * 100 + "%";
+    b.style.height = box[3] * 100 + "%";
+    $("lightbox").classList.remove("hidden");
+  }
+  $("lightbox").addEventListener("click", () => $("lightbox").classList.add("hidden"));
+
+  // ---------- rounds ----------
+  async function startRound() {
+    show("loading");
+    showError("");
+    try {
+      const data = await api(root.dataset.startUrl, { mode: MODE });
+      roundId = data.round;
+      await showItem(data.item);
+    } catch (e) {
+      $("loading").classList.add("hidden");
+      showError(e.message);
+    }
+  }
+
+  async function showItem(next) {
+    item = next;
+    $("progress-text").textContent = item.position + " / " + item.total;
+    $("progress-bar").style.width = ((item.position - 1) / item.total * 100) + "%";
+
+    let images;
+    try {
+      images = await Promise.all(item.images.map((im) => loadImage(im.url)));
+    } catch (e) {
+      images = null;
+    }
+    const holder = $("images");
+    holder.innerHTML = "";
+    item.images.forEach((im, i) => {
+      const cell = document.createElement("div");
+      cell.className = "text-center";
+      const wrap = document.createElement("button");
+      wrap.type = "button";
+      wrap.className = "relative inline-block max-w-full align-middle";
+      wrap.setAttribute("aria-label", "See the whole image");
+      const canvas = document.createElement("canvas");
+      canvas.className = "game-crop " + (MODE === "pair" ? "game-crop-pair" : "game-crop-single");
+      if (images) drawCrop(canvas, images[i], im.box);
+      wrap.appendChild(canvas);
+      if (MODE === "pair") {
+        const tag = document.createElement("span");
+        tag.className = "absolute top-2 left-2 px-2 py-0.5 text-xs font-bold bg-white/90 rounded-md";
+        tag.textContent = i === 0 ? "A" : "B";
+        wrap.appendChild(tag);
+      }
+      wrap.addEventListener("click", () => openLightbox(im.url, im.box));
+      cell.appendChild(wrap);
+      holder.appendChild(cell);
+    });
+    if (!images) showError("An image failed to load. You can skip this one.");
+
+    resetAnswer();
+    show("stage");
+    window.scrollTo({ top: 0 });
+  }
+
+  async function send(extra) {
+    if (busy) return;
+    busy = true;
+    $("submit").disabled = true;
+    showError("");
+    try {
+      const data = await api(
+        root.dataset.answerUrl.replace("00000000-0000-0000-0000-000000000000", roundId),
+        Object.assign({ index: item.index }, extra)
+      );
+      if (data.done) {
+        finish(data.summary);
+      } else {
+        show("loading");
+        await showItem(data.item);
+      }
+    } catch (e) {
+      showError(e.message);
+      updateSubmit();
+    } finally {
+      busy = false;
+    }
+  }
+
+  function finish(summary) {
+    $("progress-bar").style.width = "100%";
+    $("sum-round").textContent = summary.round_labelled;
+    $("sum-total").textContent = summary.labelled;
+    $("sum-accuracy").textContent = summary.accuracy === null ? "–" : Math.round(summary.accuracy * 100) + "%";
+    show("summary");
+  }
+
+  $("again").addEventListener("click", startRound);
+  $("skip").addEventListener("click", () => send({ skipped: true }));
+  $("submit").addEventListener("click", () => send(currentAnswer()));
+
+  // ---------- pair mode ----------
+  let pairChoice = null;
+  document.querySelectorAll("[data-choice]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      pairChoice = btn.dataset.choice;
+      document.querySelectorAll("[data-choice]").forEach((b) => b.classList.toggle("selected", b === btn));
+      updateSubmit();
+    });
+  });
+
+  // ---------- classify mode: cascading pickers + search ----------
+  const selects = {};
+  document.querySelectorAll("select[data-rank]").forEach((s) => { selects[s.dataset.rank] = s; });
+  let pick = { subfamily: "", tribe: "", genus: "", species: "" };
+  const optionCache = new Map();
+  let genusInfo = {};
+
+  async function options(rank, parents) {
+    const params = new URLSearchParams(Object.assign({ rank }, parents));
+    const key = params.toString();
+    if (!optionCache.has(key)) {
+      optionCache.set(key, api(root.dataset.taxaUrl + "?" + key).then((d) => d.options)
+        .catch((e) => { optionCache.delete(key); throw e; }));
+    }
+    return optionCache.get(key);
+  }
+
+  function fill(select, opts, value, labelFn) {
+    select.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = opts.length ? "Not sure" : "—";
+    select.appendChild(none);
+    opts.forEach((o) => {
+      const el = document.createElement("option");
+      el.value = o.value;
+      el.textContent = labelFn ? labelFn(o) : o.value;
+      select.appendChild(el);
+    });
+    select.value = value;
+    select.disabled = !opts.length;
+  }
+
+  // Reload every list for the current picks. The token drops stale responses.
+  let renderToken = 0;
+  async function renderPickers() {
+    if (!selects.subfamily) return;
+    const token = ++renderToken;
+    try {
+      const [subfamilies, tribes, genera, species] = await Promise.all([
+        options("subfamily", {}),
+        pick.subfamily ? options("tribe", { subfamily: pick.subfamily }) : Promise.resolve([]),
+        options("genus", { subfamily: pick.subfamily, tribe: pick.tribe }),
+        pick.genus ? options("species", { genus: pick.genus }) : Promise.resolve([]),
+      ]);
+      if (token !== renderToken) return;
+      genusInfo = {};
+      genera.forEach((g) => { genusInfo[g.value] = g; });
+      fill(selects.subfamily, subfamilies, pick.subfamily);
+      fill(selects.tribe, tribes, pick.tribe);
+      fill(selects.genus, genera, pick.genus);
+      fill(selects.species, species, pick.species, (o) => pick.genus + " " + o.value);
+    } catch (e) {
+      showError(e.message);
+    }
+    updateSubmit();
+  }
+
+  Object.entries(selects).forEach(([rank, select]) => {
+    select.addEventListener("change", () => {
+      const v = select.value;
+      if (rank === "subfamily") pick = { subfamily: v, tribe: "", genus: "", species: "" };
+      if (rank === "tribe") pick = { subfamily: pick.subfamily, tribe: v, genus: "", species: "" };
+      if (rank === "genus") {
+        const info = genusInfo[v];
+        pick = v && info
+          ? { subfamily: info.subfamily, tribe: info.tribe, genus: v, species: "" }
+          : { subfamily: pick.subfamily, tribe: pick.tribe, genus: v, species: "" };
+      }
+      if (rank === "species") pick = Object.assign({}, pick, { species: v });
+      renderPickers();
+    });
+  });
+
+  const search = $("search");
+  const results = $("search-results");
+  let searchTimer = null;
+  if (search) {
+    search.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const q = search.value.trim();
+      if (q.length < 2) { results.classList.add("hidden"); return; }
+      searchTimer = setTimeout(async () => {
+        try {
+          const data = await api(root.dataset.searchUrl + "?q=" + encodeURIComponent(q));
+          results.innerHTML = "";
+          if (!data.results.length) {
+            results.innerHTML = '<li class="px-4 py-3 text-sm text-gray-400">No matches</li>';
+          }
+          data.results.forEach((r) => {
+            const li = document.createElement("li");
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "w-full text-left px-4 py-3 hover:bg-gray-50 active:bg-gray-100 border-b border-gray-50";
+            const name = document.createElement("span");
+            name.className = r.kind === "species" ? "italic" : "font-semibold";
+            name.textContent = r.label;
+            const sub = document.createElement("span");
+            sub.className = "block text-xs text-gray-400";
+            sub.textContent = [r.subfamily, r.tribe].filter(Boolean).join(" › ") + (r.kind === "genus" ? " · genus" : "");
+            btn.append(name, sub);
+            btn.addEventListener("click", () => {
+              pick = { subfamily: r.subfamily, tribe: r.tribe, genus: r.genus, species: r.species };
+              search.value = "";
+              results.classList.add("hidden");
+              renderPickers();
+            });
+            li.appendChild(btn);
+            results.appendChild(li);
+          });
+          results.classList.remove("hidden");
+        } catch (e) {
+          showError(e.message);
+        }
+      }, 250);
+    });
+    document.addEventListener("click", (e) => {
+      if (!results.contains(e.target) && e.target !== search) results.classList.add("hidden");
+    });
+  }
+
+  // ---------- shared ----------
+  function currentAnswer() {
+    return MODE === "classify" ? Object.assign({}, pick) : { pair_answer: pairChoice };
+  }
+
+  function updateSubmit() {
+    const ready = MODE === "classify" ? RANKS.some((r) => pick[r]) : !!pairChoice;
+    $("submit").disabled = busy || !ready;
+  }
+
+  function resetAnswer() {
+    pairChoice = null;
+    document.querySelectorAll("[data-choice]").forEach((b) => b.classList.remove("selected"));
+    pick = { subfamily: "", tribe: "", genus: "", species: "" };
+    if (search) { search.value = ""; results.classList.add("hidden"); }
+    renderPickers();
+    updateSubmit();
+  }
+
+  startRound();
+})();
+</script>
+{% endblock %}

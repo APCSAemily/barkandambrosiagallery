@@ -3,7 +3,7 @@ from django.utils.html import format_html, mark_safe
 from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
-    Taxon, Synonym, CategoryMapping
+    Taxon, Synonym, CategoryMapping, GameRound, GameAnswer
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -783,3 +783,25 @@ class CategoryMappingAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None): return request.user.is_superuser
 
 
+
+
+# ---------- Beetle ID game ----------
+@admin.register(GameRound)
+class GameRoundAdmin(admin.ModelAdmin):
+    list_display = ("id", "player", "mode", "started_at", "finished_at")
+    list_filter = ("mode", "started_at")
+    search_fields = ("player__username",)
+    readonly_fields = ("id", "player", "mode", "items", "started_at", "finished_at")
+
+
+@admin.register(GameAnswer)
+class GameAnswerAdmin(admin.ModelAdmin):
+    list_display = (
+        "player", "mode", "is_check", "skipped", "subfamily", "tribe", "genus", "species",
+        "pair_answer", "correct_subfamily", "correct_tribe", "correct_genus", "correct_species",
+        "answered_at",
+    )
+    list_filter = ("mode", "is_check", "skipped", "answered_at")
+    search_fields = ("player__username", "genus", "species")
+    raw_id_fields = ("round", "roi", "roi_b")
+    list_select_related = ("player",)

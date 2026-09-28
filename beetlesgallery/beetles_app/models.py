@@ -1098,3 +1098,99 @@ class PathogenInteraction(models.Model):
     def __str__(self):
         return f"{self.beetle_host} - {self.pathogen} ({self.category})"
 
+
+
+# -----------------------------
+# Beetle ID game
+# -----------------------------
+class GameRound(models.Model):
+    """
+    One round of the Beetle ID game for one player.
+
+    The items are chosen when the round starts and stored in ``items`` so the
+    client never picks what it is shown. Each item is a dict:
+    {"a": <Beetles id>, "b": <Beetles id or None>, "check": bool, "flip": bool}.
+    "check" items have a validated answer and are scored; the client is never told which.
+    """
+
+    class Mode(models.TextChoices):
+        CLASSIFY = "classify", "Classify"
+        PAIR = "pair", "Compare pairs"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_rounds"
+    )
+    mode = models.CharField(max_length=10, choices=Mode.choices, db_index=True)
+    items = models.JSONField(default=list)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "game_round"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.get_mode_display()} round by {self.player} ({self.started_at:%Y-%m-%d})"
+
+
+class GameAnswer(models.Model):
+    """
+    One answered item of a round.
+
+    Classify: ``roi`` is the region shown and the four rank fields hold the answer
+    (blank = the player stopped before that rank).
+    Pair: ``roi`` and ``roi_b`` are the two regions and ``pair_answer`` is the deepest
+    rank the player says they share. On unvalidated pairs ``roi`` is the unvalidated one.
+
+    ``correct_<rank>`` is only filled for check items: True/False when that rank was
+    judged, None when it was not answered or has no reference value.
+    """
+
+    class PairAnswer(models.TextChoices):
+        DIFFERENT = "different", "Different subfamily"
+        SUBFAMILY = "subfamily", "Same subfamily"
+        TRIBE = "tribe", "Same tribe"
+        GENUS = "genus", "Same genus"
+        SPECIES = "species", "Same species"
+        UNSURE = "unsure", "Not sure"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    round = models.ForeignKey(GameRound, on_delete=models.CASCADE, related_name="answers")
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_answers"
+    )
+    mode = models.CharField(max_length=10, choices=GameRound.Mode.choices, db_index=True)
+    index = models.PositiveSmallIntegerField(help_text="Position of the item in its round.")
+    is_check = models.BooleanField(default=False, db_index=True)
+    skipped = models.BooleanField(default=False)
+
+    roi = models.ForeignKey(Beetles, on_delete=models.CASCADE, related_name="game_answers")
+    roi_b = models.ForeignKey(
+        Beetles, on_delete=models.CASCADE, null=True, blank=True, related_name="game_answers_as_b"
+    )
+
+    subfamily = models.CharField(max_length=100, blank=True)
+    tribe = models.CharField(max_length=100, blank=True)
+    genus = models.CharField(max_length=100, blank=True)
+    species = models.CharField(max_length=100, blank=True)
+    pair_answer = models.CharField(max_length=10, choices=PairAnswer.choices, blank=True)
+
+    correct_subfamily = models.BooleanField(null=True, blank=True)
+    correct_tribe = models.BooleanField(null=True, blank=True)
+    correct_genus = models.BooleanField(null=True, blank=True)
+    correct_species = models.BooleanField(null=True, blank=True)
+
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "game_answer"
+        constraints = [
+            models.UniqueConstraint(fields=["round", "index"], name="game_answer_round_index_uniq"),
+        ]
+        indexes = [
+            models.Index(fields=["player", "mode", "is_check"], name="game_answer_player_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.player} #{self.index} ({self.mode})"
