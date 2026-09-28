@@ -187,7 +187,10 @@ LOGOUT_REDIRECT_URL = "image_browser"
 # Upload Constraints
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_UPLOAD_SIZE_XLSX = 10 * 1024 * 1024
-MAX_UPLOAD_SIZE_ZIP = 5 * 1024 * 1024 * 1024
+MAX_UPLOAD_SIZE_CSV = 10 * 1024 * 1024  # metadata and update CSVs; keep in step with data-max-bytes in data_management.html
+MAX_UPLOAD_SIZE_TAXONOMY = 100 * 1024 * 1024  # taxonomy reference CSVs; same
+MAX_UPLOAD_SIZE_ZIP = 2 * 1024 * 1024 * 1024
+MAX_UPLOAD_TOTAL_BYTES = 2 * 1024 * 1024 * 1024  # CSV + ZIP together; keep in step with data-max-bytes in data_management.html
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 FILE_UPLOAD_TEMP_DIR = MEDIA_ROOT / "tmp_uploads"

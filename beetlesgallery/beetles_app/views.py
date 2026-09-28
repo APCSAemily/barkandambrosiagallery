@@ -223,6 +223,23 @@ def _normalize_valid_id_for_lookup(v):
     # Non-integer floats (e.g. "123.5") stay as their original string
     return s
 
+UPLOAD_LIMIT_ADVICE = "Uploads must be under {limit} in total; please split your dataset into smaller batches."
+
+
+def _reference_csv_max():
+    """Taxonomy reference CSVs are a few MB; anything near this size is a mistake."""
+    return getattr(settings, "MAX_UPLOAD_SIZE_TAXONOMY", 100 * 1024 * 1024)
+
+
+def _format_size(num_bytes):
+    """1536 -> "1.5 KB", 3_221_225_472 -> "3.00 GB" (for messages shown to users)."""
+    if num_bytes >= 1024 ** 3:
+        return f"{num_bytes / 1024 ** 3:.2f} GB"
+    if num_bytes >= 1024 ** 2:
+        return f"{num_bytes / 1024 ** 2:.1f} MB"
+    return f"{max(1, round(num_bytes / 1024))} KB"
+
+
 @staff_member_required
 def upload_file(request):
     print("DEBUG: entered upload_file view", flush=True)
@@ -256,14 +273,19 @@ def upload_file(request):
         return redirect("data_management")
 
     CSV_MAX = getattr(settings, "MAX_UPLOAD_SIZE_CSV", 10 * 1024 * 1024)        # 10 MB
-    ZIP_MAX  = getattr(settings, "MAX_UPLOAD_SIZE_ZIP",  1024 * 1024 * 1024)      # 1 GB
+    ZIP_MAX  = getattr(settings, "MAX_UPLOAD_SIZE_ZIP",  2 * 1024 * 1024 * 1024)  # 2 GB
+    TOTAL_MAX = getattr(settings, "MAX_UPLOAD_TOTAL_BYTES", 2 * 1024 * 1024 * 1024)  # CSV + ZIP together, 2 GB
 
     if csv_file.size and csv_file.size > CSV_MAX:
-        messages.error(request, f"Metadata .csv is too large (> {CSV_MAX // (1024*1024)} MB).")
+        messages.error(request, f"Metadata .csv is too large ({_format_size(csv_file.size)}); the limit is {_format_size(CSV_MAX)}.")
         return redirect("data_management")
 
     if zipf.size and zipf.size > ZIP_MAX:
-        messages.error(request, f"Images .zip is too large (> {ZIP_MAX // (1024*1024)} MB).")
+        messages.error(request, f"Images .zip is too large ({_format_size(zipf.size)}). {UPLOAD_LIMIT_ADVICE.format(limit=_format_size(TOTAL_MAX))}")
+        return redirect("data_management")
+
+    if (csv_file.size or 0) + (zipf.size or 0) > TOTAL_MAX:
+        messages.error(request, f"The upload is too large ({_format_size((csv_file.size or 0) + (zipf.size or 0))} in total). {UPLOAD_LIMIT_ADVICE.format(limit=_format_size(TOTAL_MAX))}")
         return redirect("data_management")
     # --- Quick check that ZIP is valid and contains at least one entry ---
     try:
@@ -1158,6 +1180,10 @@ def admin_valid_species(request):
         if form.is_valid() and request.FILES:
             # Extract the uploaded file gracefully
             uploaded_file = request.FILES.get('file') or list(request.FILES.values())[0]
+            if uploaded_file.size and uploaded_file.size > _reference_csv_max():
+                messages.error(request, f"Reference .csv is too large ({_format_size(uploaded_file.size)}); the limit is {_format_size(_reference_csv_max())}.")
+                return redirect("admin_valid_species")
+
             storage_key = getattr(settings, "VALID_SPECIES_PATH", "reference/valid_species.csv")
 
             # Overwrite the existing file in storage
@@ -1189,6 +1215,10 @@ def admin_described_names(request):
         form = DescribedNamesUploadForm(request.POST, request.FILES)
         if form.is_valid() and request.FILES:
             uploaded_file = request.FILES.get('file') or list(request.FILES.values())[0]
+            if uploaded_file.size and uploaded_file.size > _reference_csv_max():
+                messages.error(request, f"Reference .csv is too large ({_format_size(uploaded_file.size)}); the limit is {_format_size(_reference_csv_max())}.")
+                return redirect("admin_described_names")
+
             storage_key = getattr(settings, "DESCRIBED_NAMES_PATH", "reference/described_names.csv")
 
             if default_storage.exists(storage_key):
@@ -1251,7 +1281,7 @@ def update_upload(request):
 
     CSV_MAX = getattr(settings, "MAX_UPLOAD_SIZE_CSV", 10 * 1024 * 1024)  # 10 MB default
     if csv_file.size and csv_file.size > CSV_MAX:
-        messages.error(request, f"Update .csv is too large (> {CSV_MAX // (1024*1024)} MB).")
+        messages.error(request, f"Update .csv is too large ({_format_size(csv_file.size)}); the limit is {_format_size(CSV_MAX)}.")
         return redirect("data_management")
 
     # Create the UpdateBatch row so we have an ID + on-disk path
