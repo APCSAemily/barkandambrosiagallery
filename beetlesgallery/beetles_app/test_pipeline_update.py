@@ -117,6 +117,17 @@ class ProcessSingleUpdateTests(PageBehaviourCase):
         self.assertIs(beetle.bbox_is_validated, True)
         self.assertEqual(beetle.specimen_sex, "F?", "sex is stored as written, without validation")
 
+    def test_dates_are_applied_and_unchanged_dates_are_kept(self):
+        dated = make_beetle(image=make_image(image_date_taken=date(2020, 1, 1)))
+        undated = make_beetle(image=make_image())
+
+        self.run_rows(download_row(dated), download_row(undated, image_date_taken="2024-05-01 08:00:00"))
+
+        self.assertEqual(
+            (fresh(dated).image_asset.image_date_taken, fresh(undated).image_asset.image_date_taken),
+            (date(2020, 1, 1), date(2024, 5, 1)),
+        )
+
     def test_valid_name_id_relinks_the_taxon(self):
         old, new = make_taxon(valid_species_id="17"), make_taxon(valid_species_id="4521")
         moved, cleared = make_beetle(taxon=old), make_beetle(taxon=old)
@@ -256,19 +267,6 @@ class ProcessSingleUpdateTests(PageBehaviourCase):
         self.assertFailed(batch, "Row 2: Record ID 'not-a-uuid' not found.")
 
     # --- known gaps in what gets written ------------------------------------
-
-    # KNOWN BUG: pandas reads dates as text and _to_date (process_single_update.py:72-79) only accepts date objects, so every date becomes None: new dates are dropped and unchanged dates are wiped.
-    @expectedFailure
-    def test_dates_are_applied_and_unchanged_dates_are_kept(self):
-        dated = make_beetle(image=make_image(image_date_taken=date(2020, 1, 1)))
-        undated = make_beetle(image=make_image())
-
-        self.run_rows(download_row(dated), download_row(undated, image_date_taken="2024-05-01"))
-
-        self.assertEqual(
-            (fresh(dated).image_asset.image_date_taken, fresh(undated).image_asset.image_date_taken),
-            (date(2020, 1, 1), date(2024, 5, 1)),
-        )
 
     # KNOWN BUG: _to_float (process_single_update.py:57-61) turns unreadable text into None, so a typo clears the stored coordinate and the batch still ends "applied".
     @expectedFailure
