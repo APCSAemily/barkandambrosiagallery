@@ -526,6 +526,31 @@
   // ---------- render (initial) ----------
   renderTree(TREE, false);
 
+  // ---------- deep link: open a specific species from ?species=<valid_species_id> ----------
+  // Other pages (image browser, specimen detail) link here with this param so a
+  // taxonomy term click lands the user straight on that species instead of an
+  // empty tree.
+  (function focusSpeciesFromUrl() {
+    var focusId = new URLSearchParams(window.location.search).get("species");
+    if (!focusId) return;
+
+    var btn = rootEl.querySelector('.tree-species-btn[data-species-id="' + CSS.escape(focusId) + '"]');
+    if (!btn) return; // unknown id, or filtered out of the initial (unfiltered) tree — nothing to focus
+
+    // Expand every ancestor branch so the leaf is visible, then reveal it.
+    var branchLi = btn.closest("li.tree-leaf").parentElement.closest("li.tree-branch");
+    while (branchLi) {
+      var toggleBtn = branchLi.querySelector(":scope > .tree-node-container > .tree-toggle");
+      if (toggleBtn && toggleBtn.getAttribute("aria-expanded") !== "true") {
+        toggleBtn.click();
+      }
+      branchLi = branchLi.parentElement.closest("li.tree-branch");
+    }
+
+    btn.click(); // same as a user click: highlights it and shows the detail panel
+    btn.scrollIntoView({ block: "center" });
+  })();
+
   // ---------- filter controls with autocomplete ----------
   var filterFieldEl = document.getElementById("taxonomy-filter-field");
   var filterInputEl = document.getElementById("taxonomy-filter-input");

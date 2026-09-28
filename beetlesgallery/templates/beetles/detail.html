@@ -89,6 +89,13 @@
               </button>
             {% endif %}
             
+            {% if not beetle.depicts_valid_name_id %}
+            <a href="{% url 'tool_classify' %}?image_url={{ beetle.display_url|urlencode }}"
+               class="flex-1 block text-center rounded-lg bg-gray-200 border border-gray-300 py-3 text-sm font-bold text-gray-800 hover:bg-gray-300 hover:text-black transition shadow-sm tracking-wide"
+               title="Run this image through the AI species classifier">
+              <i class="fi fi-rr-sparkles"></i> Classify with AI
+            </a>
+            {% endif %}
             <a href="{{ beetle.image_asset.image_file.url }}" download class="flex-1 block text-center rounded-lg bg-gray-200 border border-gray-300 py-3 text-sm font-bold text-gray-800 hover:bg-gray-300 hover:text-black transition shadow-sm tracking-wide">
               Download Original Image
             </a>
@@ -161,6 +168,15 @@
               
               {% if request.user.is_staff %}
                   <div class="flex items-center gap-2">
+                      {# ANNOTATE BUTTON (opens this image in the full Annotation Tool) #}
+                      {% if beetle.image_asset %}
+                      <a href="{% url 'tool_annotate' %}?image={{ beetle.image_asset.id }}"
+                         class="text-gray-500 hover:text-gray-600 transition p-1 rounded hover:bg-gray-50"
+                         title="Open in Annotation Tool">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m-4 12h2a2 2 0 002-2v-2"></path><rect x="8" y="8" width="8" height="8" stroke-width="1.5" rx="1"></rect></svg>
+                      </a>
+                      {% endif %}
+
                       {# EDIT BUTTON #}
                       <button type="button" id="edit-btn" onclick="toggleEditMode()" 
                               class="text-gray-500 hover:text-gray-600 transition p-1 rounded hover:bg-gray-50" 
@@ -230,28 +246,28 @@
                     <input type="text" name="depicts_name_verbatim" value="{{ beetle.depicts_name_verbatim|default:'' }}" class="edit-input hidden w-full rounded border border-gray-300 px-2 py-1 text-sm">
                 </dd>
                 <dt class="col-span-1 text-text/60">Scientific Name</dt>
-                <dd class="col-span-2 text-text/80">{{ ref_species.scientificName|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80">{% if beetle.depicts_valid_name_id and ref_species.scientificName %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.scientificName }}</a>{% else %}{{ ref_species.scientificName|default:"—" }}{% endif %}</dd>
                 
                 <dt class="col-span-1 text-text/60">Authority</dt>
-                <dd class="col-span-2 text-text/80">{{ ref_species.authority|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80">{% if beetle.depicts_valid_name_id and ref_species.authority %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.authority }}</a>{% else %}{{ ref_species.authority|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Subfamily</dt>
-                <dd class="col-span-2 text-text/80">{{ ref_species.subfamily|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80">{% if beetle.depicts_valid_name_id and ref_species.subfamily %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.subfamily }}</a>{% else %}{{ ref_species.subfamily|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Tribe</dt>
-                <dd class="col-span-2 text-text/80">{{ ref_species.tribe|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80">{% if beetle.depicts_valid_name_id and ref_species.tribe %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.tribe }}</a>{% else %}{{ ref_species.tribe|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Subtribe</dt>
-                <dd class="col-span-2 text-text/80">{{ ref_species.subtribe|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80">{% if beetle.depicts_valid_name_id and ref_species.subtribe %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.subtribe }}</a>{% else %}{{ ref_species.subtribe|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Genus</dt>
-                <dd class="col-span-2 text-text/80 italic">{{ ref_species.genus|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80 italic">{% if beetle.depicts_valid_name_id and ref_species.genus %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.genus }}</a>{% else %}{{ ref_species.genus|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Species</dt>
-                <dd class="col-span-2 text-text/80 italic">{{ ref_species.species|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80 italic">{% if beetle.depicts_valid_name_id and ref_species.species %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.species }}</a>{% else %}{{ ref_species.species|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Subspecies</dt>
-                <dd class="col-span-2 text-text/80 italic">{{ ref_species.subspecies|default:"—" }}</dd>
+                <dd class="col-span-2 text-text/80 italic">{% if beetle.depicts_valid_name_id and ref_species.subspecies %}<a href="{% url 'taxonomy_browser' %}?species={{ beetle.depicts_valid_name_id|urlencode }}" class="hover:underline hover:text-black" title="View this taxon in the Taxonomy Browser">{{ ref_species.subspecies }}</a>{% else %}{{ ref_species.subspecies|default:"—" }}{% endif %}</dd>
 
                 <dt class="col-span-1 text-text/60">Authority Year</dt>
                 <dd class="col-span-2 text-text/80">{{ ref_species.authorityYear|default:"—" }}</dd>
