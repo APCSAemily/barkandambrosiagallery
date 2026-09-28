@@ -128,8 +128,10 @@
       const label = side.report.status === "open" ? "Reported · being checked" : side.report.status === "corrected" ? "Reported · corrected, thanks!" : "Reported · name confirmed";
       return `<span class="text-xs text-gray-500"><i class="fi fi-rr-flag"></i> ${label}</span>`;
     }
+    const safeIndex = esc(item.index);
+    const safeRoiId = esc(side.roi_id);
     return `<button type="button" class="text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900"
-              data-report="${item.index}" data-roi="${side.roi_id}"><i class="fi fi-rr-flag"></i> Report a problem</button>`;
+              data-report="${safeIndex}" data-roi="${safeRoiId}"><i class="fi fi-rr-flag"></i> Report a problem</button>`;
   }
 
   function classifyBody(item) {
