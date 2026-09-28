@@ -1559,10 +1559,10 @@ def tool_classify(request):
                 "status": "error", 
                 "message": "The AI model is waking up (Cold Start). Please try again in 1 minute."
             }, status=504)
-        except Exception as e:
+        except Exception:
             return JsonResponse({
                 "status": "error", 
-                "message": f"Processing failed: {str(e)}"
+                "message": "Processing failed. Please try again later."
             }, status=500)
 
     # GET request: Render the page
