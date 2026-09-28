@@ -7,7 +7,7 @@ with the files, not the import that follows.
 """
 import io
 import zipfile
-from unittest import expectedFailure, mock
+from unittest import mock
 
 from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -134,43 +134,27 @@ class UploadViewTests(PageBehaviourCase):
 
     # --- checks on the CSV contents (batch is created, then rejected) ----------
 
-    @expectedFailure
-    def test_csv_missing_the_required_column_is_rejected(self):
-        """KNOWN BUG: the view redirects to redirect("my_upload"), a URL name that does
-        not exist (the page is called "data_management"), so every rejection after the
-        batch is created raises NoReverseMatch and the user sees a server error.
-        The same typo is on the unreadable-CSV, too-many-rows and no-pandas paths.
-        Remove @expectedFailure when the redirects are fixed."""
-        response = self.upload(csv=("metadata.csv", NO_REQUIRED_COLUMN_CSV))
-
+    def assertRejectedAfterBatchCreated(self, response, text):
         self.assertRedirects(response, reverse("data_management"), fetch_redirect_response=False)
+        self.assertTrue(any("Upload rejected" in m for m in self.messages(response)), self.messages(response))
         batch = UploadBatch.objects.get()
         self.assertEqual(batch.status, UploadBatch.Status.REJECTED)
-        self.assertIn("full_path_at_import", batch.error_message)
-        self.task.delay.assert_not_called()
-
-    def test_rejected_csv_is_marked_rejected_before_the_error_is_raised(self):
-        """Working part of the same path: the batch itself is handled correctly."""
-        try:
-            self.upload(csv=("metadata.csv", NO_REQUIRED_COLUMN_CSV))
-        except Exception:
-            pass  # the redirect typo above
-        batch = UploadBatch.objects.get()
-        self.assertEqual(batch.status, UploadBatch.Status.REJECTED)
-        self.assertIn("full_path_at_import", batch.error_message)
+        self.assertIn(text, batch.error_message)
         self.assertEqual("/".join(batch.file.name.split("/")[:2]), "uploads/rejected")
         self.task.delay.assert_not_called()
 
+    def test_csv_missing_the_required_column_is_rejected(self):
+        response = self.upload(csv=("metadata.csv", NO_REQUIRED_COLUMN_CSV))
+        self.assertRejectedAfterBatchCreated(response, "full_path_at_import")
+
+    def test_unreadable_csv_is_rejected(self):
+        response = self.upload(csv=("metadata.csv", b""))
+        self.assertRejectedAfterBatchCreated(response, "Cannot open CSV")
+
     def test_row_limit_is_enforced(self):
         with mock.patch("beetlesgallery.beetles_app.views.MAX_ROWS", 1):
-            try:
-                self.upload(csv=("metadata.csv", GOOD_CSV + b"img_2.jpg,USA\n"))
-            except Exception:
-                pass  # the redirect typo above
-        batch = UploadBatch.objects.get()
-        self.assertEqual(batch.status, UploadBatch.Status.REJECTED)
-        self.assertIn("max 1", batch.error_message)
-        self.task.delay.assert_not_called()
+            response = self.upload(csv=("metadata.csv", GOOD_CSV + b"img_2.jpg,USA\n"))
+        self.assertRejectedAfterBatchCreated(response, "max 1")
 
 
 class UploadAccessTests(PageBehaviourCase):

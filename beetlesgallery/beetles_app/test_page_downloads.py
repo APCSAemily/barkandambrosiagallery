@@ -7,7 +7,7 @@ cover the job the view records for it.
 """
 import json
 import uuid
-from unittest import expectedFailure, mock
+from unittest import mock
 
 from django.contrib.messages import get_messages
 from django.core.files.base import ContentFile
@@ -64,13 +64,7 @@ class StartDownloadTests(PageBehaviourCase):
         self.assertEqual(job.total_requested, 3)
         self.task.delay.assert_called_once_with(job.id)
 
-    @expectedFailure
     def test_ids_can_be_sent_as_a_repeated_field(self):
-        """KNOWN BUG: the view reads request.POST.get("selected_ids"), which returns only
-        the LAST value of a repeated field, so the getlist() fallback meant for this
-        case never runs and all but the last id are silently dropped. (A single
-        comma-separated value, which the page sends today, works.)
-        Remove @expectedFailure when the view reads getlist() first."""
         self.client.post(START, {"selection_mode": "ids", "selected_ids": self.ids[:2]})
         self.assertEqual(DownloadJob.objects.get().get_ids(), self.ids[:2])
 

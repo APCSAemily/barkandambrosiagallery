@@ -12,7 +12,6 @@ Three layers, cheapest first:
 import uuid
 from datetime import date
 from decimal import Decimal
-from unittest import expectedFailure
 
 from django.test import SimpleTestCase, TestCase
 
@@ -155,13 +154,7 @@ class ValueParserTests(SimpleTestCase):
             with self.subTest(text=text):
                 self.assertEqual(utils._parse_date_prefix(text), (None, None))
 
-    @expectedFailure
     def test_impossible_calendar_dates_are_rejected(self):
-        """KNOWN BUG: the format check passes but date() then raises ValueError.
-
-        "2020-13-45", "2020-13" and "0000" all crash instead of returning
-        (None, None). Remove @expectedFailure when the parser is fixed.
-        """
         results = [utils._parse_date_prefix(t) for t in ("2020-13-45", "2020-13", "0000")]
         self.assertEqual(results, [(None, None)] * 3)
 
@@ -294,12 +287,7 @@ class BuildQueryTests(TestCase):
         self.assertEqual(rows, {"ips", "xyl", "bare"})
         self.assertIn("invalid date 'sometime'", ignored[0])
 
-    @expectedFailure
     def test_impossible_date_is_ignored_not_a_crash(self):
-        """KNOWN BUG: this raises ValueError, and the image browser calls
-        build_query_q without a try/except, so typing "image date:2020-13-45"
-        into the search box would be a server error. Remove @expectedFailure
-        when fixed."""
         _, ignored = utils.build_query_q("image date:2020-13-45")
         self.assertTrue(any("invalid date" in note for note in ignored))
 
@@ -318,13 +306,7 @@ class BuildQueryTests(TestCase):
         self.assertEqual(self.search("country:")[0], {"bare"})
         self.assertEqual(self.search("image date:")[0], {"bare"})
 
-    @expectedFailure
     def test_none_keyword_finds_blank_values(self):
-        """KNOWN BUG: "field:None" is meant to find blank values, but _clause_to_q
-        compares value.strip().upper() == "None" (utils.py, two places). .upper()
-        gives "NONE", which never equals "None", so the branch is unreachable and
-        "None" is searched for as ordinary text. Remove @expectedFailure when the
-        comparison is fixed (e.g. .lower() == "none")."""
         self.assertEqual(self.search("country:None")[0], {"bare"})
         self.assertEqual(self.search("image date:None")[0], {"bare"})
 
@@ -339,9 +321,7 @@ class BuildQueryTests(TestCase):
         self.assertEqual(rows, {"ips", "xyl", "bare"})
         self.assertEqual(ignored, ["empty value for 'genus'"])
 
-    @expectedFailure
     def test_taxonomy_none_keyword_finds_specimens_with_no_taxon(self):
-        """KNOWN BUG: same case mismatch as test_none_keyword_finds_blank_values."""
         self.assertEqual(self.search("genus:None")[0], {"bare"})
 
     def test_unknown_field_is_ignored_with_a_note(self):
