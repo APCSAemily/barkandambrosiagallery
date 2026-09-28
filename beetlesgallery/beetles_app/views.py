@@ -166,26 +166,33 @@ class PostOnlyLogoutView(LogoutView):
 
 
 def landing(request):
-    total_images = ImageAsset.objects.filter(is_deleted=False).count()
+    from django.core.cache import cache
 
-    # Count unique species and genera via native SQL Joins, bypassing Python memory
-    total_species = Beetles.objects.filter(taxon__isnull=False).values('taxon_id').distinct().count()
-    total_genera = Beetles.objects.filter(taxon__isnull=False).values('taxon__genus').distinct().count()
+    stats_cache_key = "landing:stats:v1"
+    context = cache.get(stats_cache_key)
+    if context is None:
+        total_images = ImageAsset.objects.filter(is_deleted=False).count()
 
-    type_status_count = Beetles.objects.exclude(specimen_type_status__isnull=True)\
-                                       .exclude(specimen_type_status="")\
-                                       .exclude(depicts_specimen__isnull=True)\
-                                       .exclude(depicts_specimen="")\
-                                       .values('depicts_specimen')\
-                                       .distinct()\
-                                       .count()
+        # Count unique species and genera via native SQL Joins, bypassing Python memory
+        total_species = Beetles.objects.filter(taxon__isnull=False).values('taxon_id').distinct().count()
+        total_genera = Beetles.objects.filter(taxon__isnull=False).values('taxon__genus').distinct().count()
 
-    context = {
-        'total_images': total_images,
-        'total_species': total_species,
-        'total_genera': total_genera,
-        'type_status_count': type_status_count,
-    }
+        type_status_count = Beetles.objects.exclude(specimen_type_status__isnull=True)\
+                                           .exclude(specimen_type_status="")\
+                                           .exclude(depicts_specimen__isnull=True)\
+                                           .exclude(depicts_specimen="")\
+                                           .values('depicts_specimen')\
+                                           .distinct()\
+                                           .count()
+
+        context = {
+            'total_images': total_images,
+            'total_species': total_species,
+            'total_genera': total_genera,
+            'type_status_count': type_status_count,
+        }
+        cache.set(stats_cache_key, context, 60 * 10)
+
     return render(request, 'landing.html', context)
 
 
@@ -446,7 +453,7 @@ def gallery(request):
     # 1. Define exactly what a "Sibling" is (must not be deleted)
     sibling_prefetch = Prefetch(
         'image_asset__specimens',
-        queryset=Beetles.objects.filter(is_deleted=False),
+        queryset=Beetles.objects.filter(is_deleted=False).select_related('taxon'),
         to_attr='active_siblings' # This stores them in a list, preventing recursion
     )
 
@@ -519,7 +526,7 @@ def gallery(request):
     final_qs = final_qs.order_by("image_asset", "id").distinct("image_asset")
     
     # Critical: Fetch taxon in the same SQL call to guarantee O(1) performance
-    final_qs = final_qs.select_related("image_asset", "taxon").prefetch_related("image_asset__specimens__taxon")
+    final_qs = final_qs.select_related("image_asset", "taxon")
     
     # Cache total count by query signature to bypass expensive COUNT(*) SQL query on page flips
     count_cache_key = f"gallery:count:{query_sig_hash}"
@@ -1723,11 +1730,7 @@ def taxonomy_search(request):
     })
 
 
-@staff_member_required
-def tool_annotate(request):
-    """
-    Data annotation tool page (staff only).
-    """
+def _build_annotate_filter_context():
     from .utils import FILTERS_CONFIG
     from collections import defaultdict
     from django.db.models import Q
@@ -1813,6 +1816,21 @@ def tool_annotate(request):
     for cat in categories:
         if grouped_filters[cat]:
             filter_context.append((cat, grouped_filters[cat]))
+    return filter_context
+
+
+@staff_member_required
+def tool_annotate(request):
+    """
+    Data annotation tool page (staff only).
+    """
+    from django.core.cache import cache
+
+    filters_cache_key = "annotate:default_filters:v1"
+    filter_context = cache.get(filters_cache_key)
+    if filter_context is None:
+        filter_context = _build_annotate_filter_context()
+        cache.set(filters_cache_key, filter_context, 60 * 30)
 
     return render(request, 'beetles/tool_annotate.html', {
         'filter_groups': filter_context
