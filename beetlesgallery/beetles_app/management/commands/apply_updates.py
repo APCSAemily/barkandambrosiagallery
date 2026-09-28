@@ -141,10 +141,15 @@ class Command(BaseCommand):
             raise CommandError("No VALIDATED update batches found.")
 
         try:
-            df = pd.read_excel(batch.file.path)
-            df.columns = [str(c).strip() for c in df.columns]
+            import os
+            ext = os.path.splitext(batch.file.path)[1].lower()
+            if ext in [".xlsx", ".xls"]:
+                df = pd.read_excel(batch.file.path)
+            else:
+                df = pd.read_csv(batch.file.path)
+            df.columns = [str(c).strip().lstrip('\ufeff') for c in df.columns]
         except Exception as e:
-            self._fail_apply(batch, f"Cannot open workbook: {e}")
+            self._fail_apply(batch, f"Cannot open file: {e}")
             return
 
         # Defensive header check
@@ -258,6 +263,7 @@ class Command(BaseCommand):
                 # Re-fetch with locks
                 beetles_by_id = {str(b.id): b for b in beetles_qs.select_for_update()}
                 now = timezone.now()
+                images_to_unvalidate = {}
 
                 for rid, changed, update_notes, excel_row in changes:
                     b = beetles_by_id.get(rid)
@@ -274,6 +280,9 @@ class Command(BaseCommand):
                             b_changes[k] = v
 
                     # Apply Beetle Changes
+                    if b_changes.get("bbox_is_validated") is False:
+                        b.bbox_validated_by = None
+                        b.bbox_validated_at = None
                     for k, v in b_changes.items():
                         setattr(b, k, v)
                     
@@ -288,6 +297,10 @@ class Command(BaseCommand):
                             b.image_asset.save()
                         except Exception as e:
                             raise CommandError(f"Row {excel_row}: Image update failed: {e}")
+
+                        # Devalidating an image cascades to all its ROIs (applied after the loop)
+                        if i_changes.get("is_validated") is False:
+                            images_to_unvalidate[b.image_asset_id] = b.image_asset
 
                     # Save Beetle
                     b.last_updated_at = now
@@ -308,6 +321,10 @@ class Command(BaseCommand):
                             latest.history_user = history_user
                             latest.history_change_reason = f"Batch {batch.id}; {', '.join(changed.keys())}"
                             latest.save()
+
+                # Run after all ROI saves so stale in-memory ROIs can't re-validate the image
+                for image_asset in images_to_unvalidate.values():
+                    image_asset.unvalidate(user=history_user)
 
                 batch.status = UpdateBatch.Status.APPLIED
                 batch.applied_at = timezone.now()

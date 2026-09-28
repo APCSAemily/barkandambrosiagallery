@@ -4,8 +4,9 @@ from django.utils import timezone
 from pathlib import Path
 import json
 
-from beetlesgallery.beetles_app import species_ref
-
+import csv
+import io
+from django.core.files.storage import default_storage
 
 class Command(BaseCommand):
     help = "Generate category mapping JSON for bounding box annotations from species reference data."
@@ -13,8 +14,25 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Loading species reference data...")
 
-        # Load all species data
-        all_rows = species_ref._load_all_rows()
+        # Load all species data from valid_species.csv
+        ref_path = getattr(settings, "VALID_SPECIES_PATH", "reference/valid_species.csv")
+        all_rows = []
+        if default_storage.exists(ref_path):
+            with default_storage.open(ref_path, "rb") as fb:
+                with io.TextIOWrapper(fb, encoding="utf-8-sig", newline="") as fh:
+                    reader = csv.DictReader(fh)
+                    reader.fieldnames = [h.strip() for h in (reader.fieldnames or [])]
+                    all_rows = list(reader)
+        else:
+            local_fallback = Path(settings.MEDIA_ROOT) / "reference" / "valid_species.csv"
+            if local_fallback.exists():
+                with open(local_fallback, "r", encoding="utf-8-sig") as fh:
+                    reader = csv.DictReader(fh)
+                    reader.fieldnames = [h.strip() for h in (reader.fieldnames or [])]
+                    all_rows = list(reader)
+            else:
+                self.stderr.write(self.style.ERROR(f"Could not find valid_species.csv at {ref_path} or {local_fallback}"))
+                return
 
         # Create category mapping
         categories = []

@@ -86,6 +86,36 @@ class ImageAsset(models.Model):
         for beetle in self.specimens.filter(is_deleted=False):
             beetle.delete(deleted_by=deleted_by)
 
+    def unvalidate(self, user=None):
+        """
+        Staff action: move the image and all of its active ROIs back to unvalidated.
+        Clears the ROI validation audit stamps.
+        """
+        roi_updates = dict(bbox_is_validated=False, bbox_validated_by=None, bbox_validated_at=None)
+        if user:
+            roi_updates["last_updated_by"] = user
+            self.last_updated_by = user
+        self.specimens.filter(is_deleted=False).update(**roi_updates)
+        self.is_validated = False
+        self.save(update_fields=['is_validated', 'last_updated_by', 'updated_at'])
+
+    def validate(self, user=None):
+        """
+        Staff action: validate every active ROI that has a bounding box.
+        Follows the same rule as the Beetles post_save signal: an image with no
+        boxed ROIs cannot be validated. Returns the resulting is_validated.
+        """
+        boxed_rois = self.specimens.filter(is_deleted=False, bbox_x__isnull=False)
+        roi_updates = dict(bbox_is_validated=True, bbox_validated_at=timezone.now())
+        if user:
+            roi_updates["bbox_validated_by"] = user
+            roi_updates["last_updated_by"] = user
+            self.last_updated_by = user
+        boxed_rois.filter(bbox_is_validated=False).update(**roi_updates)
+        self.is_validated = boxed_rois.exists()
+        self.save(update_fields=['is_validated', 'last_updated_by', 'updated_at'])
+        return self.is_validated
+
     def __str__(self):
         return f"Image {self.image_sha256[:8] if self.image_sha256 else 'NoSHA'} ({self.full_path_at_import})"
 
@@ -295,6 +325,31 @@ class Beetles(models.Model):
     def has_bbox(self) -> bool:
         """Check if this Beetle record has bounding box annotation data."""
         return self.bbox_x is not None
+
+    def unvalidate(self, user=None):
+        """
+        Unvalidates this ROI. Its save will trigger the post_save signal,
+        which automatically moves the parent ImageAsset to unvalidated as well.
+        """
+        self.bbox_is_validated = False
+        self.bbox_validated_by = None
+        self.bbox_validated_at = None
+        if user:
+            self.last_updated_by = user
+        self.save(update_fields=['bbox_is_validated', 'bbox_validated_by', 'bbox_validated_at', 'last_updated_by', 'last_updated_at'])
+
+    def validate(self, user=None):
+        """
+        Validates this ROI. Its save will trigger the post_save signal.
+        If all other ROIs on the image are validated, the parent ImageAsset
+        will automatically move to validated as well.
+        """
+        self.bbox_is_validated = True
+        if user:
+            self.bbox_validated_by = user
+            self.last_updated_by = user
+        self.bbox_validated_at = timezone.now()
+        self.save(update_fields=['bbox_is_validated', 'bbox_validated_by', 'bbox_validated_at', 'last_updated_by', 'last_updated_at'])
 
     # ---------
     # Helpers: content-addressed relative paths based on sha256

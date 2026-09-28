@@ -386,9 +386,14 @@
                 <i class="fi fi-rr-disk"></i> Save
               </button>
             </div>
-            <button type="button" id="validate-all-btn" onclick="validateAllBoundingBoxes()" class="w-full bg-white hover:bg-green-50 border border-green-200 text-green-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1">
-              <i class="fi fi-rr-check-circle"></i> Validate All
-            </button>
+            <div class="flex gap-2 mt-1">
+              <button type="button" id="validate-all-btn" onclick="validateAllBoundingBoxes()" class="flex-1 bg-white hover:bg-green-50 border border-green-200 text-green-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-1.5" title="Validate all ROIs and this image">
+                <i class="fi fi-rr-check-circle"></i> Validate All
+              </button>
+              <button type="button" id="unvalidate-image-btn" onclick="unvalidateWholeImage()" class="flex-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-1.5" title="Flag whole image as unvalidated (unvalidates all ROIs)">
+                <i class="fi fi-rr-cross-circle"></i> Unvalidate
+              </button>
+            </div>
             <button type="button" onclick="deleteImage()" class="w-full bg-white hover:bg-red-50 border border-red-200 text-red-600 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1">
               <i class="fi fi-rr-trash"></i> Delete Image
             </button>
@@ -1345,9 +1350,15 @@ function renderRoiAccordions() {
                   <i class="fi fi-rr-disk"></i> Save
                 </button>
               </div>
-              <button type="button" id="btn-val-roi-${i}" onclick="validateRoi(${i})" class="w-full bg-white hover:bg-green-50 border border-green-200 text-green-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1" ${disabledAttr}>
-                <i class="fi fi-rr-check-circle"></i> Validate
-              </button>
+              ${b.bbox_is_validated ? `
+                <button type="button" id="btn-val-roi-${i}" onclick="unvalidateRoi(${i})" class="w-full bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1" ${disabledAttr} title="Mark this ROI as unvalidated (the image becomes unvalidated too)">
+                  <i class="fi fi-rr-cross-circle"></i> Unvalidate
+                </button>
+              ` : `
+                <button type="button" id="btn-val-roi-${i}" onclick="validateRoi(${i})" class="w-full bg-white hover:bg-green-50 border border-green-200 text-green-700 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1" ${disabledAttr}>
+                  <i class="fi fi-rr-check-circle"></i> Validate
+                </button>
+              `}
               <button type="button" onclick="deleteBoxUi(${i})" class="w-full bg-white hover:bg-red-50 border border-red-200 text-red-600 font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 mt-1" ${disabledAttr}>
                 <i class="fi fi-rr-trash"></i> Delete Box
               </button>
@@ -2171,6 +2182,86 @@ async function validateAllBoundingBoxes() {
         alert("An error occurred during bulk validation.");
     } finally { 
         btn.innerHTML = '<i class="fi fi-rr-check-circle"></i> Validate All'; 
+    }
+}
+
+async function unvalidateWholeImage() {
+    if (!state.selectedImageId || state.isLockedByOther) return alert('Select an unlocked image first.');
+    
+    if (!confirm('Move this image and all of its ROIs back to unvalidated?')) {
+        return;
+    }
+
+    const btn = document.getElementById('unvalidate-image-btn');
+    if (btn) btn.innerHTML = '<i class="fi fi-rr-spinner animate-spin"></i>';
+    
+    try {
+        const res = await fetch(`/api/v1/image-assets/${state.selectedImageId}/unvalidate/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        });
+        
+        if (!res.ok) throw new Error("Unvalidate failed");
+        
+        // Update local state: all boxes become unvalidated
+        state.bboxes.forEach(b => {
+            b.bbox_is_validated = false;
+        });
+
+        drawCanvas();
+        renderRoiAccordions();
+        
+        const currentIndex = state.images.findIndex(i => i.image_asset_id === state.selectedImageId);
+        if (currentIndex > -1) {
+            state.images[currentIndex].is_validated = false;
+            state.images[currentIndex].has_unvalidated_boxes = (state.bboxes.length > 0);
+            renderImageList(state.images, false);
+        }
+        updateMainStatusIndicator();
+        
+    } catch(e) {
+        console.error(e);
+        alert("An error occurred while unvalidating the image.");
+    } finally {
+        if (btn) btn.innerHTML = '<i class="fi fi-rr-cross-circle"></i> Unvalidate';
+    }
+}
+
+async function unvalidateRoi(idx) {
+    if (state.isLockedByOther) return;
+
+    const btn = document.getElementById(`btn-val-roi-${idx}`);
+    const b = state.bboxes[idx];
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fi fi-rr-spinner animate-spin"></i>';
+    }
+
+    try {
+        const res = await fetch(`/api/v1/beetles/${b.id}/unvalidate/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        });
+        if (!res.ok) throw new Error('API rejection');
+
+        b.bbox_is_validated = false;
+
+        // One unvalidated ROI makes the whole image unvalidated
+        const currentIndex = state.images.findIndex(i => i.image_asset_id === state.selectedImageId);
+        if (currentIndex > -1) {
+            state.images[currentIndex].is_validated = false;
+            state.images[currentIndex].has_unvalidated_boxes = true;
+            renderImageList(state.images, false);
+        }
+
+        drawCanvas();
+        renderRoiAccordions();
+        updateMainStatusIndicator();
+    } catch(e) {
+        console.error(e);
+        alert('Failed to unvalidate ROI.');
+        renderRoiAccordions();
     }
 }
 

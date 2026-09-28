@@ -35,6 +35,8 @@ urlpatterns = [
     path('interactions/', beetles_views.interactions_preview, name='interactions_preview'),
 
     path('beetles/<uuid:beetle_id>/', beetles_views.beetle_detail, name='beetle_detail'),
+    path('beetles/<uuid:beetle_id>/toggle-validation/', beetles_views.toggle_beetle_validation, name='toggle_beetle_validation'),
+    path('images/<uuid:image_id>/toggle-validation/', beetles_views.toggle_image_validation, name='toggle_image_validation'),
     path("beetles/add_specimen/<uuid:image_id>/", beetles_views.create_specimen_for_image, name="create_specimen_for_image"),
 
     # --- Tools ---

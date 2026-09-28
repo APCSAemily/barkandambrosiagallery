@@ -157,6 +157,35 @@ class ImageAssetViewSet(viewsets.ModelViewSet):
                 'message': 'No active lock found for this user'
             }, status=404)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsStaffUser], url_path='unvalidate')
+    def unvalidate(self, request, pk=None):
+        """
+        Staff endpoint to unvalidate an image and all its ROIs.
+        POST /api/v1/image-assets/{uuid}/unvalidate/
+        """
+        asset = self.get_object()
+        asset.unvalidate(user=request.user)
+        return Response({
+            'success': True,
+            'is_validated': False,
+            'message': 'Image and all associated ROIs have been marked as unvalidated.'
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsStaffUser], url_path='validate')
+    def validate(self, request, pk=None):
+        """
+        Staff endpoint to validate an image and all its ROIs.
+        POST /api/v1/image-assets/{uuid}/validate/
+        """
+        asset = self.get_object()
+        is_validated = asset.validate(user=request.user)
+        return Response({
+            'success': True,
+            'is_validated': is_validated,
+            'message': ('Image and all associated ROIs have been marked as validated.' if is_validated
+                        else 'Image has no bounding boxes, so it cannot be validated.')
+        })
+
 
 class BeetlesViewSet(viewsets.ModelViewSet):
     serializer_class = BeetlesSerializer
@@ -261,14 +290,51 @@ class BeetlesViewSet(viewsets.ModelViewSet):
             )
             return
 
-        if serializer.validated_data.get('bbox_is_validated') == True:
+        if serializer.validated_data.get('bbox_is_validated') is True:
             serializer.save(
                 bbox_validated_by=self.request.user,
                 bbox_validated_at=timezone.now(),
                 last_updated_by=self.request.user
             )
+        elif serializer.validated_data.get('bbox_is_validated') is False:
+            serializer.save(
+                bbox_validated_by=None,
+                bbox_validated_at=None,
+                bbox_is_validated=False,
+                last_updated_by=self.request.user
+            )
         else:
             serializer.save(last_updated_by=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsStaffUser], url_path='unvalidate')
+    def unvalidate(self, request, pk=None):
+        """
+        Staff endpoint to unvalidate a specific ROI.
+        POST /api/v1/beetles/{uuid}/unvalidate/
+        """
+        beetle = self.get_object()
+        beetle.unvalidate(user=request.user)
+        return Response({
+            'success': True,
+            'bbox_is_validated': False,
+            'image_is_validated': beetle.image_asset.is_validated if beetle.image_asset else False,
+            'message': 'ROI unvalidated successfully.'
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsStaffUser], url_path='validate')
+    def validate(self, request, pk=None):
+        """
+        Staff endpoint to validate a specific ROI.
+        POST /api/v1/beetles/{uuid}/validate/
+        """
+        beetle = self.get_object()
+        beetle.validate(user=request.user)
+        return Response({
+            'success': True,
+            'bbox_is_validated': True,
+            'image_is_validated': beetle.image_asset.is_validated if beetle.image_asset else False,
+            'message': 'ROI validated successfully.'
+        })
 
     @action(detail=False, methods=['patch'], url_path='bulk-update')
     def bulk_update(self, request):

@@ -28,6 +28,7 @@
       </div>
       {% endif %}
     </div>
+
   </header>
 
   <div class="grid gap-6 lg:grid-cols-12 mb-8">
@@ -345,6 +346,64 @@
               </dl>
           </div>
 
+          {# --- VALIDATION --- #}
+          <div class="group-section mt-4">
+              <h3 class="mb-2 text-md font-semibold tracking-wide text-text/70 uppercase">Validation</h3>
+              <dl class="grid grid-cols-3 gap-x-3 gap-y-2 text-sm items-center">
+                <dt class="col-span-1 text-text/60">Image</dt>
+                <dd class="col-span-2 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2 text-text/80">
+                      {% if beetle.image_asset.is_validated %}
+                        <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>Validated
+                      {% else %}
+                        <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>Not validated
+                      {% endif %}
+                    </span>
+                    {% if request.user.is_staff and beetle.image_asset %}
+                      {% if beetle.image_asset.is_validated %}
+                        <button type="submit" form="image-validation-form" name="state" value="unvalidate"
+                                onclick="return confirm('Move this image and all of its ROIs back to unvalidated?');"
+                                class="edit-action hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-100 transition"
+                                title="Unvalidates this image and every ROI on it">Unvalidate</button>
+                      {% else %}
+                        <button type="submit" form="image-validation-form" name="state" value="validate"
+                                class="edit-action hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-100 transition"
+                                title="Validates every ROI with a bounding box on this image">Validate</button>
+                      {% endif %}
+                    {% endif %}
+                </dd>
+                <dt class="col-span-1 text-text/60">This ROI</dt>
+                <dd class="col-span-2 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2 text-text/80">
+                      {% if beetle.bbox_x is None %}
+                        <span class="w-2 h-2 rounded-full bg-gray-300 shrink-0"></span>No bounding box
+                      {% elif beetle.bbox_is_validated %}
+                        <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>Validated
+                      {% else %}
+                        <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>Not validated
+                      {% endif %}
+                    </span>
+                    {% if request.user.is_staff and beetle.bbox_x is not None %}
+                      {% if beetle.bbox_is_validated %}
+                        <button type="submit" form="roi-validation-form" name="state" value="unvalidate"
+                                onclick="return confirm('Move this ROI back to unvalidated? The image will also become unvalidated.');"
+                                class="edit-action hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-100 transition"
+                                title="Unvalidates this ROI (the image becomes unvalidated too)">Unvalidate</button>
+                      {% else %}
+                        <button type="submit" form="roi-validation-form" name="state" value="validate"
+                                class="edit-action hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-100 transition"
+                                title="Validates this ROI">Validate</button>
+                      {% endif %}
+                    {% endif %}
+                </dd>
+              </dl>
+              {% if request.user.is_staff %}
+              <p class="edit-action hidden mt-2 text-xs text-text/50">
+                  Validation changes apply immediately. An image is only validated when all of its ROIs are.
+              </p>
+              {% endif %}
+          </div>
+
           {# --- NOTES --- #}
           <div class="group-section mt-4">
               <h3 class="mb-2 text-md font-semibold tracking-wide text-text/70 uppercase">Notes</h3>
@@ -361,6 +420,13 @@
 
         </div>
       </form>
+
+      {% if request.user.is_staff %}
+        {% if beetle.image_asset %}
+        <form id="image-validation-form" method="post" action="{% url 'toggle_image_validation' beetle.image_asset.id %}" class="hidden">{% csrf_token %}</form>
+        {% endif %}
+        <form id="roi-validation-form" method="post" action="{% url 'toggle_beetle_validation' beetle.id %}" class="hidden">{% csrf_token %}</form>
+      {% endif %}
     </aside>
   </div>
 </section>
@@ -370,6 +436,7 @@
   const viewVals = document.querySelectorAll('.view-val');
   const editInputs = document.querySelectorAll('.edit-input');
   const imageOnlyInputs = document.querySelectorAll('.image-only'); 
+  const editActions = document.querySelectorAll('.edit-action');
   
   const editControls = document.getElementById('edit-controls');
   const editBtn = document.getElementById('edit-btn');
@@ -395,6 +462,7 @@
 
       // 3. Show Controls
       editControls.classList.remove('hidden');
+      editActions.forEach(a => a.classList.remove('hidden'));
       editBtn.classList.add('hidden');
       addBtn.classList.add('hidden');
       addNotice.classList.add('hidden');
@@ -438,6 +506,7 @@
       });
 
       editControls.classList.add('hidden');
+      editActions.forEach(a => a.classList.add('hidden'));
       editBtn.classList.remove('hidden');
       addBtn.classList.remove('hidden');
       addNotice.classList.add('hidden');
