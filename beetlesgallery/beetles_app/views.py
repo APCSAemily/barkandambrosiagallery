@@ -24,7 +24,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import login, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
-from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView
+from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView, redirect_to_login
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files.storage import default_storage
@@ -664,8 +664,7 @@ def gallery(request):
 
 def beetle_detail(request, beetle_id):
     if not request.user.is_authenticated:
-        login_url = reverse("login")
-        return redirect(f"{login_url}?next={request.path}")
+        return redirect_to_login(request.get_full_path(), login_url=reverse("login"))
 
     # Fetch main object, aggressively joining the taxon relationship to prevent N+1 queries
     beetle = get_object_or_404(Beetles.objects.filter(is_deleted=False).select_related("taxon"), pk=beetle_id)
