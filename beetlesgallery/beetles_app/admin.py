@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty,
+    PlayerSkill, LabelReview, RoiDifficulty, GameReport,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -827,3 +827,11 @@ class LabelReviewAdmin(admin.ModelAdmin):
 class RoiDifficultyAdmin(admin.ModelAdmin):
     list_display = ("roi", "model_difficulty", "model_name", "game_difficulty", "game_answers", "updated_at")
     raw_id_fields = ("roi",)
+
+
+@admin.register(GameReport)
+class GameReportAdmin(admin.ModelAdmin):
+    list_display = ("roi", "reporter", "reason", "status", "was_validated", "created_at", "resolved_by", "resolved_at")
+    list_filter = ("status", "reason", "created_at")
+    search_fields = ("reporter__username", "note")
+    raw_id_fields = ("roi", "answer")

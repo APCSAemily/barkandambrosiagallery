@@ -559,8 +559,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadTaxonomyList();
   initResizers(); // Initialize the drag-to-resize feature
 
-  // Deep link from another page (e.g. the specimen detail page's pencil icon):
-  // open straight to that image instead of leaving the canvas empty.
+  // Deep link from another page (the specimen detail page's pencil icon, or
+  // "Open in annotator" on the game review page): open straight to that image.
   const focusImageId = new URLSearchParams(window.location.search).get('image');
   if (focusImageId) {
     const match = state.images.find(i => i.image_asset_id === focusImageId);
@@ -1201,10 +1201,58 @@ function escHtml(value) {
 
 async function loadGameProposals(imageId) {
   state.gameProposals = {};
+  state.gameReports = {};
   try {
     const res = await fetch(`/game/api/proposals/?image_asset=${imageId}`, { headers: { 'X-CSRFToken': csrftoken } });
-    if (res.ok) state.gameProposals = (await res.json()).proposals || {};
+    if (res.ok) {
+      const data = await res.json();
+      state.gameProposals = data.proposals || {};
+      state.gameReports = data.reports || {};
+    }
   } catch (e) { /* proposals are optional */ }
+}
+
+// Open player reports on this ROI. While open, the ROI isn't used to score players.
+function gameReportsHtml(b) {
+  const reports = (state.gameReports || {})[b.id];
+  if (!reports || !reports.length) return '';
+  const locked = state.isLockedByOther ? 'disabled' : '';
+  const list = reports.map(r => `
+    <li class="text-xs text-gray-700"><span class="font-semibold">${escHtml(r.reason)}</span>
+      <span class="text-gray-400">· ${escHtml(r.reporter)}</span>${r.note ? `<div class="text-gray-600 mt-0.5">&ldquo;${escHtml(r.note)}&rdquo;</div>` : ''}</li>`).join('');
+  return `
+    <div class="rounded-lg border border-red-200 bg-red-50/60 p-3">
+      <div class="text-[11px] font-bold text-red-800 uppercase tracking-wide mb-2"><i class="fi fi-rr-flag"></i> ${reports.length} player report${reports.length > 1 ? 's' : ''}</div>
+      <ul class="space-y-1.5">${list}</ul>
+      <p class="text-[10px] text-gray-500 mt-2">Fix the ROI first if needed, then resolve. "Corrected" re-scores every game answer on this ROI against its current label (voided if unvalidated).</p>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <button type="button" onclick="resolveGameReports(${state.bboxes.indexOf(b)}, 'corrected')" ${locked}
+          class="px-3 py-1.5 text-xs font-semibold text-white bg-gray-800 rounded hover:bg-gray-900 disabled:opacity-50">Label was wrong · fixed</button>
+        <button type="button" onclick="resolveGameReports(${state.bboxes.indexOf(b)}, 'confirmed')" ${locked}
+          class="px-3 py-1.5 text-xs text-gray-700 border border-gray-300 rounded bg-white hover:bg-gray-100 disabled:opacity-50">Label is correct</button>
+      </div>
+    </div>`;
+}
+
+async function resolveGameReports(idx, outcome) {
+  if (state.isLockedByOther) return;
+  const b = state.bboxes[idx];
+  const msg = outcome === 'corrected'
+    ? 'Re-score all game answers on this ROI against its current label? Save your label changes first.'
+    : 'Mark the current label as correct and close the reports?';
+  if (!confirm(msg)) return;
+  try {
+    const res = await fetch(`/game/api/reports/${b.id}/resolve/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+      body: JSON.stringify({ outcome })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not resolve the reports.');
+    await loadGameProposals(state.selectedImageId);
+    renderRoiAccordions();
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function gameProposalHtml(b, i) {
@@ -1340,6 +1388,7 @@ function renderRoiAccordions() {
 
         <div class="accordion-body p-4 border-t border-gray-200 bg-white">
           <form id="form-roi-${i}" onsubmit="event.preventDefault(); saveRoiMetadata(${i});" class="space-y-4">
+            ${gameReportsHtml(b)}
             ${gameProposalHtml(b, i)}
             <div class="">
               <label class="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Taxonomy</label>
@@ -1692,13 +1741,13 @@ function filterTaxonomyDropdown(idx, query) {
                                 if (wrapper3.childElementCount > 0) return;
                                 state.taxonomyTree[sub][tribe][genus].sort((a,b) => (a.species||'').localeCompare(b.species||'')).forEach(t => {
                                     const displayStr = `${t.subfamily || 'Unknown'} > ${t.tribe || 'Unknown'} > ${t.genus} ${t.species} [${t.valid_species_id}]`;
-                                    const safeDisplayStr = displayStr.replace(/'/g, "\\'"); 
                                     const leaf = document.createElement('div');
                                     leaf.className = 'px-3 py-1.5 text-[11px] text-gray-600 hover:bg-gray-50 hover:text-gray-700 cursor-pointer flex justify-between select-none pl-12';
                                     leaf.innerHTML = `<span><span class="italic">${t.genus}</span> <span class="font-bold italic">${t.species}</span></span><span class="text-gray-400 ml-2">[${t.valid_species_id}]</span>`;
                                     leaf.onmousedown = (e) => {
                                         e.preventDefault();
-                                        selectTaxonomy(idx, t.valid_species_id, safeDisplayStr);
+                                        // Passed as a plain JS value (no HTML or code involved), so no escaping.
+                                        selectTaxonomy(idx, t.valid_species_id, displayStr);
                                     };
                                     wrapper3.appendChild(leaf);
                                 });
@@ -1784,7 +1833,11 @@ function selectTaxonomy(idx, id, displayStr) {
     if (preview) {
         // Strip out the [ID] part to show just the clean lineage
         const lineageOnly = displayStr.replace(/\s*\[.*?\]$/, '');
-        preview.innerHTML = `<span class="font-bold text-gray-800">${lineageOnly}</span>`;
+        // Built as text so taxon names can never be read as HTML.
+        const span = document.createElement('span');
+        span.className = 'font-bold text-gray-800';
+        span.textContent = lineageOnly;
+        preview.replaceChildren(span);
     }
 }
 

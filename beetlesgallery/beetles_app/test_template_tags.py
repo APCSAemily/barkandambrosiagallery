@@ -5,12 +5,13 @@ remove_filter builds the link behind each "x" on an active-filter chip in the
 image browser: the current query string, minus that filter, back on page 1.
 """
 import html
+import re
 
 from django.http import QueryDict
 from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase
 
-from beetlesgallery.beetles_app.templatetags.beetle_tags import remove_filter
+from beetlesgallery.beetles_app.templatetags.beetle_tags import digit_groups, remove_filter
 
 URL = "/beetles/?country=USA&country=Canada&sex=m&page=3&q=ips"
 
@@ -103,3 +104,29 @@ class RemoveFilterInTemplateTests(SimpleTestCase):
             parse(html.unescape(out)),
             {"country": ["USA", "Canada"], "q": ["ips"]},
         )
+
+
+class DigitGroupsTests(SimpleTestCase):
+    """Landing page counts are shown with the digits in groups of three (#125)."""
+
+    def groups(self, value):
+        return re.findall(r">(\d+)<", str(digit_groups(value)))
+
+    def test_groups_of_three_from_the_right(self):
+        self.assertEqual(self.groups(70000), ["70", "000"])
+        self.assertEqual(self.groups(1234567), ["1", "234", "567"])
+        self.assertEqual(self.groups(999), ["999"])
+        self.assertEqual(self.groups(0), ["0"])
+
+    def test_only_later_groups_get_extra_space(self):
+        html_out = str(digit_groups(12345))
+        self.assertEqual(html_out.count("margin-left"), 1)
+        self.assertTrue(html_out.startswith('<span class="digit-group">12</span>'))
+
+    def test_non_numbers_pass_through(self):
+        self.assertEqual(digit_groups("n/a"), "n/a")
+        self.assertIsNone(digit_groups(None))
+
+    def test_in_template(self):
+        out = Template("{% load beetle_tags %}{{ n|digit_groups }}").render(Context({"n": "4096"}))
+        self.assertIn('<span class="digit-group">4</span>', out)

@@ -206,6 +206,7 @@ class ClassifyApiTests(GameCase):
     @override_settings(GAME_ROUND_SIZE=1)
     def test_partial_answer_and_skip(self):
         self.roi(self.t_affinis)
+        self.roi(self.t_affinis)  # scored items never repeat, so the second round needs another
         rnd, item = self.play("classify")
         res = self.post("game_answer", {"index": item["index"], "skipped": True}, rnd.id)
         self.assertTrue(res.json()["done"])
@@ -586,3 +587,172 @@ class ReportPrivacyTests(TrustCase):
         progressing = game_trust.player_report(self.user)["progressing"]
         self.assertNotIn("Xyleborus", [s.branch for s in progressing])
         self.assertEqual([s.rank for s in progressing], ["subfamily"])
+
+
+# ---------------------------------------------------------------------------
+# Round feedback and player reports
+# ---------------------------------------------------------------------------
+from beetlesgallery.beetles_app import game_feedback  # noqa: E402
+from beetlesgallery.beetles_app.models import GameReport  # noqa: E402
+
+
+class FeedbackCase(GameCase):
+    def finished_round(self, player, answers):
+        """answers: [(roi, is_check, {fields})]; scores check answers like the API does."""
+        rnd = GameRound.objects.create(
+            player=player, mode="classify", finished_at=timezone.now(),
+            items=[{"a": str(r.id), "b": None, "check": c} for r, c, _ in answers],
+        )
+        for i, (roi, check, fields) in enumerate(answers):
+            ans = GameAnswer(round=rnd, player=player, mode="classify", index=i, roi=roi, is_check=check, **fields)
+            if check:
+                for r, ok in game.score_classification(fields, roi.taxon).items():
+                    setattr(ans, f"correct_{r}", ok)
+                t = roi.taxon
+                ans.ref_subfamily, ans.ref_tribe, ans.ref_genus, ans.ref_species = t.subfamily, t.tribe, t.genus, t.species
+            ans.save()
+        return rnd
+
+
+AFFINIS = {"subfamily": "Scolytinae", "tribe": "Xyleborini", "genus": "Xyleborus", "species": "affinis"}
+FERR = dict(AFFINIS, species="ferrugineus")
+
+
+class FeedbackTests(FeedbackCase):
+    def test_feedback_shows_results_and_database_labels(self):
+        check = self.roi(self.t_affinis)
+        wrong = self.roi(self.t_affinis)
+        unverified = self.roi(self.t_ferr, validated=False)
+        rnd = self.finished_round(self.user, [(check, True, AFFINIS), (wrong, True, FERR), (unverified, False, AFFINIS)])
+        fb = game_feedback.round_feedback(rnd)
+        self.assertEqual((fb["right"], fb["scored"]), (1, 2))
+        first, second, third = fb["items"]
+        self.assertEqual(first["verdict"], "right")
+        self.assertEqual(second["verdict"], "partly")
+        self.assertFalse(second["results"]["species"])
+        self.assertTrue(second["sides"][0]["verified"])
+        self.assertEqual(second["sides"][0]["label"]["species"], "Xyleborus affinis")
+        # Unverified: no verdict, the unverified label, and what players said.
+        self.assertIsNone(third["verdict"])
+        self.assertFalse(third["sides"][0]["verified"])
+        self.assertEqual(third["sides"][0]["label"]["species"], "Xyleborus ferrugineus")
+        self.assertEqual(third["sides"][0]["others"]["value"], "Xyleborus affinis")
+
+    def test_review_page_access(self):
+        rnd = self.finished_round(self.user, [(self.roi(self.t_affinis), True, AFFINIS)])
+        url = reverse("game_round_review", args=[rnd.id])
+        self.assertRedirectsToLogin(self.client.get(url))
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(url), "Your answers")
+        self.client.force_login(self.superuser)  # staff may look
+        self.assertEqual(self.client.get(url).status_code, 200)
+        other = get_user_model_for_tests().objects.create_user("other", password="pw")
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_unfinished_round_redirects_to_play(self):
+        rnd = GameRound.objects.create(player=self.user, mode="classify", items=[])
+        self.client.force_login(self.user)
+        res = self.client.get(reverse("game_round_review", args=[rnd.id]))
+        self.assertRedirects(res, reverse("game_play", args=["classify"]), fetch_redirect_response=False)
+
+    @override_settings(GAME_ROUND_SIZE=2)
+    def test_revealed_items_are_never_scored_again(self):
+        seen = self.roi(self.t_affinis)
+        self.finished_round(self.user, [(seen, True, AFFINIS)])
+        fresh = self.roi(self.t_ferr)
+        partner_seen = self.roi(self.t_plat)
+        GameAnswer.objects.create(round=GameRound.objects.create(player=self.user, mode="pair", items=[]),
+                                  player=self.user, mode="pair", index=0, roi=self.roi(validated=False),
+                                  roi_b=partner_seen, pair_answer="different")
+        rnd = game.start_round(self.user, "classify")
+        checks = {i["a"] for i in rnd.items if i["check"]}
+        self.assertEqual(checks, {str(fresh.id)})
+
+    def test_finish_returns_review_url(self):
+        self.roi(self.t_affinis)
+        with override_settings(GAME_ROUND_SIZE=1):
+            rnd, item = self.play("classify")
+        data = self.post("game_answer", dict(AFFINIS, index=item["index"]), rnd.id).json()
+        self.assertEqual(data["review_url"], reverse("game_round_review", args=[rnd.id]))
+
+
+def get_user_model_for_tests():
+    from django.contrib.auth import get_user_model
+    return get_user_model()
+
+
+@override_settings(GAME_MIN_JUDGED_FOR_ACCURACY=1)
+class PlayerReportTests(FeedbackCase):
+    def setUp(self):
+        super().setUp()
+        self.bad = self.roi(self.t_affinis)  # actually a ferrugineus; the reference is wrong
+        # The reporter answered correctly (ferrugineus) and was marked wrong; staff matched the bad label.
+        self.rnd = self.finished_round(self.user, [(self.bad, True, FERR)])
+        self.finished_round(self.staff, [(self.bad, True, AFFINIS)])
+        self.client.force_login(self.user)
+
+    def report(self, **body):
+        payload = {"round": str(self.rnd.id), "index": 0, "roi": str(self.bad.id), "reason": "wrong_label", "note": "ferrugineus"}
+        payload.update(body)
+        return self.post("game_report_roi", payload)
+
+    def test_report_holds_the_reporters_answer_and_quarantines_the_roi(self):
+        self.assertEqual(game.player_summary(self.user)["accuracy"], 0.75)
+        res = self.report()
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertTrue(GameAnswer.objects.get(player=self.user).score_hold)
+        self.assertFalse(GameAnswer.objects.get(player=self.staff).score_hold)
+        self.assertIsNone(game.player_summary(self.user)["accuracy"])  # nothing left to score
+        self.assertNotIn(self.bad, game.check_rois())
+        # Reporting twice keeps one open report.
+        self.report()
+        self.assertEqual(GameReport.objects.count(), 1)
+
+    def test_report_validation(self):
+        self.assertEqual(self.report(reason="nope").status_code, 400)
+        self.assertEqual(self.report(roi=str(self.roi(self.t_affinis).id)).status_code, 400)
+        self.assertEqual(self.report(index=5).status_code, 404)
+        self.client.force_login(self.staff)
+        self.assertEqual(self.report().status_code, 404)  # not their round
+
+    def test_confirmed_releases_the_hold(self):
+        self.report()
+        game_feedback.resolve_reports(self.bad, "confirmed", self.superuser)
+        self.assertFalse(GameAnswer.objects.get(player=self.user).score_hold)
+        self.assertEqual(game.player_summary(self.user)["accuracy"], 0.75)
+        self.assertEqual(GameReport.objects.get().status, "confirmed")
+        self.assertIn(self.bad, game.check_rois())
+
+    def test_corrected_rescores_everyone(self):
+        self.report()
+        self.bad.depicts_valid_name_id = self.t_ferr.valid_species_id
+        self.bad.save()
+        self.client.force_login(self.staff)
+        res = self.post("game_resolve_reports", {"outcome": "corrected"}, self.bad.id)
+        self.assertEqual(res.json()["closed"], 1)
+        reporter = GameAnswer.objects.get(player=self.user)
+        matcher = GameAnswer.objects.get(player=self.staff)
+        self.assertFalse(reporter.score_hold)
+        self.assertTrue(reporter.correct_species)
+        self.assertEqual(reporter.ref_species, "ferrugineus")
+        self.assertFalse(matcher.correct_species)
+        self.assertEqual(game.player_summary(self.user)["accuracy"], 1.0)
+
+    def test_corrected_by_unvalidating_voids_scores(self):
+        self.report()
+        self.bad.bbox_is_validated = False
+        self.bad.save()
+        game_feedback.resolve_reports(self.bad, "corrected", self.superuser)
+        self.assertTrue(all(GameAnswer.objects.values_list("score_hold", flat=True)))
+
+    def test_resolve_is_staff_only_and_annotator_shows_reports(self):
+        self.report()
+        self.assertRedirectsToLogin(self.post("game_resolve_reports", {"outcome": "confirmed"}, self.bad.id))
+        self.client.force_login(self.staff)
+        data = self.client.get(reverse("game_proposals"), {"image_asset": self.bad.image_asset_id}).json()
+        self.assertEqual(data["reports"][str(self.bad.id)][0]["reason"], "The name looks wrong")
+        page = self.client.get(reverse("tool_annotate"))
+        self.assertContains(page, "gameReportsHtml")
+        self.assertContains(page, "get('image')")  # ?image= deep link
+        self.assertContains(self.client.get(reverse("game_review")), "Open in annotator")

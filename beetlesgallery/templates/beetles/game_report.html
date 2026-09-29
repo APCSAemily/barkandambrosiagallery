@@ -95,6 +95,24 @@
     {% endif %}
   </div>
 
+  <!-- Recent rounds -->
+  {% if report.recent_rounds %}
+  <div class="mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent rounds</h2>
+    <ul class="border border-gray-200 rounded-lg divide-y divide-gray-100">
+      {% for r in report.recent_rounds %}
+      <li>
+        <a href="{% url 'game_round_review' r.id %}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+          <span class="text-sm text-gray-900">{% if r.mode == 'classify' %}Name the beetle{% else %}Spot the relatives{% endif %}
+            <span class="text-gray-400">· {{ r.labelled }} labelled</span></span>
+          <span class="text-xs text-gray-500">{{ r.finished_at|date:"M j" }} <i class="fi fi-rr-angle-right ml-1"></i></span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   <!-- By rank -->
   <div class="mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-3">Accuracy by rank</h2>

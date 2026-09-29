@@ -12,8 +12,15 @@ from .serializers import ImageAssetSerializer, BeetlesSerializer, SpeciesSeriali
 import json
 import zipfile
 import os
+import logging
 from io import BytesIO
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class _RollBack(Exception):
+    """Raised inside a transaction.atomic() block to undo it without an error to report."""
 
 
 class IsStaffUser(IsAuthenticated):
@@ -352,6 +359,7 @@ class BeetlesViewSet(viewsets.ModelViewSet):
         instance_map = {str(inst.id): inst for inst in instances}
 
         results = []
+        invalid = None
         try:
             # 2. Open a single database transaction
             with transaction.atomic():
@@ -360,17 +368,30 @@ class BeetlesViewSet(viewsets.ModelViewSet):
                     if inst:
                         # 3. Initialize serializer with partial=True for sparse updates
                         serializer = self.get_serializer(inst, data=item, partial=True)
-                        serializer.is_valid(raise_exception=True)
-                        
+                        if not serializer.is_valid():
+                            # Field-level messages from the serializer are meant for the user.
+                            invalid = {"id": str(inst.id), "errors": serializer.errors}
+                            raise _RollBack()
+
                         # 4. Route through perform_update to trigger your existing Validation/Ghost ROI logic!
                         self.perform_update(serializer)
-                        
+
                         results.append(serializer.data)
-                        
+
             return Response(results, status=status.HTTP_200_OK)
-        except Exception as e:
-            # If ANY serializer fails, the entire transaction rolls back
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except _RollBack:
+            # One row failed validation: the whole batch is rolled back.
+            return Response(
+                {"error": "Invalid data; nothing was saved.", "details": invalid},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception:
+            # Anything else is a server-side problem: log it, don't echo it to the client.
+            logger.exception("Bulk update failed in BeetlesViewSet.bulk_update")
+            return Response(
+                {"error": "Bulk update failed; nothing was saved."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['get'], url_path='images-with-annotations')
     def images_with_annotations(self, request):

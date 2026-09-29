@@ -4,6 +4,7 @@ the AJAX partial and soft-deleted rows (issue #206, part 3).
 
 The view shows one card per image, so every count below is a count of images.
 """
+import re
 from datetime import date
 
 from django.urls import reverse
@@ -186,3 +187,24 @@ class LandingPageTests(GalleryTestCase):
     def test_deleted_images_are_not_counted(self):
         self.brazil.image_asset.delete()
         self.assertEqual(self.client.get(reverse("image_browser")).context["total_images"], 1)
+
+
+class DetailHeadingTests(PageBehaviourCase):
+    """The detail page is titled like the gallery card that links to it (#112)."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def heading(self, beetle):
+        html = self.client.get(reverse("beetle_detail", args=[beetle.id])).content.decode()
+        return re.search(r"<h1[^>]*>\s*(.*?)\s*</h1>", html, re.S).group(1)
+
+    def test_identified_specimen_uses_the_scientific_name(self):
+        taxon = make_taxon(genus="Ips", species="typographus", scientific_name="Ips typographus")
+        beetle = make_beetle(taxon=taxon, depicts_specimen="Vial_23246", depicts_name_verbatim="Ips sp.")
+        self.assertEqual(self.heading(beetle), "Ips typographus")
+
+    def test_unlinked_specimen_is_unidentified(self):
+        beetle = make_beetle(depicts_specimen="Vial_1")
+        self.assertEqual(self.heading(beetle), "Unidentified")

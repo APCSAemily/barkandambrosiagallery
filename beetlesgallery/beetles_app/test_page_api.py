@@ -4,9 +4,11 @@ and filters, soft delete, image locks, bulk updates and the species search
 (issue #206, part 3). Who may call the API at all is covered in test_pages.py.
 """
 from datetime import timedelta
+from unittest import mock
 
 from django.utils import timezone
 
+from beetlesgallery.beetles_app.api.views import BeetlesViewSet
 from beetlesgallery.beetles_app.models import Beetles, ImageAsset, ImageLock
 from beetlesgallery.beetles_app.testing import PageBehaviourCase, make_beetle, make_image, make_taxon
 
@@ -177,6 +179,18 @@ class BulkUpdateTests(ApiTestCase):
         self.assertEqual(response.status_code, 400)
         good.refresh_from_db()
         self.assertFalse(good.bbox_is_validated)
+        # The failing row and its field errors are reported so staff can fix them.
+        details = response.json()["details"]
+        self.assertEqual(details["id"], str(bad.id))
+        self.assertIn("bbox_x", details["errors"])
+
+    def test_unexpected_errors_are_not_echoed(self):
+        beetle = make_beetle(bbox="unvalidated")
+        with mock.patch.object(BeetlesViewSet, "perform_update", side_effect=RuntimeError("secret path /opt/x")):
+            with self.assertLogs("beetlesgallery.beetles_app.api.views", level="ERROR"):
+                response = self.patch(self.URL, [{"id": str(beetle.id), "bbox_is_validated": True}])
+        self.assertEqual(response.status_code, 500)
+        self.assertNotIn("secret", response.content.decode())
 
     def test_unknown_and_deleted_ids_are_skipped(self):
         gone = make_beetle(bbox="unvalidated")
