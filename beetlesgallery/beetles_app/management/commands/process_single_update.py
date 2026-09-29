@@ -74,6 +74,10 @@ def _to_date(v):
     if v is None: return None
     if isinstance(v, datetime): return v.date()
     if isinstance(v, date): return v
+    # pd.read_csv leaves dates as text; [:10] drops a time part such as "2024-05-17 10:30:00".
+    if isinstance(v, str):
+        try: return date.fromisoformat(v.strip()[:10])
+        except ValueError: return None
     # Pandas timestamp fallback
     try: return v.date() 
     except: return None
