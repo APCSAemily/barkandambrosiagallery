@@ -3,7 +3,7 @@ import json
 import io
 import time
 import os
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.core.files.storage import default_storage
 from django.db import transaction, connection
 from django.conf import settings
@@ -119,10 +119,14 @@ class Command(BaseCommand):
                         ))
                         path_counter += 1
 
+            # The purge already ran in this transaction; raising rolls it back instead of committing an empty taxonomy.
+            if not taxa_to_create:
+                raise CommandError("The species file has no rows with a valid_species_id. The existing taxonomy was kept.")
+
             Taxon.objects.bulk_create(taxa_to_create, batch_size=5000)
             self.stdout.write(f"   -> Bulk inserted {len(taxa_to_create)} Taxon records instantly.")
         except FileNotFoundError as e:
-            self.stdout.write(self.style.ERROR(f"   -> {e}. Critical failure."))
+            raise CommandError(f"{e}. The existing taxonomy was kept.")
 
     def _hydrate_synonym_table(self):
         self.stdout.write("4. Hydrating Synonym (described_names.csv)...")
