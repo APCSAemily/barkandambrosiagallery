@@ -9,6 +9,7 @@ import os
 import math
 import requests
 import time
+import logging
 from datetime import date, timedelta
 from io import BytesIO
 
@@ -17,13 +18,13 @@ from django.utils import timezone
 from django.urls import reverse
 from django.conf import settings
 from django.contrib import messages
-from django.utils.http import http_date
+from django.utils.http import http_date, url_has_allowed_host_and_scheme
 from django.http import HttpResponseNotAllowed, FileResponse, HttpResponse, Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import login, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
-from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView
+from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView, redirect_to_login
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files.storage import default_storage
@@ -38,6 +39,8 @@ import pandas as pd
 from io import BytesIO, StringIO
 
 MODAL_API_URL = "https://christophermarais--ibbi-api-fastapi-app.modal.run/analyze"
+
+logger = logging.getLogger(__name__)
 
 # Custom decorator for superuser-only views
 def superuser_required(view_func):
@@ -661,8 +664,7 @@ def gallery(request):
 
 def beetle_detail(request, beetle_id):
     if not request.user.is_authenticated:
-        login_url = reverse("login")
-        return redirect(f"{login_url}?next={request.path}")
+        return redirect_to_login(request.get_full_path(), login_url=reverse("login"))
 
     # Fetch main object, aggressively joining the taxon relationship to prevent N+1 queries
     beetle = get_object_or_404(Beetles.objects.filter(is_deleted=False).select_related("taxon"), pk=beetle_id)
@@ -1495,7 +1497,14 @@ def create_specimen_for_image(request, image_id):
     _run_update_batch(request, row_data, f"add_specimen_{image_asset.id.hex[:8]}.csv")
     
     messages.success(request, "Update queued successfully. Changes will appear shortly.")
-    return redirect(request.META.get('HTTP_REFERER', 'image_browser'))
+    referer = request.META.get('HTTP_REFERER')
+    if referer and url_has_allowed_host_and_scheme(
+        url=referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(referer)
+    return redirect(reverse('image_browser'))
 
 
 def _run_update_batch(request, row_data, filename):
@@ -1559,10 +1568,12 @@ def tool_classify(request):
                 "status": "error", 
                 "message": "The AI model is waking up (Cold Start). Please try again in 1 minute."
             }, status=504)
-        except Exception as e:
+        except Exception:
+            # Details go to the server log, not to the browser.
+            logger.exception("AI classification request failed")
             return JsonResponse({
                 "status": "error", 
-                "message": f"Processing failed: {str(e)}"
+                "message": "Processing failed. Please try again later."
             }, status=500)
 
     # GET request: Render the page

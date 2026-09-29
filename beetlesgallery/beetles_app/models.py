@@ -1246,6 +1246,11 @@ class GameAnswer(models.Model):
     response_ms = models.PositiveIntegerField(
         null=True, blank=True, help_text="Time from the item appearing to the answer, as reported by the browser."
     )
+    score_hold = models.BooleanField(
+        default=False,
+        help_text="Left out of scores: the player reported this ROI and the report is open, "
+                  "or the ROI stopped being a valid reference.",
+    )
     answered_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1353,3 +1358,52 @@ class RoiDifficulty(models.Model):
         if self.model_difficulty is not None:
             return self.model_difficulty
         return self.game_difficulty
+
+
+class GameReport(models.Model):
+    """
+    A player's report that an ROI they saw in the game looks wrong.
+
+    While a report is open the ROI is not used for scoring, and the reporter's own scored
+    answers on it are held out of their score. Staff resolve it on the annotation page:
+    "corrected" re-scores every answer on the ROI against its fixed label (or voids them
+    if it is no longer validated); "confirmed" puts the held answers back.
+    """
+
+    class Reason(models.TextChoices):
+        WRONG_LABEL = "wrong_label", "The name looks wrong"
+        BAD_BOX = "bad_box", "The box doesn't fit the beetle"
+        BAD_IMAGE = "bad_image", "Photo problem (blurry, not a beetle, ...)"
+        OTHER = "other", "Something else"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        CORRECTED = "corrected", "Corrected"
+        CONFIRMED = "confirmed", "Label confirmed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    roi = models.ForeignKey(Beetles, on_delete=models.CASCADE, related_name="game_reports")
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_reports"
+    )
+    answer = models.ForeignKey(GameAnswer, on_delete=models.SET_NULL, null=True, blank=True, related_name="reports")
+    reason = models.CharField(max_length=12, choices=Reason.choices)
+    note = models.TextField(blank=True, max_length=1000)
+    was_validated = models.BooleanField(default=False)
+    label_at_report = models.CharField(max_length=255, blank=True, help_text="valid_species_id when reported")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN, db_index=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="resolved_game_reports"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    staff_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "game_report"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["roi", "reporter"], condition=models.Q(status="open"), name="game_report_one_open_per_player"
+            ),
+        ]

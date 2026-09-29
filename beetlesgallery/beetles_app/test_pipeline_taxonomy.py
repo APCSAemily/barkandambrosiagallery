@@ -1,14 +1,13 @@
 # Tests for the taxonomy rebuild (migrate_taxonomy_to_db) that the superuser reference pages run (issue #256, phase 3).
 import io
 import json
-from contextlib import redirect_stdout, suppress
-from unittest import expectedFailure
+from contextlib import redirect_stdout
 
 from django.contrib.messages import get_messages
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 from django.db import IntegrityError
 from django.urls import reverse
 
@@ -172,20 +171,19 @@ class RebuildFailureTests(TaxonomyRebuildCase):
             self.rebuild(species(IPS, IPS))
         self.assertOldTaxonomyKept()
 
-    # KNOWN BUG: rows without valid_species_id are skipped (migrate_taxonomy_to_db.py:100), so a file with
-    # no such column loads 0 taxa and the purge commits: all taxa and synonyms are deleted, all beetles unlinked.
-    @expectedFailure
     def test_species_file_without_the_id_column_keeps_the_old_taxonomy(self):
-        with suppress(Exception):
+        with self.assertRaisesMessage(CommandError, "no rows with a valid_species_id"):
             self.rebuild(names(*IPS_NAMES))
         self.assertOldTaxonomyKept()
 
-    # KNOWN BUG: a missing species file is only logged (migrate_taxonomy_to_db.py:124), so the purge still
-    # commits and the whole taxonomy is deleted.
-    @expectedFailure
+    def test_species_file_with_only_blank_ids_keeps_the_old_taxonomy(self):
+        with self.assertRaisesMessage(CommandError, "no rows with a valid_species_id"):
+            self.rebuild(species(",Nameless species,,,,,,,,,,"))
+        self.assertOldTaxonomyKept()
+
     def test_missing_species_file_keeps_the_old_taxonomy(self):
         default_storage.delete(SPECIES_KEY)
-        with suppress(Exception):
+        with self.assertRaisesMessage(CommandError, "The existing taxonomy was kept"):
             self.rebuild()
         self.assertOldTaxonomyKept()
 
@@ -225,4 +223,12 @@ class ReferencePageRebuildTests(TaxonomyRebuildCase):
         messages = self.upload("admin_valid_species", species(XYL, XYL))
 
         self.assertTrue(any("database rebuild failed" in m for m in messages), messages)
+        self.assertEqual(valid_ids(), ["3"])
+
+    def test_described_names_uploaded_on_the_species_page_are_refused(self):
+        self.rebuild(species(IPS), names())
+
+        messages = self.upload("admin_valid_species", names(*IPS_NAMES))
+
+        self.assertTrue(any("database rebuild failed" in m and "existing taxonomy was kept" in m for m in messages), messages)
         self.assertEqual(valid_ids(), ["3"])

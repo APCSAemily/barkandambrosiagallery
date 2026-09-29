@@ -165,6 +165,23 @@ class ApiPermissionTests(PageTestCase):
         self.assertEqual(self.client.get("/api/v1/beetles/").status_code, 200)
 
 
+class ClassifyErrorTests(PageTestCase):
+    """A failing AI call is logged on the server and not echoed to the browser (alert 9)."""
+
+    def test_unexpected_error_is_logged_not_shown(self):
+        from unittest import mock
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile("beetle.jpg", b"not really a jpeg", content_type="image/jpeg")
+        with mock.patch("beetlesgallery.beetles_app.views.requests.post", side_effect=RuntimeError("secret /opt/path")):
+            with self.assertLogs("beetlesgallery.beetles_app.views", level="ERROR"):
+                response = self.client.post(reverse("tool_classify"), {"image": upload})
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["message"], "Processing failed. Please try again later.")
+        self.assertNotIn("secret", response.content.decode())
+
+
 class AdminCoverageTests(PageTestCase):
     """Every app table is reachable in the Django admin (#217)."""
 
