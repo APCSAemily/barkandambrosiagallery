@@ -1253,6 +1253,24 @@
     setInterval(fetchUpdates, 3000);
   });
 
+  // Make a value safe to put inside a single-quoted JS string in an HTML onclick="..."
+  // attribute. Escape it as a JS string first, then HTML-escape the result: the browser
+  // decodes entities in the attribute before running it, so JS escaping alone lets an
+  // entity such as &#39; turn back into a quote and break out of the string.
+  function inlineJsArg(value) {
+    const js = String(value ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r\n|\r|\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+    return js
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   // Helper to update the Badge color/text
   // Now accepts errorMessage argument
   function updateStatusCell(elementId, status, label, fileUrl, errorMessage, linkText) {
@@ -1303,13 +1321,11 @@
 
     // 1. Try File URL first
     if (fileUrl) {
-      html += `<button onclick="viewLog('${fileUrl}', '${linkText}')" class="ml-2 text-xs ${linkClass} underline hover:no-underline">${linkText}</button>`;
+      html += `<button onclick="viewLog('${inlineJsArg(fileUrl)}', '${linkText}')" class="ml-2 text-xs ${linkClass} underline hover:no-underline">${linkText}</button>`;
     }
     // 2. Fallback to Text Error
     else if (errorMessage) {
-      // Escape quotes/newlines for safe inline JS
-      const safeMsg = errorMessage.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
-      html += `<button onclick="viewText('${safeMsg}', '${linkText}')" class="ml-2 text-xs ${linkClass} underline hover:no-underline">${linkText}</button>`;
+      html += `<button onclick="viewText('${inlineJsArg(errorMessage)}', '${linkText}')" class="ml-2 text-xs ${linkClass} underline hover:no-underline">${linkText}</button>`;
     }
 
     // Only update DOM if it actually changed to prevent flickering
