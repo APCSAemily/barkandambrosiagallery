@@ -549,21 +549,23 @@ function initResizers() {
 // ---------------------------------------------------------
 // INITIALIZATION
 // ---------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   canvas = document.getElementById('annotation-canvas');
   ctx = canvas.getContext('2d');
   wrapper = document.getElementById('canvas-wrapper');
 
-  // ?image=<image asset id> opens that image straight away (links from the game review page).
-  const linkedImage = new URLSearchParams(window.location.search).get('image');
-  Promise.resolve(loadAnnotatedImages()).then(() => {
-    if (linkedImage) {
-      selectImage(state.images.find(i => i.image_asset_id === linkedImage) || { image_asset_id: linkedImage });
-    }
-  });
+  await loadAnnotatedImages();
   setupCanvasEvents();
   loadTaxonomyList();
   initResizers(); // Initialize the drag-to-resize feature
+
+  // Deep link from another page (the specimen detail page's pencil icon, or
+  // "Open in annotator" on the game review page): open straight to that image.
+  const focusImageId = new URLSearchParams(window.location.search).get('image');
+  if (focusImageId) {
+    const match = state.images.find(i => i.image_asset_id === focusImageId);
+    selectImage(match || { image_asset_id: focusImageId });
+  }
 
   const browserContent = document.getElementById('browser-section-content');
   if (browserContent) {
@@ -1010,7 +1012,10 @@ async function selectImage(img) {
       fitToScreen();
       drawCanvas();
     };
-    imageObj.src = img.full_image_url;
+    // full_image_url comes from the normal image list; when deep-linked straight to an
+    // image_asset_id (see the ?image= handling below) we only have that id, so fall back
+    // to the file URL the asset endpoint just gave us.
+    imageObj.src = img.full_image_url || state.currentImageDetails.image_file;
   } catch(e) { console.error('Image load error', e); }
 }
 

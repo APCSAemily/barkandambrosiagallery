@@ -483,6 +483,25 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsDataURL(file);
     }
 
+    // --- Preload an image from another page (e.g. the specimen detail page) ---
+    // Only pages for specimens that have not been identified yet link here, so this
+    // never re-runs the (GPU-backed) classifier on an image that's already ID'd.
+    (function preloadFromQueryString() {
+        const sourceUrl = new URLSearchParams(window.location.search).get('image_url');
+        if (!sourceUrl) return;
+
+        fetch(sourceUrl)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+            })
+            .then(blob => {
+                const filename = sourceUrl.split('/').pop().split('?')[0] || 'specimen.jpg';
+                handleFile(new File([blob], filename, { type: blob.type || 'image/jpeg' }));
+            })
+            .catch(err => console.error('Could not preload image for classification:', err));
+    })();
+
     // --- Camera Logic ---
     
     ui.cameraBtn.addEventListener('click', async (e) => {

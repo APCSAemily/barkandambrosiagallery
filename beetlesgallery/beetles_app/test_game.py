@@ -754,5 +754,5 @@ class PlayerReportTests(FeedbackCase):
         self.assertEqual(data["reports"][str(self.bad.id)][0]["reason"], "The name looks wrong")
         page = self.client.get(reverse("tool_annotate"))
         self.assertContains(page, "gameReportsHtml")
-        self.assertContains(page, "linkedImage")
+        self.assertContains(page, "get('image')")  # ?image= deep link
         self.assertContains(self.client.get(reverse("game_review")), "Open in annotator")
