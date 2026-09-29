@@ -709,6 +709,10 @@ video {
   left: 0px;
 }
 
+.left-1\.5 {
+  left: 0.375rem;
+}
+
 .left-2 {
   left: 0.5rem;
 }
@@ -735,6 +739,10 @@ video {
 
 .top-0 {
   top: 0px;
+}
+
+.top-1\.5 {
+  top: 0.375rem;
 }
 
 .top-1\/2 {
@@ -1481,6 +1489,10 @@ video {
   align-items: flex-start;
 }
 
+.items-end {
+  align-items: flex-end;
+}
+
 .items-center {
   align-items: center;
 }
@@ -1739,6 +1751,11 @@ video {
   border-radius: 0.75rem;
 }
 
+.rounded-t-2xl {
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+}
+
 .border {
   border-width: 1px;
 }
@@ -1927,6 +1944,10 @@ video {
   background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1));
 }
 
+.bg-black\/40 {
+  background-color: rgb(0 0 0 / 0.4);
+}
+
 .bg-black\/5 {
   background-color: rgb(0 0 0 / 0.05);
 }
@@ -2044,6 +2065,10 @@ video {
 .bg-red-50 {
   --tw-bg-opacity: 1;
   background-color: rgb(254 242 242 / var(--tw-bg-opacity, 1));
+}
+
+.bg-red-50\/60 {
+  background-color: rgb(254 242 242 / 0.6);
 }
 
 .bg-red-600 {
@@ -2377,12 +2402,20 @@ video {
   text-align: right;
 }
 
+.align-top {
+  vertical-align: top;
+}
+
 .align-middle {
   vertical-align: middle;
 }
 
 .font-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.font-sans {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji;
 }
 
 .text-2xl {
@@ -2697,6 +2730,10 @@ video {
 
 .no-underline {
   text-decoration-line: none;
+}
+
+.underline-offset-2 {
+  text-underline-offset: 2px;
 }
 
 .placeholder-gray-400::-moz-placeholder {
@@ -3396,6 +3433,11 @@ video {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
+.has-\[\:checked\]\:border-gray-900:has(:checked) {
+  --tw-border-opacity: 1;
+  border-color: rgb(17 24 39 / var(--tw-border-opacity, 1));
+}
+
 @media (min-width: 640px) {
   .sm\:col-span-2 {
     grid-column: span 2 / span 2;
@@ -3433,6 +3475,10 @@ video {
     max-width: 42rem;
   }
 
+  .sm\:max-w-md {
+    max-width: 28rem;
+  }
+
   .sm\:grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3467,6 +3513,10 @@ video {
 
   .sm\:gap-4 {
     gap: 1rem;
+  }
+
+  .sm\:rounded-2xl {
+    border-radius: 1rem;
   }
 
   .sm\:p-0 {

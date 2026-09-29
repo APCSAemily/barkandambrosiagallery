@@ -121,7 +121,10 @@
       </div>
     </div>
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <button type="button" id="again" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl">Play another round</button>
+      <a id="review-link" href="#" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl">
+        <i class="fi fi-rr-list-check"></i> See the answers
+      </a>
+      <button type="button" id="again" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-200 rounded-xl">Play another round</button>
       <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-200 rounded-xl">Leaderboard</a>
     </div>
   </div>
@@ -296,6 +299,7 @@
         Object.assign({ index: item.index, elapsed_ms: Date.now() - shownAt }, extra)
       );
       if (data.done) {
+        $("review-link").href = data.review_url;
         finish(data.summary);
       } else {
         show("loading");

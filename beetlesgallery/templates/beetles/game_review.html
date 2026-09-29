@@ -28,6 +28,39 @@
     </p>
   </div>
 
+  <h2 class="text-lg font-semibold text-gray-900 mb-2">Open player reports</h2>
+  <p class="text-xs text-gray-500 mb-3">
+    Reported ROIs are not used to score anyone until resolved, and the reporter's answer on them is held.
+    Open the image, fix it if needed, then resolve the reports from the ROI panel.
+  </p>
+  <div class="overflow-x-auto border border-gray-200 rounded-lg mb-10">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+        <tr>
+          <th class="px-3 py-2 text-left">ROI</th>
+          <th class="px-3 py-2 text-left">Current label</th>
+          <th class="px-3 py-2 text-left">Reason</th>
+          <th class="px-3 py-2 text-left">Reported by</th>
+          <th class="px-3 py-2 text-left"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in open_reports %}
+        <tr class="border-t border-gray-100 align-top">
+          <td class="px-3 py-2 font-mono text-xs"><a class="text-blue-600 hover:underline" href="{% url 'beetle_detail' r.roi.id %}">{{ r.roi.id|stringformat:"s"|slice:":8" }}</a>
+            {% if r.was_validated %}<div class="text-[10px] text-green-700 font-sans">was validated</div>{% endif %}</td>
+          <td class="px-3 py-2 text-gray-600">{{ r.roi.taxon.scientific_name|default:"—" }}</td>
+          <td class="px-3 py-2">{{ r.get_reason_display }}{% if r.note %}<div class="text-xs text-gray-500">&ldquo;{{ r.note }}&rdquo;</div>{% endif %}</td>
+          <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ r.reporter.username }}<div class="text-xs text-gray-400">{{ r.created_at|date:"M j" }}</div></td>
+          <td class="px-3 py-2 whitespace-nowrap"><a class="text-blue-600 hover:underline" href="{% url 'tool_annotate' %}?image={{ r.roi.image_asset_id }}">Open in annotator</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="px-3 py-6 text-center text-gray-400">No open reports.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
   <h2 class="text-lg font-semibold text-gray-900 mb-2">Players</h2>
   <p class="text-xs text-gray-500 mb-3">Correct / judged per rank on validated items. Click a player for their full report.</p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg mb-10">
