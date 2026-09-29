@@ -15,6 +15,9 @@ on:
           - modal
           - all
 
+permissions:
+  contents: read
+
 jobs:
   # JOB 1: Deploy Django Web App (Contabo)
   deploy-web:
