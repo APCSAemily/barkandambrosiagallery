@@ -1736,13 +1736,13 @@ function filterTaxonomyDropdown(idx, query) {
                                 if (wrapper3.childElementCount > 0) return;
                                 state.taxonomyTree[sub][tribe][genus].sort((a,b) => (a.species||'').localeCompare(b.species||'')).forEach(t => {
                                     const displayStr = `${t.subfamily || 'Unknown'} > ${t.tribe || 'Unknown'} > ${t.genus} ${t.species} [${t.valid_species_id}]`;
-                                    const safeDisplayStr = displayStr.replace(/'/g, "\\'"); 
                                     const leaf = document.createElement('div');
                                     leaf.className = 'px-3 py-1.5 text-[11px] text-gray-600 hover:bg-gray-50 hover:text-gray-700 cursor-pointer flex justify-between select-none pl-12';
                                     leaf.innerHTML = `<span><span class="italic">${t.genus}</span> <span class="font-bold italic">${t.species}</span></span><span class="text-gray-400 ml-2">[${t.valid_species_id}]</span>`;
                                     leaf.onmousedown = (e) => {
                                         e.preventDefault();
-                                        selectTaxonomy(idx, t.valid_species_id, safeDisplayStr);
+                                        // Passed as a plain JS value (no HTML or code involved), so no escaping.
+                                        selectTaxonomy(idx, t.valid_species_id, displayStr);
                                     };
                                     wrapper3.appendChild(leaf);
                                 });
@@ -1828,7 +1828,11 @@ function selectTaxonomy(idx, id, displayStr) {
     if (preview) {
         // Strip out the [ID] part to show just the clean lineage
         const lineageOnly = displayStr.replace(/\s*\[.*?\]$/, '');
-        preview.innerHTML = `<span class="font-bold text-gray-800">${lineageOnly}</span>`;
+        // Built as text so taxon names can never be read as HTML.
+        const span = document.createElement('span');
+        span.className = 'font-bold text-gray-800';
+        span.textContent = lineageOnly;
+        preview.replaceChildren(span);
     }
 }
 
