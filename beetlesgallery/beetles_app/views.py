@@ -1605,6 +1605,43 @@ def _run_update_batch(request, row_data, filename):
     process_update_task.delay(batch.id)
 
 
+def _keep_classifier_image(request, image_file, data):
+    """
+    Keep a submitted image that has a beetle in it (unvalidated, with the proposed labels). Never fails the
+    classification, and is limited per person so the public page cannot be used to fill the disk.
+    """
+    from django.core.cache import cache
+    from . import classify_assist
+
+    try:
+        if request.POST.get("keep_image") == "0":
+            return classify_assist.OPTED_OUT   # the person asked us not to keep it (or it is a built-in example)
+        if data.get("status") != "success" or not data.get("detections"):
+            return classify_assist.NOT_SAVED
+        who = request.user.pk if request.user.is_authenticated else request.META.get("REMOTE_ADDR", "")
+        key = f"classifier-saves:{who}"
+        count = cache.get(key, 0)
+        if count >= classify_assist.SUBMISSIONS_PER_HOUR:
+            return classify_assist.NOT_SAVED
+        image_file.seek(0)
+        outcome = classify_assist.save_classifier_submission(image_file.read(), image_file.name, data, request.user)
+        if outcome == classify_assist.SAVED:
+            cache.set(key, count + 1, 3600)
+        return outcome
+    except Exception:
+        logger.exception("Could not keep the image sent to the classifier")
+        return "not_saved"
+
+
+# Built-in examples on the classifier page (files in static/img/classifier_examples/). They are never kept.
+CLASSIFIER_EXAMPLES = [
+    {"file": "monarthrum_nudum.jpg", "title": "Monarthrum nudum", "credit": "SL Wood, Brigham Young University", "licence": "CC-BY-NC 4.0"},
+    {"file": "phloeosinus_deleoni.jpg", "title": "Phloeosinus deleoni", "credit": "TH Atkinson, University of Texas at Austin", "licence": "CC-BY-NC 4.0"},
+    {"file": "xyleborinus_saginatus.jpg", "title": "Xyleborinus saginatus", "credit": "TH Atkinson, University of Texas at Austin", "licence": "CC-BY-NC 4.0"},
+    {"file": "xyleborinus_saxesenii.jpg", "title": "Xyleborinus saxesenii", "credit": "Christina Boser, Centre for Biodiversity Genomics", "licence": "CC-BY-SA"},
+]
+
+
 # @login_required
 def tool_classify(request):
     """
@@ -1631,7 +1668,9 @@ def tool_classify(request):
             response = requests.post(MODAL_API_URL, data=payload, files=files, timeout=300)
             
             if response.status_code == 200:
-                return JsonResponse(response.json())
+                data = response.json()
+                data["saved"] = _keep_classifier_image(request, image_file, data)
+                return JsonResponse(data)
             else:
                 return JsonResponse({
                     "status": "error", 
@@ -1652,7 +1691,7 @@ def tool_classify(request):
             }, status=500)
 
     # GET request: Render the page
-    return render(request, 'beetles/tool_classify.html', {})
+    return render(request, 'beetles/tool_classify.html', {'examples': CLASSIFIER_EXAMPLES})
 
 @login_required
 def stream_updates(request):

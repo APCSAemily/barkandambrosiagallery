@@ -1342,6 +1342,10 @@ video {
   max-width: 100%;
 }
 
+.max-w-lg {
+  max-width: 32rem;
+}
+
 .max-w-md {
   max-width: 28rem;
 }
@@ -2033,6 +2037,10 @@ video {
 .bg-gray-900 {
   --tw-bg-opacity: 1;
   background-color: rgb(17 24 39 / var(--tw-bg-opacity, 1));
+}
+
+.bg-gray-900\/60 {
+  background-color: rgb(17 24 39 / 0.6);
 }
 
 .bg-green-100 {
@@ -2778,6 +2786,10 @@ video {
 
 .accent-gray-500 {
   accent-color: #6b7280;
+}
+
+.accent-gray-600 {
+  accent-color: #4b5563;
 }
 
 .opacity-0 {

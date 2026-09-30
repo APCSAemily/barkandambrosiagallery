@@ -115,3 +115,78 @@ def add_rois(asset, result, user):
             existing.append(box)
             created.append(roi)
     return created, skipped
+
+
+# --- Images submitted to the public classifier page ----------------------------------------------------------------
+SAVED, DUPLICATE, NOT_SAVED, OPTED_OUT = "saved", "already_on_platform", "not_saved", "opted_out"
+MAX_SUBMISSION_PIXELS = 100_000_000
+MAX_SUBMISSION_BYTES = 25 * 1024 * 1024
+SUBMISSIONS_PER_HOUR = 20
+
+
+def save_classifier_submission(image_bytes, filename, result, user=None):
+    """
+    Keep an image that was sent to the classifier page and had at least one beetle found in it, as an
+    unvalidated image with the proposed boxes and species (see add_rois).
+
+    An image already on the platform (same bytes, by SHA-256, deleted ones included) is never replaced, touched or
+    given new ROIs: the platform's copy is kept. Returns SAVED, DUPLICATE or NOT_SAVED (no beetle, or not a usable image).
+    """
+    import hashlib
+    import io
+
+    from django.db import IntegrityError
+    from PIL import Image
+
+    from .image_pipeline import write_original_and_thumb96
+    from .models import ImageAsset
+
+    if not result.get("detections") or len(image_bytes) > MAX_SUBMISSION_BYTES:
+        return NOT_SAVED
+    digest = hashlib.sha256(image_bytes).hexdigest()
+    if ImageAsset.objects.filter(image_sha256=digest).exists():
+        return DUPLICATE
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as probe:
+            if probe.width * probe.height > MAX_SUBMISSION_PIXELS:
+                return NOT_SAVED
+            probe.verify()
+    except Exception:
+        return NOT_SAVED
+
+    saved = write_original_and_thumb96(digest, io.BytesIO(without_location(image_bytes)))
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or "image")[:120]
+    try:
+        with transaction.atomic():
+            asset = ImageAsset.objects.create(
+                full_path_at_import=f"classifier/{digest[:16]}/{safe_name}",
+                image_sha256=digest, image_size_bytes=len(image_bytes),
+                image_file=saved["original_path"], thumb_small=saved["thumb_path"],
+                image_width=saved["image_size"][0], image_height=saved["image_size"][1],
+                thumb_width=saved["thumb_size"][0], thumb_height=saved["thumb_size"][1],
+                image_notes="Submitted to the AI classifier; boxes and species are proposals to be checked.",
+                last_updated_by=user if getattr(user, "is_authenticated", False) else None,
+            )
+            add_rois(asset, result, user if getattr(user, "is_authenticated", False) else None)
+    except IntegrityError:
+        return DUPLICATE  # the same image arrived twice at once
+    return SAVED
+
+
+def without_location(image_bytes):
+    """The same image without GPS coordinates in its EXIF, so a photo's location is not published. Other bytes are returned as they were."""
+    import io
+
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            exif = img.getexif()
+            if 0x8825 not in exif or img.format != "JPEG":   # 0x8825 is the GPS block
+                return image_bytes
+            del exif[0x8825]
+            out = io.BytesIO()
+            img.save(out, "JPEG", exif=exif, quality="keep")
+            return out.getvalue()
+    except Exception:
+        return image_bytes
