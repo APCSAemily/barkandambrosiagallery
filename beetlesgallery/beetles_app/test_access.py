@@ -157,7 +157,7 @@ class ConfirmEmailTests(AccessCase):
         self.send()
         self.client.force_login(self.superuser)
         self.assertNotContains(self.client.get(reverse("access_requests")), "Ada Lovelace")
-        self.assertNotContains(self.client.get(reverse("data_management")), "waiting")
+        self.assertNotContains(self.client.get(reverse("my_account")), "waiting")
 
     @override_settings(ACCESS_REQUEST_RECIPIENTS=[])
     def test_with_no_approvers_configured_the_request_is_still_listed(self):
@@ -197,7 +197,8 @@ class ReviewPageTests(AccessCase):
         for text in ("Ada Lovelace", "<strong>ada</strong>", "Browse and download images", "I study ambrosia beetles."):
             self.assertContains(page, text)
         self.assertNotContains(page, "already has an account")   # their own new account is not a duplicate
-        self.assertContains(self.client.get(reverse("data_management")), "1 waiting")
+        self.assertContains(self.client.get(reverse("my_account")), "1 waiting")
+        self.assertNotContains(self.client.get(reverse("data_management")), "Review Access Requests")
 
 
 class ApprovalTests(AccessCase):
@@ -374,3 +375,22 @@ class RolesTests(AccessCase):
         self.assertEqual(access.role_needed(["browse", "game"]), "member")
         self.assertEqual(access.role_needed(["browse", "upload"]), "curator")
         self.assertEqual(access.role_needed([]), "member")
+
+
+class EmailSetupTests(PageBehaviourCase):
+    def test_the_test_email_command_reports_and_sends(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("send_test_email", "someone@example.org", stdout=out)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["someone@example.org"])
+        self.assertIn("Sent to someone@example.org", out.getvalue())
+
+    def test_the_test_email_command_reports_a_failure(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        with mock.patch("beetlesgallery.beetles_app.management.commands.send_test_email.send_mail",
+                        side_effect=ConnectionRefusedError("no server")):
+            with self.assertRaisesRegex(CommandError, "ConnectionRefusedError: no server"):
+                call_command("send_test_email", "someone@example.org", stdout=__import__("io").StringIO())

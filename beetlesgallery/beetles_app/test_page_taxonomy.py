@@ -180,3 +180,29 @@ class SpeciesImagesTests(TaxonomyTestCase):
 
     def test_post_is_not_allowed(self):
         self.assertEqual(self.client.post(self.URL, {"species_id": "T-IPS"}).status_code, 405)
+
+
+class TaxonomyBrowserPageLoadTests(TaxonomyTestCase):
+    """Guards for what the browser showed wrongly while the page loaded (see the page's own comments)."""
+
+    def page(self):
+        self.client.force_login(self.user)
+        return self.client.get(reverse("taxonomy_browser")).content.decode()
+
+    def test_styles_are_in_the_head_so_the_tree_is_never_painted_unstyled(self):
+        # The tree is built by the inline script; if its sizing rules came after it, the small picture icons
+        # beside each name were painted at full width for a moment.
+        page = self.page()
+        self.assertLess(page.index(".tree-browse-icon {"), page.index("<body"))
+        self.assertIn('width="16" height="16"', page)
+
+    def test_expand_all_finds_the_toggle_buttons_where_they_are(self):
+        # The toggle sits inside .tree-node-container; looking for it as a direct child opened nothing.
+        page = self.page()
+        self.assertIn('li.querySelector(":scope > .tree-node-container > .tree-toggle")', page)
+        self.assertNotIn('li.querySelector(":scope > .tree-toggle")', page)
+
+    def test_icon_fonts_are_preloaded_and_shown_together(self):
+        page = self.page()
+        self.assertIn('rel="preload" as="font"', page)
+        self.assertIn("icons-ready", page)

@@ -197,3 +197,127 @@ class ProposedRoiMetadataTests(ClassifyCase):
         self.classify([{**DETECTION, "box": [100, 300, 300, 450], "label": "Xyleborus_affinis"}])
         proposed = Beetles.objects.filter(image_asset=self.asset, is_deleted=False, bbox_is_validated=False).exclude(pk=mouse.pk).get()
         self.assertEqual(self.copied(proposed), self.copied(mouse))
+
+
+class ClassifierPageSavesImagesTests(PageBehaviourCase):
+    """Images sent to the public classifier page that contain a beetle are kept, unvalidated, once."""
+
+    def setUp(self):
+        super().setUp()
+        make_taxon(valid_species_id="2210", genus="Xyleborus", species="affinis", scientific_name="Xyleborus affinis")
+        buffer = io.BytesIO()
+        Image.new("RGB", (1000, 500), (200, 180, 160)).save(buffer, "JPEG")
+        self.jpeg = buffer.getvalue()
+
+    def submit(self, detections=(DETECTION,), data=None, content=None):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        upload = SimpleUploadedFile("beetle.jpg", content or self.jpeg, content_type="image/jpeg")
+        with mock.patch("requests.post", return_value=fake_response(list(detections))) as post:
+            response = self.client.post("/tools/classify/", {"image": upload, "architecture": "rtdetr"})
+        return response
+
+    def test_a_beetle_image_is_kept_unvalidated_with_its_proposed_labels(self):
+        from beetlesgallery.beetles_app.models import ImageAsset
+        response = self.submit()
+        self.assertEqual((response.status_code, response.json()["saved"]), (200, "saved"))
+        asset = ImageAsset.objects.get()
+        self.assertFalse(asset.is_validated)
+        self.assertEqual((asset.image_width, asset.image_height, asset.image_size_bytes), (1000, 500, len(self.jpeg)))
+        self.assertTrue(asset.image_file and asset.thumb_small)
+        roi = Beetles.objects.get(image_asset=asset)
+        self.assertEqual((roi.depicts_valid_name_id, roi.bbox_is_validated, roi.bbox_created_by), ("2210", False, None))
+        self.assertEqual(ModelPrediction.objects.count(), 1)
+
+    def test_the_same_image_again_is_not_saved_twice_and_the_platform_copy_is_kept(self):
+        from beetlesgallery.beetles_app.models import ImageAsset
+        self.submit()
+        asset = ImageAsset.objects.get()
+        roi_count = Beetles.objects.count()
+        again = self.submit().json()
+        self.assertEqual(again["saved"], "already_on_platform")
+        self.assertEqual((ImageAsset.objects.count(), Beetles.objects.count()), (1, roi_count))
+
+    def test_an_image_already_on_the_platform_gets_nothing_added_even_if_it_was_uploaded_elsewhere(self):
+        import hashlib
+        from beetlesgallery.beetles_app.models import ImageAsset
+        existing = make_image(image_sha256=hashlib.sha256(self.jpeg).hexdigest(), is_validated=False)
+        make_beetle(image=existing, bbox="validated")
+        self.assertEqual(self.submit().json()["saved"], "already_on_platform")
+        self.assertEqual((ImageAsset.objects.count(), Beetles.objects.filter(image_asset=existing).count()), (1, 1))
+
+    def test_a_deleted_image_with_the_same_bytes_also_counts_as_on_the_platform(self):
+        import hashlib
+        from beetlesgallery.beetles_app.models import ImageAsset
+        ImageAsset.objects.create(full_path_at_import="x", image_sha256=hashlib.sha256(self.jpeg).hexdigest(), is_deleted=True)
+        self.assertEqual(self.submit().json()["saved"], "already_on_platform")
+        self.assertEqual(ImageAsset.objects.count(), 1)
+
+    def test_no_beetle_found_means_nothing_is_kept(self):
+        from beetlesgallery.beetles_app.models import ImageAsset
+        self.assertEqual(self.submit(detections=()).json()["saved"], "not_saved")
+        self.assertFalse(ImageAsset.objects.exists())
+
+    def test_something_that_is_not_an_image_is_not_kept_but_the_answer_still_comes_back(self):
+        from beetlesgallery.beetles_app.models import ImageAsset
+        response = self.submit(content=b"not really an image")
+        self.assertEqual((response.status_code, response.json()["saved"]), (200, "not_saved"))
+        self.assertFalse(ImageAsset.objects.exists())
+
+    def test_a_logged_in_user_is_recorded_and_a_failure_never_breaks_the_classification(self):
+        from beetlesgallery.beetles_app.models import ImageAsset
+        self.client.force_login(self.user)
+        self.submit()
+        self.assertEqual(Beetles.objects.get().bbox_created_by, self.user)
+        with mock.patch("beetlesgallery.beetles_app.classify_assist.save_classifier_submission", side_effect=OSError("disk full")):
+            response = self.submit(content=self.jpeg + b"x")
+        self.assertEqual((response.status_code, response.json()["saved"]), (200, "not_saved"))
+        self.assertEqual(len(response.json()["detections"]), 1)
+
+    def test_saving_is_limited_per_person_per_hour(self):
+        from beetlesgallery.beetles_app.classify_assist import SUBMISSIONS_PER_HOUR
+        outcomes = []
+        for n in range(SUBMISSIONS_PER_HOUR + 1):
+            buffer = io.BytesIO()
+            Image.new("RGB", (40 + n, 40), (n, 0, 0)).save(buffer, "PNG")
+            outcomes.append(self.submit(content=buffer.getvalue()).json()["saved"])
+        self.assertEqual(outcomes[:-1], ["saved"] * SUBMISSIONS_PER_HOUR)
+        self.assertEqual(outcomes[-1], "not_saved")
+
+    def test_ticking_dont_keep_means_nothing_is_saved_but_the_answer_comes_back(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from beetlesgallery.beetles_app.models import ImageAsset
+        upload = SimpleUploadedFile("beetle.jpg", self.jpeg, content_type="image/jpeg")
+        with mock.patch("requests.post", return_value=fake_response([DETECTION])):
+            data = self.client.post("/tools/classify/", {"image": upload, "keep_image": "0"}).json()
+        self.assertEqual((data["saved"], len(data["detections"])), ("opted_out", 1))
+        self.assertFalse(ImageAsset.objects.exists())
+
+    def test_opting_out_does_not_count_against_the_hourly_limit_and_keeping_is_the_default(self):
+        self.assertEqual(self.submit().json()["saved"], "saved")
+
+    def test_the_page_offers_the_choice_the_notice_and_the_examples(self):
+        from django.conf import settings
+        from pathlib import Path
+        from beetlesgallery.beetles_app.views import CLASSIFIER_EXAMPLES
+        page = self.client.get("/tools/classify/").content.decode()
+        for needle in ('id="dontKeep"', 'id="termsModal"', "Examples are never added to the gallery"):
+            self.assertIn(needle, page)
+        self.assertEqual(page.count('class="example-btn'), len(CLASSIFIER_EXAMPLES))
+        for ex in CLASSIFIER_EXAMPLES:
+            self.assertTrue((Path(settings.BASE_DIR) / "beetlesgallery/static/img/classifier_examples" / ex["file"]).exists(), ex["file"])
+            self.assertTrue(ex["credit"] and ex["licence"])
+
+    def test_gps_location_is_removed_from_the_copy_we_keep(self):
+        from beetlesgallery.beetles_app.classify_assist import without_location
+        image = Image.new("RGB", (60, 40), "white")
+        exif = Image.Exif()
+        exif[0x010F] = "Camera"
+        exif[0x8825] = {1: "N", 2: (1.0, 2.0, 3.0)}
+        buffer = io.BytesIO()
+        image.save(buffer, "JPEG", exif=exif)
+        self.assertIn(0x8825, Image.open(io.BytesIO(buffer.getvalue())).getexif())
+        cleaned = Image.open(io.BytesIO(without_location(buffer.getvalue())))
+        self.assertNotIn(0x8825, cleaned.getexif())
+        self.assertEqual(cleaned.getexif().get(0x010F), "Camera")
+        self.assertEqual(without_location(self.jpeg), self.jpeg)       # nothing to remove: unchanged
+        self.assertEqual(without_location(b"not an image"), b"not an image")

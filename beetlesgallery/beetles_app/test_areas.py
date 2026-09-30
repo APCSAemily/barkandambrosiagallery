@@ -74,14 +74,14 @@ class EnforcementTests(AreaCase):
         self.client.force_login(self.user)
         page = self.client.get(reverse("data_management")).content.decode()
         self.assertNotIn("Data Annotation", page)
-        self.assertNotIn("Review Proposed Interactions", page)
         self.assertNotIn("openModal('modal-upload-new')", page)
+        self.assertNotIn("Review Proposed Interactions", self.client.get(reverse("interactions_preview")).content.decode())
         self.grant(self.user, "annotate", "interactions", "upload")
         self.client.force_login(self.user)
         page = self.client.get(reverse("data_management")).content.decode()
         self.assertIn("Data Annotation", page)
-        self.assertIn("Review Proposed Interactions", page)
         self.assertIn("openModal('modal-upload-new')", page)
+        self.assertIn("Review Proposed Interactions", self.client.get(reverse("interactions_preview")).content.decode())
 
     def test_superuser_only_pages_stay_superuser_only(self):
         self.grant(self.user, "annotate", "upload", "interactions")

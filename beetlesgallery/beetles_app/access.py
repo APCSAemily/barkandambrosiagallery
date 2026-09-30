@@ -4,7 +4,7 @@ Requests for access to the site.
 Someone fills in /accounts/request-access/ with who they are, which parts of the site they want, and the username
 and password they want to use. They get an inactive account and an email with a link to confirm their address.
 Once it is confirmed the approvers (every superuser, plus settings.ACCESS_REQUEST_RECIPIENTS) are emailed a link to
-Data Management -> Access requests, where a superuser approves the request as a Member or a Curator, or denies it.
+My Account -> Access Requests, where a superuser approves the request as a Member or a Curator, or denies it.
 Approving activates the account and emails the applicant; they sign in as usual and can reset their own password.
 A denied applicant's unused account is removed.
 
