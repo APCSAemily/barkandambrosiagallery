@@ -522,8 +522,15 @@ class DifficultyTests(GameCase):
         for r in hard:
             RoiDifficulty.objects.create(roi=r, model_difficulty=0.95)
         ids = [r.id for r in easy + hard]
-        picked = game._pick_near(ids, 5, target=0.1)
-        self.assertEqual(set(picked), {r.id for r in easy})
+
+        # The draw is random (and picks a far-off item about 1 time in 80 by chance), so make it take
+        # the heaviest candidate each time: what is under test is the weighting, not the luck.
+        def heaviest(pool, weights):
+            return [pool[weights.index(max(weights))]]
+
+        with mock.patch.object(game.random, "choices", side_effect=heaviest):
+            self.assertEqual(set(game._pick_near(ids, 5, target=0.1)), {r.id for r in easy})
+            self.assertEqual(set(game._pick_near(ids, 5, target=0.9)), {r.id for r in hard})
 
 
 class RoundFlowTests(GameCase):
