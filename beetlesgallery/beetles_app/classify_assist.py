@@ -118,7 +118,7 @@ def add_rois(asset, result, user):
 
 
 # --- Images submitted to the public classifier page ----------------------------------------------------------------
-SAVED, DUPLICATE, NOT_SAVED = "saved", "already_on_platform", "not_saved"
+SAVED, DUPLICATE, NOT_SAVED, OPTED_OUT = "saved", "already_on_platform", "not_saved", "opted_out"
 MAX_SUBMISSION_PIXELS = 100_000_000
 MAX_SUBMISSION_BYTES = 25 * 1024 * 1024
 SUBMISSIONS_PER_HOUR = 20
@@ -154,7 +154,7 @@ def save_classifier_submission(image_bytes, filename, result, user=None):
     except Exception:
         return NOT_SAVED
 
-    saved = write_original_and_thumb96(digest, io.BytesIO(image_bytes))
+    saved = write_original_and_thumb96(digest, io.BytesIO(without_location(image_bytes)))
     safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename or "image")[:120]
     try:
         with transaction.atomic():
@@ -171,3 +171,22 @@ def save_classifier_submission(image_bytes, filename, result, user=None):
     except IntegrityError:
         return DUPLICATE  # the same image arrived twice at once
     return SAVED
+
+
+def without_location(image_bytes):
+    """The same image without GPS coordinates in its EXIF, so a photo's location is not published. Other bytes are returned as they were."""
+    import io
+
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            exif = img.getexif()
+            if 0x8825 not in exif or img.format != "JPEG":   # 0x8825 is the GPS block
+                return image_bytes
+            del exif[0x8825]
+            out = io.BytesIO()
+            img.save(out, "JPEG", exif=exif, quality="keep")
+            return out.getvalue()
+    except Exception:
+        return image_bytes

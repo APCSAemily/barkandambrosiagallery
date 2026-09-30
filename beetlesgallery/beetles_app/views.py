@@ -1571,6 +1571,8 @@ def _keep_classifier_image(request, image_file, data):
     from . import classify_assist
 
     try:
+        if request.POST.get("keep_image") == "0":
+            return classify_assist.OPTED_OUT   # the person asked us not to keep it (or it is a built-in example)
         if data.get("status") != "success" or not data.get("detections"):
             return classify_assist.NOT_SAVED
         who = request.user.pk if request.user.is_authenticated else request.META.get("REMOTE_ADDR", "")
@@ -1586,6 +1588,15 @@ def _keep_classifier_image(request, image_file, data):
     except Exception:
         logger.exception("Could not keep the image sent to the classifier")
         return "not_saved"
+
+
+# Built-in examples on the classifier page (files in static/img/classifier_examples/). They are never kept.
+CLASSIFIER_EXAMPLES = [
+    {"file": "monarthrum_nudum.jpg", "title": "Monarthrum nudum", "credit": "SL Wood, Brigham Young University", "licence": "CC-BY-NC 4.0"},
+    {"file": "phloeosinus_deleoni.jpg", "title": "Phloeosinus deleoni", "credit": "TH Atkinson, University of Texas at Austin", "licence": "CC-BY-NC 4.0"},
+    {"file": "xyleborinus_saginatus.jpg", "title": "Xyleborinus saginatus", "credit": "TH Atkinson, University of Texas at Austin", "licence": "CC-BY-NC 4.0"},
+    {"file": "xyleborinus_saxesenii.jpg", "title": "Xyleborinus saxesenii", "credit": "Christina Boser, Centre for Biodiversity Genomics", "licence": "CC-BY-SA"},
+]
 
 
 # @login_required
@@ -1637,7 +1648,7 @@ def tool_classify(request):
             }, status=500)
 
     # GET request: Render the page
-    return render(request, 'beetles/tool_classify.html', {})
+    return render(request, 'beetles/tool_classify.html', {'examples': CLASSIFIER_EXAMPLES})
 
 @login_required
 def stream_updates(request):

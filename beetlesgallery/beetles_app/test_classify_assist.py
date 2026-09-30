@@ -202,3 +202,42 @@ class ClassifierPageSavesImagesTests(PageBehaviourCase):
             outcomes.append(self.submit(content=buffer.getvalue()).json()["saved"])
         self.assertEqual(outcomes[:-1], ["saved"] * SUBMISSIONS_PER_HOUR)
         self.assertEqual(outcomes[-1], "not_saved")
+
+    def test_ticking_dont_keep_means_nothing_is_saved_but_the_answer_comes_back(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from beetlesgallery.beetles_app.models import ImageAsset
+        upload = SimpleUploadedFile("beetle.jpg", self.jpeg, content_type="image/jpeg")
+        with mock.patch("requests.post", return_value=fake_response([DETECTION])):
+            data = self.client.post("/tools/classify/", {"image": upload, "keep_image": "0"}).json()
+        self.assertEqual((data["saved"], len(data["detections"])), ("opted_out", 1))
+        self.assertFalse(ImageAsset.objects.exists())
+
+    def test_opting_out_does_not_count_against_the_hourly_limit_and_keeping_is_the_default(self):
+        self.assertEqual(self.submit().json()["saved"], "saved")
+
+    def test_the_page_offers_the_choice_the_notice_and_the_examples(self):
+        from django.conf import settings
+        from pathlib import Path
+        from beetlesgallery.beetles_app.views import CLASSIFIER_EXAMPLES
+        page = self.client.get("/tools/classify/").content.decode()
+        for needle in ('id="dontKeep"', 'id="termsModal"', "Examples are never added to the gallery"):
+            self.assertIn(needle, page)
+        self.assertEqual(page.count('class="example-btn'), len(CLASSIFIER_EXAMPLES))
+        for ex in CLASSIFIER_EXAMPLES:
+            self.assertTrue((Path(settings.BASE_DIR) / "beetlesgallery/static/img/classifier_examples" / ex["file"]).exists(), ex["file"])
+            self.assertTrue(ex["credit"] and ex["licence"])
+
+    def test_gps_location_is_removed_from_the_copy_we_keep(self):
+        from beetlesgallery.beetles_app.classify_assist import without_location
+        image = Image.new("RGB", (60, 40), "white")
+        exif = Image.Exif()
+        exif[0x010F] = "Camera"
+        exif[0x8825] = {1: "N", 2: (1.0, 2.0, 3.0)}
+        buffer = io.BytesIO()
+        image.save(buffer, "JPEG", exif=exif)
+        self.assertIn(0x8825, Image.open(io.BytesIO(buffer.getvalue())).getexif())
+        cleaned = Image.open(io.BytesIO(without_location(buffer.getvalue())))
+        self.assertNotIn(0x8825, cleaned.getexif())
+        self.assertEqual(cleaned.getexif().get(0x010F), "Camera")
+        self.assertEqual(without_location(self.jpeg), self.jpeg)       # nothing to remove: unchanged
+        self.assertEqual(without_location(b"not an image"), b"not an image")

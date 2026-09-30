@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -74,6 +75,15 @@
                         class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-500 hover:accent-gray-700">
                 </div>
 
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <label class="flex items-start gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="dontKeep" class="mt-0.5 h-4 w-4 rounded border-gray-300 accent-gray-600">
+                        <span><span class="font-semibold">Don't keep my image.</span>
+                        Unless you tick this, an image with a bark or ambrosia beetle in it is added to the gallery as an unvalidated image for experts to check (location data removed).
+                        <a href="#" id="showTerms" class="underline hover:text-black">Details</a></span>
+                    </label>
+                </div>
+
                 <input id="fileInput" name="image" type="file" class="hidden" accept="image/*">
 
                 <button type="submit" id="submitBtn" disabled 
@@ -82,6 +92,23 @@
                     <span>Classify Image</span>
                 </button>
             </form>
+
+            {% if examples %}
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Try an example</div>
+                <p class="text-[11px] text-gray-500 mb-2">Loads a photo so you can test the classifier. Examples are never added to the gallery.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for ex in examples %}
+                    <button type="button" class="example-btn group text-left rounded-lg border border-gray-200 overflow-hidden hover:border-gray-500 transition"
+                        data-src="{% static 'img/classifier_examples/' %}{{ ex.file }}" data-name="{{ ex.file }}" title="{{ ex.title }} &middot; {{ ex.credit }} &middot; {{ ex.licence }}">
+                        <img src="{% static 'img/classifier_examples/' %}{{ ex.file }}" alt="{{ ex.title }}" class="w-full h-16 object-cover" loading="lazy">
+                        <div class="px-1.5 py-1 text-[10px] text-gray-600 italic truncate">{{ ex.title }}</div>
+                    </button>
+                    {% endfor %}
+                </div>
+                <p class="text-[10px] text-gray-400 mt-2">Photos: {% for ex in examples %}{{ ex.credit }} ({{ ex.licence }}){% if not forloop.last %}; {% endif %}{% endfor %}.</p>
+            </div>
+            {% endif %}
 
             <div id="loadingContainer" class="hidden p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div class="flex justify-between text-xs font-semibold text-gray-600 mb-1">
@@ -147,6 +174,25 @@
 
         </div>
     </div>
+</div>
+
+<div id="termsModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+  <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+    <h2 id="termsTitle" class="text-lg font-semibold text-gray-900 mb-3">Before you use the classifier</h2>
+    <div class="space-y-3 text-sm text-gray-700">
+      <p>The classifier is a screening tool and its answers can be wrong.</p>
+      <p><strong>What we keep.</strong> If the classifier finds a bark or ambrosia beetle in an image you submit, we add that image to the Bark &amp; Ambrosia Beetle Gallery as an <em>unvalidated</em> image, with the proposed labels, so experts can check it. We remove GPS location data from the copy we keep. We do not keep images where no beetle is found, and we do not keep an image we already have.</p>
+      <p><strong>Your choice.</strong> Tick &ldquo;Don't keep my image&rdquo; on the page at any time and we will not keep what you submit. You can change your mind for each image. Only submit images you have the right to share, and no images of people.</p>
+      <p class="text-xs text-gray-500">Kept images may be shown in the gallery and used for research on bark and ambrosia beetles. To have one removed, contact the gallery team.</p>
+    </div>
+    <label class="mt-4 flex items-center gap-2 text-sm text-gray-800">
+      <input type="checkbox" id="termsDontKeep" class="h-4 w-4 rounded border-gray-300 accent-gray-600"> Don't keep my images
+    </label>
+    <div class="mt-5 flex justify-between gap-3">
+      <a href="{% url 'image_browser' %}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">No thanks</a>
+      <button type="button" id="termsAgree" class="rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-900">Agree and continue</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -451,8 +497,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function handleFile(file) {
+    function handleFile(file, options) {
         state.currentFile = file;
+        state.isExample = !!(options && options.example);
         
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -500,6 +547,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleFile(new File([blob], filename, { type: blob.type || 'image/jpeg' }));
             })
             .catch(err => console.error('Could not preload image for classification:', err));
+    })();
+
+    // --- Examples and the "keep my image" choice ---
+    document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            fetch(btn.dataset.src).then(r => r.blob()).then(blob => {
+                handleFile(new File([blob], btn.dataset.name, { type: blob.type || 'image/jpeg' }), { example: true });
+            }).catch(err => console.error('Could not load the example:', err));
+        });
+    });
+
+    (function keepChoice() {
+        const modal = document.getElementById('termsModal');
+        const box = document.getElementById('dontKeep');
+        const modalBox = document.getElementById('termsDontKeep');
+        let stored = null, choice = null;
+        try { stored = localStorage.getItem('classifierTerms'); choice = localStorage.getItem('classifierDontKeep'); } catch (e) {}
+        box.checked = choice === '1';
+        box.addEventListener('change', () => { try { localStorage.setItem('classifierDontKeep', box.checked ? '1' : '0'); } catch (e) {} });
+        const open = () => { modalBox.checked = box.checked; modal.classList.remove('hidden'); };
+        document.getElementById('showTerms').addEventListener('click', (e) => { e.preventDefault(); open(); });
+        document.getElementById('termsAgree').addEventListener('click', () => {
+            box.checked = modalBox.checked;
+            try { localStorage.setItem('classifierTerms', '1'); localStorage.setItem('classifierDontKeep', box.checked ? '1' : '0'); } catch (e) {}
+            modal.classList.add('hidden');
+        });
+        if (stored !== '1') open();
     })();
 
     // --- Camera Logic ---
@@ -614,6 +688,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Construct FormData manually to include the correct file (drag/cam/input)
         const formData = new FormData(ui.form);
         formData.set('image', state.currentFile);
+        // Examples are never kept, and neither is an image the person asked us not to keep.
+        if (state.isExample || document.getElementById('dontKeep').checked) formData.set('keep_image', '0');
         
         setLoading(true, "Processing image...");
         const pIntv = animateProgress();
