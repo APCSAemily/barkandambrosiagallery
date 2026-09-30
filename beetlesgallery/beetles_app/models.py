@@ -1208,6 +1208,7 @@ class InteractionProposal(models.Model):
     source_doi = models.CharField(max_length=255, blank=True)
     source_url = models.URLField(max_length=500, blank=True, help_text="Where a reviewer reads it.")
     source_title = models.TextField(blank=True)
+    source_authors = models.CharField(max_length=500, blank=True, help_text="As the source lists them, e.g. 'Smith J, Jones K'.")
     source_journal = models.CharField(max_length=255, blank=True)
     source_year = models.PositiveSmallIntegerField(null=True, blank=True)
     source_db = models.CharField(max_length=30, blank=True, help_text="europepmc, globi, upload...")

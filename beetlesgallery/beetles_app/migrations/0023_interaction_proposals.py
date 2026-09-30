@@ -109,6 +109,14 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("source_title", models.TextField(blank=True)),
+                (
+                    "source_authors",
+                    models.CharField(
+                        blank=True,
+                        help_text="As the source lists them, e.g. 'Smith J, Jones K'.",
+                        max_length=500,
+                    ),
+                ),
                 ("source_journal", models.CharField(blank=True, max_length=255)),
                 (
                     "source_year",
