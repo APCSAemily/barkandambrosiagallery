@@ -8,16 +8,22 @@ from beetlesgallery.beetles_app.models import PathogenInteraction
 
 class Command(BaseCommand):
     help = (
-        "Loads the published bark & ambrosia beetle pathogen dataset from JSON into the database. Safe to run "
-        "again: rows are matched on Records ID and updated, not duplicated. Never touches accepted proposals."
+        "Loads the published bark & ambrosia beetle pathogen dataset (v1.0) from JSON into the database. Safe to run "
+        "on every deploy: rows are matched on Records ID, and a row that is already in the database is left exactly "
+        "as it is, so corrections made through the upload page are never undone. Never touches proposals or uploads."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--file",
             type=str,
-            help="Path to bark_beetle_pathogens_master.json (defaults to static/data/bark_beetle_pathogens_master.json)",
+            help="Path to bark_beetle_pathogens_master.json (defaults to beetlesgallery/data/interactions/v1.0/bark_beetle_pathogens_master.json)",
             default=None,
+        )
+        parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help="Also overwrite rows that are already in the database with the file's values (undoes corrections made since)",
         )
         parser.add_argument(
             "--clear",
@@ -28,7 +34,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         file_path = options["file"]
         if not file_path:
-            file_path = settings.BASE_DIR / "beetlesgallery" / "static" / "data" / "bark_beetle_pathogens_master.json"
+            file_path = settings.BASE_DIR / "beetlesgallery" / "data" / "interactions" / "v1.0" / "bark_beetle_pathogens_master.json"
             if not os.path.exists(file_path):
                 file_path = Path("F:/notion_data/bark_beetle_pathogens_master.json")
 
@@ -48,8 +54,10 @@ class Command(BaseCommand):
             deleted_count, _ = dataset_rows.delete()
             self.stdout.write(self.style.WARNING(f"Cleared {deleted_count} published-dataset records."))
 
+        # A record counts as already there whichever way it got in: loaded before, or uploaded from the
+        # initial file with its Records ID (see make_interactions_upload_file).
         existing = {}
-        for row in dataset_rows:
+        for row in PathogenInteraction.objects.exclude(record_number__isnull=True).exclude(record_number=""):
             existing.setdefault(row.record_number, []).append(row)
 
         to_create, to_update, unchanged, seen = [], [], 0, set()
@@ -63,6 +71,9 @@ class Command(BaseCommand):
             match = (existing.get(number) or [None])[0] if number else None
             if match is None:
                 to_create.append(PathogenInteraction(origin=PathogenInteraction.Origin.DATASET, **fields))
+                continue
+            if not options["refresh"]:
+                unchanged += 1
                 continue
             changed = [name for name, value in fields.items() if getattr(match, name) != value]
             if changed:
@@ -83,7 +94,7 @@ class Command(BaseCommand):
         for row, changed in to_update:
             row.save(update_fields=changed + ["updated_at"])
         self.stdout.write(self.style.SUCCESS(
-            f"Pathogen interaction records: {len(to_create)} added, {len(to_update)} updated, {unchanged} unchanged."
+            f"Pathogen interaction records: {len(to_create)} added, {len(to_update)} updated, {unchanged} already there (left as they are)."
         ))
 
     @staticmethod

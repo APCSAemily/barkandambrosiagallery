@@ -34,8 +34,9 @@ DESTRUCTIVE_SQL = re.compile(r"\b(DROP|DELETE|TRUNCATE)\b", re.I)
 # Things a deploy must never run against production.
 DEPLOY_DENYLIST = [
     "migrate_taxonomy_to_db",       # purges and reloads the taxonomy
-    "import_pathogen_interactions",  # can clear the interactions table (--clear)
-    "--clear",
+    # import_pathogen_interactions is fine on its own (it only adds missing rows) but not with these:
+    "--clear",                      # deletes and reloads the published interactions
+    "--refresh",                    # overwrites corrections made since the first load
     "flush",
     "sqlflush",
     "reset_db",
@@ -115,6 +116,16 @@ class DeployScriptTests(SimpleTestCase):
                     missing.append(f"pixi task '{task}' runs 'manage.py {name}'")
         self.assertEqual(missing, [])
 
+    def test_deploy_loads_the_interactions_dataset_the_page_is_built_from(self):
+        lines = [ln for ln in self.deploy.splitlines() if not ln.strip().startswith("#")]
+        runs = [ln for ln in lines if "import-interactions" in ln]
+        self.assertEqual(len(runs), 1, "the deploy should load the interactions dataset exactly once")
+        self.assertNotIn("--", runs[0].split("import-interactions", 1)[1])
+        # the task is the importer with no flags (so it only adds what is missing)
+        self.assertEqual(self.pixi_tasks["import-interactions"], "python manage.py import_pathogen_interactions")
+        # after the migrations, which create the table
+        self.assertLess(self.deploy.index("pixi run migrate"), self.deploy.index("import-interactions"))
+
     def test_deploy_never_runs_data_destroying_commands(self):
         # Only look at the commands themselves, not comments that mention them.
         lines = [ln for ln in self.deploy.splitlines() if not ln.strip().startswith("#")]
@@ -143,3 +154,24 @@ class LocalOnlyComposeTests(SimpleTestCase):
         self.assertIn("axllent/mailpit", text)
         self.assertIn("EMAIL_HOST: ${EMAIL_HOST:-mailpit}", text)
         self.assertNotIn("postgres_data", text)   # no volumes or database settings are touched
+
+
+class BackupCoversTheInteractionsTests(SimpleTestCase):
+    """The interactions live in the database, so they are backed up exactly as the rest of the site is."""
+
+    def test_the_backup_dumps_the_whole_database_and_sends_it_to_dropbox(self):
+        backup = (settings.BASE_DIR / ".github" / "workflows" / "backup.yaml").read_text()
+        dump = [ln for ln in backup.splitlines() if "pg_dump" in ln and not ln.strip().startswith("#")]
+        self.assertEqual(len(dump), 1)
+        options = dump[0].split("pg_dump", 1)[1]   # (the " -T " before it is docker's "no terminal", not a table filter)
+        for narrowing in (" -t ", "--table", "--exclude-table", " -T ", "--schema-only", "--data-only"):
+            self.assertNotIn(narrowing, options, "the dump must cover every table, pathogen_interactions included")
+        # the dump is written into the data folder that is copied to Dropbox, and the fast backup does not exclude .sql files
+        self.assertIn("/opt/barkandambrosia_data/media/db_full_backup.sql", dump[0])
+        self.assertNotIn('--exclude "*.sql"', backup)
+        self.assertNotIn('--exclude "media/db_full_backup.sql"', backup)
+
+    def test_the_interactions_table_is_an_ordinary_table_of_the_database(self):
+        from beetlesgallery.beetles_app.models import PathogenInteraction
+        self.assertEqual(PathogenInteraction._meta.db_table, "pathogen_interactions")
+        self.assertFalse(PathogenInteraction._meta.managed is False)

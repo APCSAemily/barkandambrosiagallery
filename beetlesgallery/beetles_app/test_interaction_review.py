@@ -252,22 +252,25 @@ class CitationTests(ReviewCase):
 
 
 class AdditionsTests(ReviewCase):
-    def test_accepted_claims_reach_the_interactions_page_but_the_dataset_is_not_repeated(self):
-        PathogenInteraction.objects.create(beetle_host="Ips typographus", pathogen="Beauveria", category="Fungi")  # dataset
+    def test_accepted_claims_reach_the_interactions_page_next_to_the_dataset(self):
+        PathogenInteraction.objects.create(beetle_host="Ips typographus", pathogen="Beauveria", category="Fungi", record_number="1")  # dataset
         self.proposal()
-        self.assertEqual(self.client.get(reverse("interactions_additions")).json(), [])
+        self.assertEqual(len(self.client.get(reverse("interactions_records")).json()), 1)
         self.decide(self.key(), "accept")
         self.client.logout()
-        [record] = self.client.get(reverse("interactions_additions")).json()
-        self.assertEqual((record["Beetle Host"], record["pathogens"], record["categories"], record["origin"]),
-                         ("Ips typographus", "Ophiostoma polonicum", "Fungi", "proposal"))
+        records = self.client.get(reverse("interactions_records")).json()
+        self.assertEqual([r["origin"] for r in records], ["dataset", "proposal"])
+        record = records[1]
+        self.assertEqual((record["Beetle Host"], record["pathogens"], record["categories"]),
+                         ("Ips typographus", "Ophiostoma polonicum", "Fungi"))
         self.assertEqual((record["year"], record["source"]), (2020, "Smith et al., 2020"))
         self.assertEqual(record["doi or full text"], "https://doi.org/10.1000/a")
 
-    def test_the_interactions_page_asks_for_them_and_still_works_without(self):
+    def test_the_interactions_page_reads_everything_from_the_database(self):
         response = self.client.get(reverse("interactions_preview"))
-        self.assertContains(response, reverse("interactions_additions"))
-        self.assertContains(response, "return res.ok ? res.json() : []")
+        for name in ("interactions_records", "interactions_hosts", "interactions_references"):
+            self.assertContains(response, reverse(name))
+        self.assertNotContains(response, "bark_beetle_pathogens_master.json")
 
     def test_interactions_page_shows_the_review_links_and_number_waiting_to_staff_only(self):
         self.proposal()

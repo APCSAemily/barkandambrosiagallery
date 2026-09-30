@@ -2055,18 +2055,16 @@ def tool_annotate(request):
 
 def interactions_preview(request):
     """
-    Serves the Bark and Ambrosia Beetle Pathogen Dataset page
-    backed by the Version 1.0 dataset (DOI: 10.6084/m9.figshare.33869104).
+    Serves the Bark and Ambrosia Beetle Pathogen Dataset page. The published v1.0 dataset
+    (DOI: 10.6084/m9.figshare.33869104) lives in the database, with everything added since (interaction_data.py).
     """
+    from . import interaction_data
+    rows = interaction_data._rows()
     context = {
         'page_title': 'Bark and Ambrosia Beetle Pathogen Dataset',
         'meta_description': 'A literature-derived resource compiling reported pathogens and parasites associated with bark and ambrosia beetles (Scolytinae).',
-        'total_records': 1015,
-        'total_hosts': 108,
-        'total_genera': 28,
-        'total_taxa': 274,
-        'total_sources': 281,
-        'total_validated': 245,
+        'stats': interaction_data.page_stats(rows),
+        'groups': interaction_data.group_stats(rows),
     }
     if has_area(request.user, INTERACTIONS):
         from .models import InteractionProposal

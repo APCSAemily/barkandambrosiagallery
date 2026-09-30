@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}{{ page_title }} | Bark & Ambrosia Beetle Gallery{% endblock %}
 
@@ -287,16 +287,16 @@
       About
     </button>
     <button type="button" id="tab-btn-browse" class="nav-tab-btn py-3 px-2 sm:px-3">
-      Browse Dataset <span class="text-[11px] text-gray-400 font-normal">(1,015)</span>
+      Browse Dataset <span class="text-[11px] text-gray-400 font-normal">({{ stats.records|intcomma }})</span>
     </button>
     <button type="button" id="tab-btn-hosts" class="nav-tab-btn py-3 px-2 sm:px-3">
-      Beetle Hosts <span class="text-[11px] text-gray-400 font-normal">(108)</span>
+      Beetle Hosts <span class="text-[11px] text-gray-400 font-normal">({{ stats.hosts|intcomma }})</span>
     </button>
     <button type="button" id="tab-btn-groups" class="nav-tab-btn py-3 px-2 sm:px-3">
-      Pathogen Groups <span class="text-[11px] text-gray-400 font-normal">(6)</span>
+      Pathogen Groups <span class="text-[11px] text-gray-400 font-normal">({{ stats.groups }})</span>
     </button>
     <button type="button" id="tab-btn-refs" class="nav-tab-btn py-3 px-2 sm:px-3">
-      References <span class="text-[11px] text-gray-400 font-normal">(281)</span>
+      References <span class="text-[11px] text-gray-400 font-normal">({{ stats.sources|intcomma }})</span>
     </button>
   </div>
 
@@ -331,36 +331,36 @@
       <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Total Records</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span class="text-2xl font-bold text-gray-900 leading-none">1,015</span>
-          <span class="text-[11px] text-gray-400 font-mono">1914–2026</span>
+          <span class="text-2xl font-bold text-gray-900 leading-none">{{ stats.records|intcomma }}</span>
+          <span class="text-[11px] text-gray-400 font-mono">{% if stats.first_year %}{{ stats.first_year }}–{{ stats.last_year }}{% endif %}</span>
         </div>
       </div>
       <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Beetle Species</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span class="text-2xl font-bold text-gray-900 leading-none">108</span>
-          <span class="text-[11px] text-gray-400 font-mono">28 genera</span>
+          <span class="text-2xl font-bold text-gray-900 leading-none">{{ stats.hosts|intcomma }}</span>
+          <span class="text-[11px] text-gray-400 font-mono">{{ stats.genera }} genera</span>
         </div>
       </div>
       <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Candidate Taxa</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span class="text-2xl font-bold text-gray-900 leading-none">274</span>
+          <span class="text-2xl font-bold text-gray-900 leading-none">{{ stats.taxa|intcomma }}</span>
           <span class="text-[11px] text-gray-400 font-mono">taxa</span>
         </div>
       </div>
       <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Publications</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span class="text-2xl font-bold text-gray-900 leading-none">281</span>
+          <span class="text-2xl font-bold text-gray-900 leading-none">{{ stats.sources|intcomma }}</span>
           <span class="text-[11px] text-gray-400 font-mono">primary refs</span>
         </div>
       </div>
       <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Validated Tests</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span class="text-2xl font-bold text-gray-900 leading-none">245</span>
-          <span class="text-[11px] text-gray-400 font-mono">24.1% verified</span>
+          <span class="text-2xl font-bold text-gray-900 leading-none">{{ stats.validated|intcomma }}</span>
+          <span class="text-[11px] text-gray-400 font-mono">{{ stats.validated_pct|floatformat:1 }}% verified</span>
         </div>
       </div>
     </div>
@@ -373,7 +373,7 @@
             <span class="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition">Browse Dataset</span>
             <span class="text-xs text-gray-400 font-mono">&rarr;</span>
           </div>
-          <div class="text-[11px] text-gray-400 font-mono mt-0.5">1,015 records</div>
+          <div class="text-[11px] text-gray-400 font-mono mt-0.5">{{ stats.records|intcomma }} records</div>
           <p class="text-xs text-gray-500 mt-2 leading-relaxed">Explore all reported beetle-pathogen associations with filtering and details.</p>
         </div>
       </button>
@@ -384,8 +384,8 @@
             <span class="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition">Beetle Hosts</span>
             <span class="text-xs text-gray-400 font-mono">&rarr;</span>
           </div>
-          <div class="text-[11px] text-gray-400 font-mono mt-0.5">108 species</div>
-          <p class="text-xs text-gray-500 mt-2 leading-relaxed">Summary of all 108 Scolytinae species and reported pathogen spectrum.</p>
+          <div class="text-[11px] text-gray-400 font-mono mt-0.5">{{ stats.hosts|intcomma }} species</div>
+          <p class="text-xs text-gray-500 mt-2 leading-relaxed">Summary of all {{ stats.hosts|intcomma }} Scolytinae species and reported pathogen spectrum.</p>
         </div>
       </button>
 
@@ -395,7 +395,7 @@
             <span class="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition">Pathogen Groups</span>
             <span class="text-xs text-gray-400 font-mono">&rarr;</span>
           </div>
-          <div class="text-[11px] text-gray-400 font-mono mt-0.5">6 groups</div>
+          <div class="text-[11px] text-gray-400 font-mono mt-0.5">{{ stats.groups }} groups</div>
           <p class="text-xs text-gray-500 mt-2 leading-relaxed">Fungi, Nematodes, Microsporidia, Protists, Bacteria, and Viruses.</p>
         </div>
       </button>
@@ -406,7 +406,7 @@
             <span class="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition">References</span>
             <span class="text-xs text-gray-400 font-mono">&rarr;</span>
           </div>
-          <div class="text-[11px] text-gray-400 font-mono mt-0.5">281 publications</div>
+          <div class="text-[11px] text-gray-400 font-mono mt-0.5">{{ stats.sources|intcomma }} publications</div>
           <p class="text-xs text-gray-500 mt-2 leading-relaxed">Complete primary literature bibliography from 1914 to 2026.</p>
         </div>
       </button>
@@ -516,10 +516,10 @@
             
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-gray-800">Any Validation Test</span>
-              <span class="text-sm font-bold text-gray-900">245 records (24.14%)</span>
+              <span class="text-sm font-bold text-gray-900">{{ stats.validated|intcomma }} records ({{ stats.validated_pct|floatformat:1 }}%)</span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden mb-3">
-              <div class="bar-validation h-4 rounded-full flex items-center justify-end pr-2 text-[10px] text-white font-bold" style="width: 24.14%;">24.1%</div>
+              <div class="bar-validation h-4 rounded-full flex items-center justify-end pr-2 text-[10px] text-white font-bold" style="width: {{ stats.validated_pct|stringformat:".1f" }}%;">{{ stats.validated_pct|floatformat:1 }}%</div>
             </div>
 
             <div class="flex items-center justify-between text-xs text-gray-600 mb-1">
@@ -1052,16 +1052,9 @@
         <div class="flex items-center gap-2 flex-shrink-0">
           <button type="button" onclick="window.filterAndBrowseValidation('validated')"
             class="h-9 px-3 bg-gray-900 text-white rounded-md text-xs font-medium hover:bg-gray-800 transition whitespace-nowrap shadow-sm">
-            Browse 245 Validated Records &rarr;
+            Browse {{ stats.validated|intcomma }} Validated Records &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_with_validation.csv' %}" download="pathogens_with_validation.csv"
-            class="btn-download"
-            title="Download validated records as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download CSV</span>
-          </a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="validated" ext="csv" label="Download CSV" title="Download validated records as CSV" %}
         </div>
       </div>
 
@@ -1142,13 +1135,10 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             <label for="category-filter" class="text-xs font-medium text-gray-600">Category:</label>
             <select id="category-filter"
               class="h-9 text-xs border border-gray-300 rounded-md px-2.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-400 transition">
-              <option value="">All Categories (1,015)</option>
-              <option value="Fungi">Fungi (408 records / 59 taxa)</option>
-              <option value="Nematode">Nematodes (221 records / 121 taxa)</option>
-              <option value="Protist">Protists (146 records / 21 taxa)</option>
-              <option value="Microsporidia">Microsporidia (142 records / 25 taxa)</option>
-              <option value="Bacteria">Bacteria (49 records / 30 taxa)</option>
-              <option value="Virus">Viruses (47 records / 18 taxa)</option>
+              <option value="">All Categories ({{ stats.records|intcomma }})</option>
+              {% for value, label, records, taxa in groups %}
+              <option value="{{ value }}">{{ label }} ({{ records }} records / {{ taxa }} taxa)</option>
+              {% endfor %}
             </select>
           </div>
 
@@ -1158,7 +1148,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             <select id="validation-filter"
               class="h-9 text-xs border border-gray-300 rounded-md px-2.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-400 transition">
               <option value="">All Evidence Types</option>
-              <option value="validated">Experimental Validation (245)</option>
+              <option value="validated">Experimental Validation ({{ stats.validated|intcomma }})</option>
               <option value="pathogenicity test">Pathogenicity Test</option>
               <option value="virulence test">Virulence Test</option>
               <option value="infection test">Infection Test</option>
@@ -1175,21 +1165,20 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <!-- Divider -->
           <div class="h-5 w-px bg-gray-200 hidden sm:block mx-0.5"></div>
 
-          <!-- Download buttons temporarily commented out for public release during final dataset review/QC
+          {% if user.is_authenticated %}
           <button id="download-active-csv-btn" type="button"
             class="btn-download"
-            title="Download active records as CSV">
+            title="Download the records currently shown as CSV">
             <i class="fi fi-rr-download text-gray-500"></i>
             <span>Download CSV</span>
           </button>
-
-          <a href="{% static 'data/bark_beetle_pathogen_database.xlsx' %}" download="bark_beetle_pathogen_dataset.xlsx"
-            class="btn-download"
-            title="Download full multi-sheet Excel workbook">
-            <i class="fi fi-rr-document text-emerald-600"></i>
-            <span>Download Excel</span>
+          {% else %}
+          <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="btn-download" title="Sign in to download">
+            <i class="fi fi-rr-lock text-gray-500"></i><span>Download CSV (sign in)</span>
           </a>
-          -->
+          {% endif %}
+
+          {% include "beetles/includes/interaction_download.html" with name="workbook" ext="xlsx" label="Download Excel" title="Download everything as an Excel workbook" %}
 
         </div>
 
@@ -1206,7 +1195,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
     <div id="table-loading-indicator" class="p-12 text-center bg-white rounded-lg border border-gray-200">
       <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-3"></div>
       <p class="text-sm font-medium text-gray-700">Loading master pathogen dataset…</p>
-      <p class="text-xs text-gray-500 mt-1">Reading 1,015 association records</p>
+      <p class="text-xs text-gray-500 mt-1">Reading {{ stats.records|intcomma }} association records</p>
     </div>
 
     <!-- Master Tabulator Table -->
@@ -1226,16 +1215,9 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <input id="hosts-search" type="text" placeholder="Search beetle species (e.g., Ips typographus, Dendroctonus)…"
             class="w-full h-9 pl-3 pr-3 border border-gray-300 rounded-md text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 transition" />
         </div>
-        <!-- Temporarily commented out for public release during final dataset review/QC
         <div class="flex items-center gap-2">
-          <a href="{% static 'data/beetle_hosts_summary.csv' %}" download="beetle_hosts_summary.csv"
-            class="btn-download"
-            title="Download beetle hosts summary as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download Hosts CSV</span>
-          </a>
+          {% include "beetles/includes/interaction_download.html" with name="hosts" ext="csv" label="Download Hosts CSV" title="Download beetle hosts summary as CSV" %}
         </div>
-        -->
       </div>
     </div>
 
@@ -1282,10 +1264,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-amber-700 hover:text-amber-900 hover:underline">
             View 408 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_fungi.csv' %}" download="pathogens_fungi.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="fungi" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1314,10 +1293,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline">
             View 221 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_nematodes.csv' %}" download="pathogens_nematodes.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="nematodes" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1346,10 +1322,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-purple-700 hover:text-purple-900 hover:underline">
             View 142 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_microsporidia.csv' %}" download="pathogens_microsporidia.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="microsporidia" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1378,10 +1351,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-orange-700 hover:text-orange-900 hover:underline">
             View 146 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_protists.csv' %}" download="pathogens_protists.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="protists" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1410,10 +1380,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-emerald-700 hover:text-emerald-900 hover:underline">
             View 49 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_bacteria.csv' %}" download="pathogens_bacteria.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="bacteria" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1442,10 +1409,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-red-700 hover:text-red-900 hover:underline">
             View 47 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_viruses.csv' %}" download="pathogens_viruses.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="viruses" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1462,16 +1426,9 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <input id="refs-search" type="text" placeholder="Search publications by author, title, or year (1914–2026)…"
             class="w-full h-9 pl-3 pr-3 border border-gray-300 rounded-md text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 transition" />
         </div>
-        <!-- Temporarily commented out for public release during final dataset review/QC
         <div class="flex items-center gap-2">
-          <a href="{% static 'data/references.csv' %}" download="references.csv"
-            class="btn-download"
-            title="Download references bibliography as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download References CSV</span>
-          </a>
+          {% include "beetles/includes/interaction_download.html" with name="references" ext="csv" label="Download References CSV" title="Download references bibliography as CSV" %}
         </div>
-        -->
       </div>
     </div>
 
@@ -1604,10 +1561,10 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
   "use strict";
 
   // Data URLs
-  var MASTER_DATA_URL = "{% static 'data/bark_beetle_pathogens_master.json' %}";
-  var ADDITIONS_URL   = "{% url 'interactions_additions' %}";
-  var HOSTS_DATA_URL  = "{% static 'data/beetle_hosts_summary.json' %}";
-  var REFS_DATA_URL   = "{% static 'data/references.json' %}";
+  // Everything comes from the database (beetles_app/interaction_data.py)
+  var MASTER_DATA_URL = "{% url 'interactions_records' %}";
+  var HOSTS_DATA_URL  = "{% url 'interactions_hosts' %}";
+  var REFS_DATA_URL   = "{% url 'interactions_references' %}";
 
   var masterRecords = [];
   var hostsRecords  = [];
@@ -1756,7 +1713,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
   function initMasterTable(data) {
     loadingIndicator.classList.add("hidden");
     tableWrapper.classList.remove("hidden");
-    countDisplay.textContent = "Showing " + data.length.toLocaleString() + " of 1,015 records";
+    countDisplay.textContent = "Showing " + data.length.toLocaleString() + " of " + data.length.toLocaleString() + " records";
 
     masterTable = new Tabulator("#interactions-table", {
       data: data,
@@ -1861,7 +1818,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
     });
 
     masterTable.on("dataFiltered", function(filters, rows) {
-      countDisplay.textContent = "Showing " + rows.length.toLocaleString() + " of 1,015 records";
+      countDisplay.textContent = "Showing " + rows.length.toLocaleString() + " of " + masterRecords.length.toLocaleString() + " records";
     });
   }
 
@@ -1935,18 +1892,11 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
     });
   }
 
-  // Load Master JSON Data, then add what experts have accepted since (a missing or failing additions
-  // request must never stop the published dataset from showing).
+  // Load the records from the database
   fetch(MASTER_DATA_URL)
     .then(function(res) {
       if (!res.ok) throw new Error("HTTP error " + res.status);
       return res.json();
-    })
-    .then(function(data) {
-      return fetch(ADDITIONS_URL)
-        .then(function(res) { return res.ok ? res.json() : []; })
-        .catch(function() { return []; })
-        .then(function(additions) { return Array.isArray(additions) ? data.concat(additions) : data; });
     })
     .then(function(data) {
       masterRecords = data;

@@ -1,0 +1,2 @@
+record_id,records_id,beetle_host,beetle_host_id,pathogen,category,ecological_relationship,country_or_region,organism_source,infection_site,identification_method,validation_type,experimental_conditions,source,year,title,doi_or_full_text,full_text_status
+NEW,,Ips typographus,,Beauveria bassiana,Fungi,pathogen,Romania,laboratory cultivated,cuticular contact,morphology,virulence test,laboratory,"Andrei et al., 2013",2013,"Andrei, A. M., et al. (2013). Laboratory Beauveria bassiana bioassays on spruce bark beetle (Ips typographus L.). IOBC/WPRS Bulletin, 90, 93-96.",,full text

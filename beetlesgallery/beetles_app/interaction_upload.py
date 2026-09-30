@@ -9,9 +9,9 @@ New rows need a beetle (beetle_host, or beetle_host_id), a pathogen (the other o
 On an update only the columns that are in the file are applied; a blank cell empties an optional field. Every row
 is checked before anything is written, and if any row is wrong nothing is saved.
 
-Rows added here have origin "upload". Rows that came with the published v1.0 dataset cannot be changed here: the
-interactions page shows that dataset from its fixed, versioned files, so a change would not appear. Correct those
-at the source, or accept a proposal that supersedes them.
+Rows added here have origin "upload". Every row can be corrected, including the ones that came with the published
+v1.0 dataset: the interactions page is built from the database, so a change shows there straight away. (Reloading the
+dataset from its file never overwrites a row that is already in the database, see import_pathogen_interactions.)
 """
 import csv
 import io
@@ -25,7 +25,7 @@ from .interaction_names import SpeciesLookup, clean_doi
 from .models import PathogenInteraction
 
 EXPORT_COLUMNS = [
-    "record_id", "beetle_host", "beetle_host_id", "pathogen", "category", "ecological_relationship",
+    "record_id", "records_id", "beetle_host", "beetle_host_id", "pathogen", "category", "ecological_relationship",
     "country_or_region", "organism_source", "infection_site", "identification_method", "validation_type",
     "experimental_conditions", "source", "year", "title", "doi_or_full_text", "full_text_status", "origin",
 ]
@@ -39,7 +39,7 @@ OPTIONAL = [c for c in TEXT_LIMITS if c != "category"] + ["year", "doi_or_full_t
 MAX_ERRORS_SHOWN = 30
 NEW = {"", "new"}
 COLUMN_ALIASES = {
-    "record id": "record_id", "id": "record_id", "beetle": "beetle_host", "species": "beetle_host",
+    "record id": "record_id", "id": "record_id", "records id": "records_id", "record_number": "records_id", "beetle": "beetle_host", "species": "beetle_host",
     "partner": "pathogen", "organism": "pathogen", "relationship": "ecological_relationship",
     "country": "country_or_region", "doi": "doi_or_full_text",
 }
@@ -69,7 +69,7 @@ def export_rows(queryset=None):
     queryset = queryset if queryset is not None else PathogenInteraction.objects.all()
     for r in queryset.order_by("origin", "record_number", "created_at", "id").iterator():
         yield {
-            "record_id": str(r.id), "beetle_host": r.beetle_host, "beetle_host_id": r.beetle_host_id or "",
+            "record_id": str(r.id), "records_id": r.record_number or "", "beetle_host": r.beetle_host, "beetle_host_id": r.beetle_host_id or "",
             "pathogen": r.pathogen, "category": r.category, "ecological_relationship": r.ecological_relationship or "",
             "country_or_region": r.country_or_region or "", "organism_source": r.organism_source or "",
             "infection_site": r.infection_site or "", "identification_method": r.identification_method or "",
@@ -143,7 +143,8 @@ def import_interactions(source, user=None, dry_run=False):
     for r in known.values():
         duplicates[_claim(r.beetle_host_id, r.pathogen, r.doi_or_full_text or r.source or r.title)] = r
 
-    changes, creations, seen_ids, seen_new = [], [], {}, {}
+    numbers = {r.record_number for r in known.values() if r.record_number}
+    changes, creations, seen_ids, seen_new, seen_numbers = [], [], {}, {}, {}
     for i, row in enumerate(rows):
         row_num = i + 2
         before = result.error_count
@@ -163,15 +164,16 @@ def import_interactions(source, user=None, dry_run=False):
                 problem(row_num, f"repeats row {seen_ids[record]} (the same record_id)")
                 continue
             seen_ids[record] = row_num
-            if target.origin == PathogenInteraction.Origin.DATASET:
-                problem(row_num, "this record is part of the published v1.0 dataset, which the interactions page shows from fixed files, "
-                                 "so a change here would not show. Correct it at the source")
-                continue
 
         values = {}
         # The beetle
-        if creating or "beetle_host" in row or "beetle_host_id" in row:
-            name, vid = row.get("beetle_host", ""), row.get("beetle_host_id", "")
+        name, vid = row.get("beetle_host", ""), row.get("beetle_host_id", "")
+        # A beetle that is left as it is needs no lookup, so a published row whose name is not in the species
+        # list (a name as the paper wrote it) can still have its other columns corrected.
+        host_unchanged = (not creating and ("beetle_host" in row or "beetle_host_id" in row)
+                          and (name or target.beetle_host) == target.beetle_host
+                          and (vid or target.beetle_host_id or "") == (target.beetle_host_id or ""))
+        if (creating or "beetle_host" in row or "beetle_host_id" in row) and not host_unchanged:
             taxon, error = (None, "give the beetle: beetle_host (a name in the species list) or beetle_host_id") \
                 if not name and not vid else species.find(name, vid)
             if not error and name and vid:
@@ -201,6 +203,21 @@ def import_interactions(source, user=None, dry_run=False):
                 problem(row_num, f"{column} is limited to {limit} characters")
             else:
                 values[column] = text or None
+        # records_id: the dataset's own number for a record (1 to 1015 in the published v1.0). Only for a new row; it
+        # is what the interactions page and the beetle summary call the record, and it can't be changed afterwards.
+        number = row.get("records_id", "")
+        if creating and number:
+            if not re.fullmatch(r"\d{1,9}", number):
+                problem(row_num, f"records_id '{number[:20]}' must be a whole number (or left blank)")
+            elif number in numbers:
+                problem(row_num, f"records_id {number} is already used by another interaction")
+            elif number in seen_numbers:
+                problem(row_num, f"repeats row {seen_numbers[number]} (the same records_id)")
+            else:
+                values["record_number"] = number
+                seen_numbers[number] = row_num
+        elif not creating and "records_id" in row and number != (target.record_number or ""):
+            problem(row_num, "records_id cannot be changed (leave it as it is, or remove the column)")
         if "year" in row:
             if row["year"] and (not re.fullmatch(r"\d{4}", row["year"]) or not 1500 <= int(row["year"]) <= 2200):
                 problem(row_num, f"year '{row['year']}' is not a year")
@@ -219,14 +236,17 @@ def import_interactions(source, user=None, dry_run=False):
         if creating:
             claim = _claim(values["beetle_host_id"], values["pathogen"],
                            values.get("doi_or_full_text") or values.get("source") or values.get("title"))
-            if claim in seen_new:
-                problem(row_num, f"repeats row {seen_new[claim]} (same beetle, organism and source)")
-                continue
-            if claim in duplicates:
-                problem(row_num, f"this interaction is already in the database (record {duplicates[claim].id}). "
-                                 "To change it, upload it with its record_id")
-                continue
-            seen_new[claim] = row_num
+            # A row with its own records_id is a numbered record of the published dataset, which has a few
+            # legitimate near-twins, so only un-numbered rows are checked for being accidental repeats.
+            if "record_number" not in values:
+                if claim in seen_new:
+                    problem(row_num, f"repeats row {seen_new[claim]} (same beetle, organism and source)")
+                    continue
+                if claim in duplicates:
+                    problem(row_num, f"this interaction is already in the database (record {duplicates[claim].id}). "
+                                     "To change it, upload it with its record_id")
+                    continue
+                seen_new[claim] = row_num
             creations.append(values)
         else:
             changed = {k: v for k, v in values.items() if (getattr(target, k) or None) != (v or None)}

@@ -28,7 +28,9 @@ PUBLIC_PAGES = [
     "login",
     "request_access",
     "request_access_sent",
-    "interactions_additions",
+    "interactions_records",
+    "interactions_hosts",
+    "interactions_references",
 ]
 
 # Pages that need a logged-in user

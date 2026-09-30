@@ -149,12 +149,22 @@ class UpdateTests(UploadCase):
         result = self.load(csv_text(f"{row.id},Ips typographus,,Ophiostoma polonicum,Fungi,,,2021,,", NEW_ROW.replace("Ophiostoma", "Ceratocystis")))
         self.assertEqual((result.created, result.updated), (1, 1))
 
-    def test_the_published_dataset_cannot_be_changed_here(self):
+    def test_the_published_dataset_can_be_corrected_and_stays_the_published_dataset(self):
         row = PathogenInteraction.objects.create(beetle_host="Ips typographus", beetle_host_id="1733", pathogen="Beauveria", category="Fungi", origin="dataset")
         result = self.load(f"record_id,year\n{row.id},2020\n")
-        self.assertIn("published v1.0 dataset", result.errors[0])
+        self.assertTrue(result.ok, result.errors)
         row.refresh_from_db()
-        self.assertEqual(row.year, None)
+        self.assertEqual((row.year, row.origin), ("2020", "dataset"))
+
+    def test_a_published_row_whose_beetle_name_is_not_in_the_species_list_can_still_be_corrected(self):
+        row = PathogenInteraction.objects.create(beetle_host="Ips notinlist", beetle_host_id="9999", pathogen="Beauveria", category="Fungi", origin="dataset")
+        result = self.load(f"record_id,beetle_host,beetle_host_id,year\n{row.id},Ips notinlist,9999,2021\n")
+        self.assertTrue(result.ok, result.errors)
+        row.refresh_from_db()
+        self.assertEqual(row.year, "2021")
+        # ...but naming a different beetle is still checked against the species list
+        result = self.load(f"record_id,beetle_host\n{row.id},Not a beetle\n")
+        self.assertFalse(result.ok)
 
     def test_accepted_proposals_can_be_changed(self):
         row = PathogenInteraction.objects.create(beetle_host="Ips typographus", beetle_host_id="1733", pathogen="Beauveria", category="Fungi", origin="proposal")
