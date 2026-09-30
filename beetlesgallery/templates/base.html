@@ -18,6 +18,30 @@
     href="https://cdn-uicons.flaticon.com/2.2.0/uicons-regular-rounded/css/uicons-regular-rounded.css" />
   <link rel='stylesheet' 
     href='https://cdn-uicons.flaticon.com/2.1.0/uicons-brands/css/uicons-brands.css'>
+  <link rel="preconnect" href="https://cdn-uicons.flaticon.com" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="https://cdn-uicons.flaticon.com/2.2.0/uicons-regular-rounded/webfonts/uicons-regular-rounded.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="https://cdn-uicons.flaticon.com/2.1.0/uicons-brands/webfonts/uicons-brands.woff2">
+  <style>
+    /* The icon fonts load from a CDN. Until they are in, the icons would show as empty boxes and then swap in,
+       so keep them invisible (they keep their space) and show them all at once. */
+    html:not(.icons-ready) i[class*="fi-"] { visibility: hidden; }
+  </style>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var shown = false;
+      function show() { if (!shown) { shown = true; root.classList.add("icons-ready"); } }
+      try {
+        Promise.all([
+          document.fonts.load('1em "uicons-regular-rounded"'),
+          document.fonts.load('1em "uicons-brands"')
+        ]).then(show, show);
+      } catch (e) { show(); }
+      setTimeout(show, 2500);  // never leave the icons hidden if the CDN is slow or blocked
+    })();
+  </script>
 
   <script>
     (function () {

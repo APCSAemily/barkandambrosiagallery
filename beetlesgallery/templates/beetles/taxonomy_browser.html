@@ -1,6 +1,314 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block extra_css %}
+<style>
+  /* --------------------------------------------------------
+     Taxonomy browser layout
+     -------------------------------------------------------- */
+  .taxonomy-browser-container {
+    display: flex;
+    gap: 1.5rem;
+    height: calc(100vh - 180px); /* Adjust based on header/padding */
+    min-height: 600px;
+  }
+
+  .taxonomy-tree-section {
+    flex: 0 0 35%;
+    min-width: 350px;
+    max-width: 500px;
+  }
+
+  .taxonomy-detail-section {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* --------------------------------------------------------
+     Taxonomy tree styles
+     -------------------------------------------------------- */
+
+  /* Root list – no bullets, no default padding */
+  .tree-root,
+  .tree-children {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Hidden children */
+  .tree-children {
+    display: none;
+    padding-left: 0;
+  }
+  .tree-children--open {
+    display: block;
+  }
+
+  /* ---------- branch (non-leaf) ---------- */
+  .tree-branch {
+    position: relative;
+  }
+
+  /* Container for toggle button and browse link */
+  .tree-node-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  /* The toggle button itself */
+  .tree-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    padding: 0.35rem 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 0.375rem;   /* rounded-md */
+    transition: background-color 0.15s;
+  }
+  .tree-toggle:hover {
+    background-color: #f3f4f6; /* gray-100 */
+  }
+
+  /* Browse link styling */
+  .tree-browse-link {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;           /* gray-500 */
+    text-decoration: none;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: color 0.15s, background-color 0.15s, opacity 0.15s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tree-node-container:hover .tree-browse-link {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .tree-browse-link:hover {
+    color: #1f2937;           /* grey (was blue-700) */
+    background-color: #f3f4f6; /* grey (was blue-50) */
+  }
+
+  /* Browse icon */
+  .tree-browse-icon {
+    width: 1rem;
+    height: 1rem;
+    display: block;
+  }
+
+  /* [+] / [−] icon box – mimics the screenshot's small square toggle */
+  .tree-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    min-width: 1.1rem;
+    font-size: 0.75rem;
+    line-height: 1;
+    border: 1px solid #9ca3af;     /* gray-400 */
+    border-radius: 0.2rem;
+    background: #fff;
+    color: #374151;               /* gray-700 */
+    user-select: none;
+  }
+
+  /* Label text */
+  .tree-label {
+    font-size: 0.9rem;
+    color: #374151;
+    font-weight: 500;
+  }
+  .tree-count {
+    color: #6b7280;    /* gray-500 */
+    font-weight: 400;
+  }
+
+  /* ---------- connector lines ---------- */
+  /* Vertical line down the left of each branch's children */
+  .tree-branch > .tree-children--open {
+    position: relative;
+    padding-left: 1.55rem;   /* room for the line + icon */
+  }
+  .tree-branch > .tree-children--open::before {
+    content: "";
+    position: absolute;
+    left: 0.85rem;
+    top: 0;
+    bottom: 0.35rem;
+    width: 1px;
+    background: #d1d5db;     /* gray-300 */
+  }
+
+  /* Horizontal tick from the vertical line to each child – removed */
+
+  /* ---------- leaf (species) ---------- */
+  .tree-leaf {
+    position: relative;
+  }
+  .tree-leaf-container {
+    padding-left: 1.1rem;    /* indent past where the toggle icon would be */
+  }
+  .tree-species-btn {
+    display: block;
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    background: none;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.9rem;
+    color: #1f2937;          /* grey (was blue-700) */
+    transition: background-color 0.15s, color 0.15s;
+  }
+  .tree-species-btn:hover {
+    background-color: #f3f4f6; /* grey (was blue-50) */
+    color: #111827;            /* grey (was blue-800) */
+  }
+  .tree-species-btn--active {
+    background-color: #e5e7eb; /* grey (was blue-100) */
+    color: #111827;
+    font-weight: 600;
+  }
+
+  /* ---------- search / filter ---------- */
+  .taxonomy-filter-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .taxonomy-filter-select {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+    border: 1px solid #d1d5db;          /* gray-300 */
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #1f2937;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .taxonomy-filter-select:focus {
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px #d1d5db;
+  }
+
+  .taxonomy-filter-input {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #1f2937;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .taxonomy-filter-input::placeholder {
+    color: #9ca3af;
+  }
+  .taxonomy-filter-input:focus {
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px #d1d5db;
+  }
+
+  /* Autocomplete suggestions */
+  .taxonomy-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.25rem;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+  }
+
+  .taxonomy-suggestion-item {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: #1f2937;
+    cursor: pointer;
+    transition: background-color 0.1s;
+  }
+
+  .taxonomy-suggestion-item:hover,
+  .taxonomy-suggestion-item--selected {
+    background-color: #f3f4f6;  /* grey (was blue-50) */
+  }
+
+  .taxonomy-suggestion-item:not(:last-child) {
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  /* ---------- species image thumbnails ---------- */
+  .species-thumb-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .species-thumb-link {
+    display: block;
+    width: 96px;
+    height: 96px;
+    border: 1px solid #e5e7eb;       /* gray-200 */
+    border-radius: 0.375rem;
+    overflow: hidden;
+    background: #f3f4f6;            /* gray-100 */
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .species-thumb-link:hover {
+    border-color: #6b7280;          /* grey (was blue-500) */
+    box-shadow: 0 0 0 2px #d1d5db;  /* grey (was blue-200) */
+  }
+
+  .species-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background-color: #f9fafb;  /* Light gray background for transparency */
+  }
+
+  .species-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #9ca3af;
+    text-align: center;
+  }
+
+  /* Only lay out the leaves that are on screen: Expand All opens thousands of them at once */
+  .tree-leaf {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 2rem;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="relative z-0">
   <h1 class="text-2xl sm:text-3xl font-semibold mb-6">Taxonomy Browser</h1>
@@ -197,7 +505,7 @@
     browseLink.className = "tree-browse-link";
     browseLink.title = "View images in image browser";
     browseLink.setAttribute("target", "_blank");
-    browseLink.innerHTML = '<svg class="tree-browse-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+    browseLink.innerHTML = '<svg class="tree-browse-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
     browseLink.addEventListener("click", function(e) {
       e.stopPropagation(); // Prevent triggering the toggle
     });
@@ -266,7 +574,7 @@
     browseLink.className = "tree-browse-link";
     browseLink.title = "View images in image browser";
     browseLink.setAttribute("target", "_blank");
-    browseLink.innerHTML = '<svg class="tree-browse-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+    browseLink.innerHTML = '<svg class="tree-browse-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
     browseLink.addEventListener("click", function(e) {
       e.stopPropagation();
     });
@@ -404,7 +712,7 @@
    */
   function setAllBranches(open) {
     rootEl.querySelectorAll(".tree-branch").forEach(function (li) {
-      const btn = li.querySelector(":scope > .tree-toggle");
+      const btn = li.querySelector(":scope > .tree-node-container > .tree-toggle");
       const ul  = li.querySelector(":scope > .tree-children");
       if (!btn || !ul) return;
 
@@ -734,306 +1042,6 @@
   }
 })();
 </script>
-
-<style>
-  /* --------------------------------------------------------
-     Taxonomy browser layout
-     -------------------------------------------------------- */
-  .taxonomy-browser-container {
-    display: flex;
-    gap: 1.5rem;
-    height: calc(100vh - 180px); /* Adjust based on header/padding */
-    min-height: 600px;
-  }
-
-  .taxonomy-tree-section {
-    flex: 0 0 35%;
-    min-width: 350px;
-    max-width: 500px;
-  }
-
-  .taxonomy-detail-section {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-
-  /* --------------------------------------------------------
-     Taxonomy tree styles
-     -------------------------------------------------------- */
-
-  /* Root list – no bullets, no default padding */
-  .tree-root,
-  .tree-children {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  /* Hidden children */
-  .tree-children {
-    display: none;
-    padding-left: 0;
-  }
-  .tree-children--open {
-    display: block;
-  }
-
-  /* ---------- branch (non-leaf) ---------- */
-  .tree-branch {
-    position: relative;
-  }
-
-  /* Container for toggle button and browse link */
-  .tree-node-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    position: relative;
-  }
-
-  /* The toggle button itself */
-  .tree-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex: 1;
-    padding: 0.35rem 0.5rem;
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    border-radius: 0.375rem;   /* rounded-md */
-    transition: background-color 0.15s;
-  }
-  .tree-toggle:hover {
-    background-color: #f3f4f6; /* gray-100 */
-  }
-
-  /* Browse link styling */
-  .tree-browse-link {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #6b7280;           /* gray-500 */
-    text-decoration: none;
-    padding: 0.25rem;
-    border-radius: 0.25rem;
-    transition: color 0.15s, background-color 0.15s, opacity 0.15s;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .tree-node-container:hover .tree-browse-link {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .tree-browse-link:hover {
-    color: #1f2937;           /* grey (was blue-700) */
-    background-color: #f3f4f6; /* grey (was blue-50) */
-  }
-
-  /* Browse icon */
-  .tree-browse-icon {
-    width: 1rem;
-    height: 1rem;
-    display: block;
-  }
-
-  /* [+] / [−] icon box – mimics the screenshot's small square toggle */
-  .tree-toggle-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.1rem;
-    height: 1.1rem;
-    min-width: 1.1rem;
-    font-size: 0.75rem;
-    line-height: 1;
-    border: 1px solid #9ca3af;     /* gray-400 */
-    border-radius: 0.2rem;
-    background: #fff;
-    color: #374151;               /* gray-700 */
-    user-select: none;
-  }
-
-  /* Label text */
-  .tree-label {
-    font-size: 0.9rem;
-    color: #374151;
-    font-weight: 500;
-  }
-  .tree-count {
-    color: #6b7280;    /* gray-500 */
-    font-weight: 400;
-  }
-
-  /* ---------- connector lines ---------- */
-  /* Vertical line down the left of each branch's children */
-  .tree-branch > .tree-children--open {
-    position: relative;
-    padding-left: 1.55rem;   /* room for the line + icon */
-  }
-  .tree-branch > .tree-children--open::before {
-    content: "";
-    position: absolute;
-    left: 0.85rem;
-    top: 0;
-    bottom: 0.35rem;
-    width: 1px;
-    background: #d1d5db;     /* gray-300 */
-  }
-
-  /* Horizontal tick from the vertical line to each child – removed */
-
-  /* ---------- leaf (species) ---------- */
-  .tree-leaf {
-    position: relative;
-  }
-  .tree-leaf-container {
-    padding-left: 1.1rem;    /* indent past where the toggle icon would be */
-  }
-  .tree-species-btn {
-    display: block;
-    flex: 1;
-    padding: 0.3rem 0.5rem;
-    background: none;
-    border: none;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    text-align: left;
-    font-size: 0.9rem;
-    color: #1f2937;          /* grey (was blue-700) */
-    transition: background-color 0.15s, color 0.15s;
-  }
-  .tree-species-btn:hover {
-    background-color: #f3f4f6; /* grey (was blue-50) */
-    color: #111827;            /* grey (was blue-800) */
-  }
-  .tree-species-btn--active {
-    background-color: #e5e7eb; /* grey (was blue-100) */
-    color: #111827;
-    font-weight: 600;
-  }
-
-  /* ---------- search / filter ---------- */
-  .taxonomy-filter-row {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-  }
-
-  .taxonomy-filter-select {
-    flex: 0 0 auto;
-    padding: 0.45rem 0.6rem;
-    font-size: 0.85rem;
-    border: 1px solid #d1d5db;          /* gray-300 */
-    border-radius: 0.375rem;
-    background: #fff;
-    color: #1f2937;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .taxonomy-filter-select:focus {
-    border-color: #6b7280;
-    box-shadow: 0 0 0 2px #d1d5db;
-  }
-
-  .taxonomy-filter-input {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 0.45rem 0.6rem;
-    font-size: 0.85rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    background: #fff;
-    color: #1f2937;
-    outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .taxonomy-filter-input::placeholder {
-    color: #9ca3af;
-  }
-  .taxonomy-filter-input:focus {
-    border-color: #6b7280;
-    box-shadow: 0 0 0 2px #d1d5db;
-  }
-
-  /* Autocomplete suggestions */
-  .taxonomy-suggestions {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 0.25rem;
-    max-height: 200px;
-    overflow-y: auto;
-    background: #fff;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    z-index: 50;
-  }
-
-  .taxonomy-suggestion-item {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-    color: #1f2937;
-    cursor: pointer;
-    transition: background-color 0.1s;
-  }
-
-  .taxonomy-suggestion-item:hover,
-  .taxonomy-suggestion-item--selected {
-    background-color: #f3f4f6;  /* grey (was blue-50) */
-  }
-
-  .taxonomy-suggestion-item:not(:last-child) {
-    border-bottom: 1px solid #f3f4f6;
-  }
-
-  /* ---------- species image thumbnails ---------- */
-  .species-thumb-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .species-thumb-link {
-    display: block;
-    width: 96px;
-    height: 96px;
-    border: 1px solid #e5e7eb;       /* gray-200 */
-    border-radius: 0.375rem;
-    overflow: hidden;
-    background: #f3f4f6;            /* gray-100 */
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .species-thumb-link:hover {
-    border-color: #6b7280;          /* grey (was blue-500) */
-    box-shadow: 0 0 0 2px #d1d5db;  /* grey (was blue-200) */
-  }
-
-  .species-thumb-img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
-    background-color: #f9fafb;  /* Light gray background for transparency */
-  }
-
-  .species-thumb-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    color: #9ca3af;
-    text-align: center;
-  }
-</style>
 {% endif %}
 
 {% endblock %}
