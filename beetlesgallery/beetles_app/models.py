@@ -1607,3 +1607,19 @@ class AccessRequest(models.Model):
 
     def __str__(self):
         return f"{self.name} <{self.email}> ({self.status})"
+
+
+class AreaGrant(models.Model):
+    """An extra area (see areas.py) given to one person on top of their role. Set on the My Account page."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="area_grants")
+    area = models.CharField(max_length=30)
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "area_grant"
+        constraints = [models.UniqueConstraint(fields=["user", "area"], name="area_grant_one_per_user_area")]
+
+    def __str__(self):
+        return f"{self.user} - {self.area}"

@@ -9,6 +9,7 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_GET
 
 from . import interaction_review as review
+from .areas import ANNOTATE, UPLOAD, INTERACTIONS, area_required, has_area
 from .models import InteractionProposal
 
 PAGE_SIZE = 20
@@ -34,7 +35,7 @@ def _filters(params):
     }
 
 
-@staff_member_required
+@area_required(INTERACTIONS)
 def interaction_review(request):
     if request.method == "POST":
         try:

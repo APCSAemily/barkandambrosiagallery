@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal,
+    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -877,3 +877,10 @@ class InteractionProposalAdmin(admin.ModelAdmin):
     raw_id_fields = ("taxon", "published_as", "reviewed_by", "created_by")
     readonly_fields = ("id", "created_at")
     list_per_page = 50
+
+
+@admin.register(AreaGrant)
+class AreaGrantAdmin(admin.ModelAdmin):
+    list_display = ("user", "area", "granted_by", "created_at")
+    list_filter = ("area",)
+    raw_id_fields = ("user", "granted_by")

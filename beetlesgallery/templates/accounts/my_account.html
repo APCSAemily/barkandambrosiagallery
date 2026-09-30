@@ -73,6 +73,7 @@
                     {% else %}
                       <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">Standard</span>
                     {% endif %}
+                    {% if u.granted_areas and not u.is_staff %}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800" title="{{ u.granted_areas }}">+ extra access</span>{% endif %}
                   </div>
               </td>
               <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ u.date_joined|date:"M d, Y" }}</td>
@@ -94,7 +95,8 @@
                      '{{ u.id }}', 
                      '{{ u.username|escapejs }}', 
                      '{% if u.is_superuser %}superuser{% elif u.is_staff %}staff{% else %}standard{% endif %}',
-                     '{{ u.is_active|lower }}'
+                     '{{ u.is_active|lower }}',
+                     '{{ u.granted_areas }}'
                    )"
                    class="text-gray-500 hover:text-blue-600 transition p-1 rounded-md hover:bg-gray-100"
                    title="Edit User">
@@ -263,6 +265,20 @@
                     </select>
                 </div>
 
+                {# Extra areas (superusers only) #}
+                {% if request.user.is_superuser %}
+                <div class="border rounded-md p-3 bg-gray-50">
+                    <span class="text-sm font-medium text-gray-900">Extra access</span>
+                    <p class="text-xs text-gray-500 mb-2">On top of the role. Staff and superusers already have all of these.</p>
+                    {% for key, label, description in area_choices %}
+                    <label class="flex items-start gap-2 py-1 text-sm text-gray-700">
+                        <input type="checkbox" name="areas" value="{{ key }}" class="mt-0.5 h-4 w-4 rounded border-gray-300">
+                        <span><span class="font-medium">{{ label }}</span><span class="block text-xs text-gray-500">{{ description }}</span></span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {# 4. Password Reset (Optional) #}
                 <div class="border-t border-gray-200 pt-4 mt-2">
                     <label class="block text-sm font-medium text-gray-700">Set New Password (Optional)</label>
@@ -302,7 +318,7 @@
   }
 
   // --- Edit User Modal Logic ---
-  function openEditUserModal(id, username, role, isActive) {
+  function openEditUserModal(id, username, role, isActive, areas) {
       // 1. Populate the form fields with data from the row
       document.getElementById('edit-user-id').value = id;
       document.getElementById('edit-username').value = username;
@@ -311,6 +327,10 @@
       // isActive comes in as string "true" or "false"
       document.getElementById('edit-is-active').checked = (isActive === 'true');
       
+      // Extra areas on top of the role
+      const granted = (areas || '').split(',');
+      document.querySelectorAll('input[name=areas]').forEach(box => { box.checked = granted.includes(box.value); });
+
       // 2. Clear the password field (security)
       document.getElementsByName('new_password')[0].value = "";
 

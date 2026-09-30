@@ -30,6 +30,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files.storage import default_storage
 from django.core.management import call_command
 
+from .areas import ANNOTATE, UPLOAD, INTERACTIONS, AREAS, area_required, has_area
 from .models import Beetles, UploadBatch, DownloadJob, UpdateBatch, ImageAsset
 from .schema import REQUIRED_COLS, MAX_ROWS
 from .forms import TailwindUserCreationForm, ProfileForm, PasswordChangeFormStyled, ValidSpeciesUploadForm, DescribedNamesUploadForm, UpdateBatchUploadForm
@@ -132,6 +133,15 @@ def my_account(request):
                 messages.info(request, f"Password for {target_user.username} has been reset.")
 
             target_user.save()
+
+            # 5. Extra areas on top of the role (superusers only)
+            if user.is_superuser:
+                from .models import AreaGrant
+                from .areas import KEYS
+                wanted = set(request.POST.getlist("areas")) & set(KEYS)
+                AreaGrant.objects.filter(user=target_user).exclude(area__in=wanted).delete()
+                for area in wanted:
+                    AreaGrant.objects.get_or_create(user=target_user, area=area, defaults={"granted_by": user})
             messages.success(request, f"User '{target_user.username}' updated successfully.")
             return redirect("my_account")
         
@@ -139,12 +149,19 @@ def my_account(request):
     users_list = []
     if user.is_staff:
         User = get_user_model()
-        users_list = User.objects.all().order_by('-date_joined')
+        users_list = list(User.objects.all().order_by('-date_joined'))
+        from .models import AreaGrant
+        grants = {}
+        for uid, area in AreaGrant.objects.values_list("user_id", "area"):
+            grants.setdefault(uid, []).append(area)
+        for u in users_list:
+            u.granted_areas = ",".join(sorted(grants.get(u.id, [])))
 
     return render(
         request,
         "accounts/my_account.html",
         {
+            "area_choices": AREAS,
             "password_form": password_form,
             "create_user_form": create_user_form,
             "active_modal": active_modal,
@@ -251,7 +268,7 @@ def _format_size(num_bytes):
     return f"{max(1, round(num_bytes / 1024))} KB"
 
 
-@staff_member_required
+@area_required(UPLOAD)
 def upload_file(request):
     print("DEBUG: entered upload_file view", flush=True)
     if request.method != "POST":
@@ -910,7 +927,7 @@ def data_management(request):
     batches = UploadBatch.objects.filter(uploaded_by=request.user).order_by("-created_at")
     download_jobs = DownloadJob.objects.filter(requested_by=request.user).order_by("-created_at")
 
-    if request.user.is_staff:
+    if has_area(request.user, UPLOAD):
         update_batches = UpdateBatch.objects.filter(uploaded_by=request.user).order_by("-created_at")
     else:
         update_batches = []
@@ -987,7 +1004,7 @@ def data_management(request):
         initial_current = None
 
     waiting_interaction_proposals = 0
-    if request.user.is_staff:
+    if has_area(request.user, INTERACTIONS):
         from .models import InteractionProposal
         waiting_interaction_proposals = InteractionProposal.objects.filter(status=InteractionProposal.Status.PROPOSED).count()
 
@@ -1017,7 +1034,7 @@ def data_management(request):
     )
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 def tool_annotate(request):
     """
     Data annotation tool page (staff only).
@@ -1274,7 +1291,7 @@ UPDATE_IGNORED_COLS = {
     "taxonomy_tribe", "taxonomy_genus", "taxonomy_species"
 }
 
-@staff_member_required
+@area_required(UPLOAD)
 def update_upload(request):
     """
     Staff-only portal to submit a CSV of metadata updates by Record ID (UUID).
@@ -1374,7 +1391,7 @@ def update_upload(request):
     # Send them where they can see the batch status
     return redirect("data_management")
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def update_single_beetle(request, beetle_id):
     """
@@ -1405,7 +1422,7 @@ def update_single_beetle(request, beetle_id):
     return redirect("beetle_detail", beetle_id=beetle_id)
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def toggle_beetle_validation(request, beetle_id):
     """
@@ -1437,7 +1454,7 @@ def toggle_beetle_validation(request, beetle_id):
     return redirect("beetle_detail", beetle_id=beetle.id)
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def toggle_image_validation(request, image_id):
     """
@@ -1474,7 +1491,7 @@ def toggle_image_validation(request, image_id):
     return redirect("beetles_image_browser")
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def create_specimen_for_image(request, image_id):
     """
@@ -1938,7 +1955,7 @@ def _build_annotate_filter_context():
     return filter_context
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 def tool_annotate(request):
     """
     Data annotation tool page (staff only).

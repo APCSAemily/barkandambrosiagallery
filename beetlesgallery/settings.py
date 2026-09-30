@@ -92,7 +92,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # Internal App Context Processor
-                "beetlesgallery.beetles_app.context_processors.species_ref_status"
+                "beetlesgallery.beetles_app.context_processors.species_ref_status",
+                "beetlesgallery.beetles_app.areas.areas_for_templates",
             ],
         },
     },

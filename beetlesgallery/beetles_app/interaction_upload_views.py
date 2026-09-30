@@ -9,6 +9,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from . import interaction_upload as upload
+from .areas import ANNOTATE, UPLOAD, INTERACTIONS, area_required, has_area
 from .models import PathogenInteraction
 from .views import _format_size
 
@@ -34,7 +35,7 @@ def interactions_export(request):
     return response
 
 
-@staff_member_required
+@area_required(INTERACTIONS)
 def upload_interactions(request):
     limit = getattr(settings, "MAX_UPLOAD_SIZE_INTERACTIONS", 20 * 1024 * 1024)
     counts = {origin: PathogenInteraction.objects.filter(origin=origin).count() for origin in PathogenInteraction.Origin.values}
