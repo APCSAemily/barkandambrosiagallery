@@ -1141,6 +1141,20 @@ class PathogenInteraction(models.Model):
     doi_or_full_text = models.TextField(blank=True, null=True)
     full_text_status = models.CharField(max_length=64, blank=True, null=True)
 
+    class Origin(models.TextChoices):
+        DATASET = "dataset", "Published dataset (v1.0)"
+        PROPOSAL = "proposal", "Accepted proposal"
+        UPLOAD = "upload", "Uploaded by a curator"
+
+    origin = models.CharField(
+        max_length=10, choices=Origin.choices, default=Origin.DATASET, db_index=True,
+        help_text="Where the row came from. Reloading the dataset only ever touches 'dataset' rows.",
+    )
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        help_text="Who accepted or uploaded it (empty for the published dataset).",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1153,6 +1167,90 @@ class PathogenInteraction(models.Model):
     def __str__(self):
         return f"{self.beetle_host} - {self.pathogen} ({self.category})"
 
+
+
+class InteractionProposal(models.Model):
+    """
+    A proposed ecological interaction for a beetle in the species list, with where it came from.
+
+    Proposals come from the literature collector (collect_interactions.py) or a CSV. They are NOT part
+    of the interactions dataset until an expert accepts them, which publishes a PathogenInteraction
+    (``published_as``). Rejected proposals are kept so the same claim is not proposed again.
+
+    A proposal is one claim from one source: the same beetle and partner found in two papers is two
+    proposals, which is what lets an expert see how well supported a claim is.
+    """
+
+    class Status(models.TextChoices):
+        PROPOSED = "proposed", "Waiting for review"
+        ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # The claim
+    beetle_name = models.CharField(max_length=255, help_text="The beetle, as named in the source.")
+    beetle_valid_species_id = models.CharField(
+        max_length=64, blank=True, db_index=True, help_text="valid_species_id when the beetle is in the species list."
+    )
+    taxon = models.ForeignKey(
+        "Taxon", on_delete=models.SET_NULL, null=True, blank=True, related_name="interaction_proposals"
+    )
+    partner_name = models.CharField(max_length=255, help_text="The other organism: a fungus, host tree, nematode...")
+    category = models.CharField(max_length=64, blank=True, help_text="Fungi, Nematode, Host plant, Mite...")
+    relationship = models.CharField(max_length=128, blank=True, help_text="pathogen, parasite, symbiont, host plant...")
+
+    # Where it comes from
+    source_key = models.CharField(
+        max_length=300,
+        help_text="What makes a source unique: its lower-case DOI, else 'pmid:...' or its URL.",
+    )
+    source_doi = models.CharField(max_length=255, blank=True)
+    source_url = models.URLField(max_length=500, blank=True, help_text="Where a reviewer reads it.")
+    source_title = models.TextField(blank=True)
+    source_journal = models.CharField(max_length=255, blank=True)
+    source_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    source_db = models.CharField(max_length=30, blank=True, help_text="europepmc, globi, upload...")
+    open_access = models.BooleanField(null=True, blank=True)
+    evidence = models.TextField(blank=True, help_text="The sentence(s) in the source that state it.")
+    evidence_location = models.CharField(max_length=30, blank=True, help_text="title, abstract, full text")
+    score = models.FloatField(null=True, blank=True, help_text="The collector's confidence, 0 to 1.")
+    collector = models.CharField(max_length=100, blank=True, help_text="What proposed it, and its version.")
+
+    # The decision
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PROPOSED, db_index=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
+    published_as = models.ForeignKey(
+        PathogenInteraction, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposals",
+        help_text="The dataset row created when this was accepted.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    class Meta:
+        db_table = "interaction_proposal"
+        ordering = ["-score", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("beetle_name"), Lower("partner_name"), "source_key",
+                name="interaction_proposal_one_per_claim_and_source",
+            ),
+            models.CheckConstraint(
+                check=models.Q(score__isnull=True) | models.Q(score__gte=0, score__lte=1),
+                name="interaction_proposal_score_0_1",
+            ),
+        ]
+        indexes = [models.Index(fields=["status", "-score"], name="interaction_proposal_queue")]
+
+    def __str__(self):
+        return f"{self.beetle_name} - {self.partner_name} ({self.get_status_display()})"
 
 
 # -----------------------------

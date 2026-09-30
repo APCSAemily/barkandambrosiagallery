@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest,
+    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -844,7 +844,7 @@ class PathogenInteractionAdmin(admin.ModelAdmin):
         "id", "beetle_host", "pathogen", "category", "ecological_relationship",
         "country_or_region", "year", "record_block_id", "record_number",
     )
-    list_filter = ("category", "ecological_relationship", "validation_type")
+    list_filter = ("origin", "category", "ecological_relationship", "validation_type")
     search_fields = ("=id", "beetle_host", "beetle_host_id", "pathogen", "record_block_id", "source", "title")
     readonly_fields = ("id", "created_at", "updated_at")
     list_per_page = 50
@@ -867,3 +867,13 @@ class AccessRequestAdmin(admin.ModelAdmin):
     search_fields = ("name", "email", "affiliation")
     raw_id_fields = ("user", "decided_by")
     readonly_fields = ("id", "created_at", "notified_at", "notify_error")
+
+
+@admin.register(InteractionProposal)
+class InteractionProposalAdmin(admin.ModelAdmin):
+    list_display = ("beetle_name", "partner_name", "category", "status", "score", "source_doi", "source_year", "reviewed_by")
+    list_filter = ("status", "category", "source_db", "collector")
+    search_fields = ("beetle_name", "partner_name", "source_doi", "source_title")
+    raw_id_fields = ("taxon", "published_as", "reviewed_by", "created_by")
+    readonly_fields = ("id", "created_at")
+    list_per_page = 50

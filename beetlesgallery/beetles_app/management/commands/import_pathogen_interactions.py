@@ -7,7 +7,10 @@ from beetlesgallery.beetles_app.models import PathogenInteraction
 
 
 class Command(BaseCommand):
-    help = "Imports reported bark & ambrosia beetle pathogen interactions from JSON into the standalone database table."
+    help = (
+        "Loads the published bark & ambrosia beetle pathogen dataset from JSON into the database. Safe to run "
+        "again: rows are matched on Records ID and updated, not duplicated. Never touches accepted proposals."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -19,7 +22,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--clear",
             action="store_true",
-            help="Clear existing pathogen interactions before importing",
+            help="Delete the published-dataset rows first and reload them (accepted proposals and uploads are kept)",
         )
 
     def handle(self, *args, **options):
@@ -38,33 +41,70 @@ class Command(BaseCommand):
         with open(file_path, "r", encoding="utf-8") as f:
             records = json.load(f)
 
+        dataset_rows = PathogenInteraction.objects.filter(origin=PathogenInteraction.Origin.DATASET)
+
         if options["clear"]:
-            deleted_count, _ = PathogenInteraction.objects.all().delete()
-            self.stdout.write(self.style.WARNING(f"Cleared {deleted_count} existing records."))
+            # Only the published dataset is reloaded: accepted proposals and curator uploads are not touched.
+            deleted_count, _ = dataset_rows.delete()
+            self.stdout.write(self.style.WARNING(f"Cleared {deleted_count} published-dataset records."))
 
-        objects_to_create = []
+        existing = {}
+        for row in dataset_rows:
+            existing.setdefault(row.record_number, []).append(row)
+
+        to_create, to_update, unchanged, seen = [], [], 0, set()
         for r in records:
-            obj = PathogenInteraction(
-                record_block_id=r.get("Record Block ID") or None,
-                record_number=str(r.get("Records ID") or ""),
-                beetle_host=r.get("Beetle Host") or "Unknown Host",
-                beetle_host_id=r.get("Beetle Host IDs") or None,
-                pathogen=r.get("pathogens") or "Unknown Pathogen",
-                category=r.get("categories") or "Unknown",
-                organism_source=r.get("organism source") or None,
-                infection_site=r.get("infection site") or None,
-                ecological_relationship=r.get("ecological relationship") or None,
-                identification_method=r.get("identification method") or None,
-                validation_type=r.get("validation type") or None,
-                experimental_conditions=r.get("experimental conditions") or None,
-                country_or_region=r.get("country or region") or None,
-                year=str(r.get("year") or ""),
-                source=r.get("source") or None,
-                title=r.get("title") or None,
-                doi_or_full_text=r.get("doi or full text") or None,
-                full_text_status=r.get("full text") or None,
-            )
-            objects_to_create.append(obj)
+            fields = self.fields_from(r)
+            number = fields["record_number"]
+            if number in seen:
+                self.stderr.write(self.style.WARNING(f"Records ID {number} appears more than once in the file; the first is used."))
+                continue
+            seen.add(number)
+            match = (existing.get(number) or [None])[0] if number else None
+            if match is None:
+                to_create.append(PathogenInteraction(origin=PathogenInteraction.Origin.DATASET, **fields))
+                continue
+            changed = [name for name, value in fields.items() if getattr(match, name) != value]
+            if changed:
+                for name in changed:
+                    setattr(match, name, fields[name])
+                to_update.append((match, changed))
+            else:
+                unchanged += 1
 
-        created = PathogenInteraction.objects.bulk_create(objects_to_create, batch_size=500)
-        self.stdout.write(self.style.SUCCESS(f"Successfully imported {len(created)} pathogen interaction records!"))
+        surplus = sum(len(rows) - 1 for rows in existing.values() if len(rows) > 1)
+        if surplus:
+            self.stderr.write(self.style.WARNING(
+                f"{surplus} extra copies of the same Records ID are already in the database (an earlier import "
+                "without --clear). They were left alone; run once with --clear to reload the dataset cleanly."
+            ))
+
+        PathogenInteraction.objects.bulk_create(to_create, batch_size=500)
+        for row, changed in to_update:
+            row.save(update_fields=changed + ["updated_at"])
+        self.stdout.write(self.style.SUCCESS(
+            f"Pathogen interaction records: {len(to_create)} added, {len(to_update)} updated, {unchanged} unchanged."
+        ))
+
+    @staticmethod
+    def fields_from(r):
+        return {
+            "record_block_id": r.get("Record Block ID") or None,
+            "record_number": str(r.get("Records ID") or ""),
+            "beetle_host": r.get("Beetle Host") or "Unknown Host",
+            "beetle_host_id": r.get("Beetle Host IDs") or None,
+            "pathogen": r.get("pathogens") or "Unknown Pathogen",
+            "category": r.get("categories") or "Unknown",
+            "organism_source": r.get("organism source") or None,
+            "infection_site": r.get("infection site") or None,
+            "ecological_relationship": r.get("ecological relationship") or None,
+            "identification_method": r.get("identification method") or None,
+            "validation_type": r.get("validation type") or None,
+            "experimental_conditions": r.get("experimental conditions") or None,
+            "country_or_region": r.get("country or region") or None,
+            "year": str(r.get("year") or ""),
+            "source": r.get("source") or None,
+            "title": r.get("title") or None,
+            "doi_or_full_text": r.get("doi or full text") or None,
+            "full_text_status": r.get("full text") or None,
+        }
