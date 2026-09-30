@@ -22,6 +22,10 @@ def backfill_reference_labels(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # Reviewed for test_deploy_safety: reads GameAnswer and its ROI's taxon, and writes only the
+    # new ref_* columns of scored GameAnswer rows. Touches no other table or column.
+    DATA_MIGRATION_REVIEWED = "backfill of GameAnswer.ref_* from the ROI taxon (new columns only)"
+
 
     dependencies = [
         ("beetles_app", "0018_game"),

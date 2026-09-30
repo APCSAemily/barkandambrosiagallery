@@ -60,13 +60,12 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run collectstatic --no-input
             docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run migrate
             
-            # 6. Build Taxonomy Tree
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run build-tree
-
-            # 7. Restart to apply changes
+            # 6. Restart to apply changes
+            # (The taxonomy is loaded by an admin with `manage.py migrate_taxonomy_to_db`.
+            # It purges and reloads the taxonomy tables, so it is never part of a deploy.)
             docker compose -f docker-compose.yml -f docker-compose.prod.yml restart web
 
-            # 8. Cleanup
+            # 7. Cleanup
             docker image prune -f
 
   # JOB 2: Deploy AI Service (Modal)
