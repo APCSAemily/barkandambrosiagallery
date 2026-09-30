@@ -6,6 +6,7 @@ from django.views.static import serve
 
 from beetlesgallery.beetles_app import views as beetles_views
 from beetlesgallery.beetles_app import game_views
+from beetlesgallery.beetles_app import interaction_views
 from beetlesgallery.beetles_app import access_views
 from beetlesgallery.beetles_app.views import LoginViewWithRedirectMessage, PostOnlyLogoutView
 
@@ -38,6 +39,8 @@ urlpatterns = [
 
     # 4. /interactions/ -> Ecological Interactions (Pathogen & Parasite Database Preview)
     path('interactions/', beetles_views.interactions_preview, name='interactions_preview'),
+    path('interactions/additions.json', interaction_views.interactions_additions, name='interactions_additions'),
+    path('interactions/review/', interaction_views.interaction_review, name='interaction_review'),
 
     path('beetles/<uuid:beetle_id>/', beetles_views.beetle_detail, name='beetle_detail'),
     path('beetles/<uuid:beetle_id>/toggle-validation/', beetles_views.toggle_beetle_validation, name='toggle_beetle_validation'),

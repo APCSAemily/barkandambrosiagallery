@@ -1788,6 +1788,10 @@ video {
   border-left-width: 2px;
 }
 
+.border-l-4 {
+  border-left-width: 4px;
+}
+
 .border-r {
   border-right-width: 1px;
 }
@@ -3834,6 +3838,20 @@ video {
     --tw-border-opacity: 1;
     border-color: rgb(255 255 255 / var(--tw-border-opacity, 1));
   }
+}
+
+.\[\&_mark\]\:rounded mark {
+  border-radius: 0.25rem;
+}
+
+.\[\&_mark\]\:bg-yellow-100 mark {
+  --tw-bg-opacity: 1;
+  background-color: rgb(254 249 195 / var(--tw-bg-opacity, 1));
+}
+
+.\[\&_mark\]\:px-0\.5 mark {
+  padding-left: 0.125rem;
+  padding-right: 0.125rem;
 }
 
 .\[\&_ul\]\:list-disc ul {

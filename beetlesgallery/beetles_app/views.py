@@ -986,6 +986,11 @@ def data_management(request):
         initial_archives = []
         initial_current = None
 
+    waiting_interaction_proposals = 0
+    if request.user.is_staff:
+        from .models import InteractionProposal
+        waiting_interaction_proposals = InteractionProposal.objects.filter(status=InteractionProposal.Status.PROPOSED).count()
+
     pending_access_requests = 0
     if request.user.is_superuser:
         from .models import AccessRequest
@@ -996,6 +1001,7 @@ def data_management(request):
         "beetles/data_management.html",
         {
             "pending_access_requests": pending_access_requests,
+            "waiting_interaction_proposals": waiting_interaction_proposals,
             "batches": batches,
             "download_jobs": download_jobs,
             "update_batches": update_batches,

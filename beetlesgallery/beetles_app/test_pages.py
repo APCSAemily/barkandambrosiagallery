@@ -28,6 +28,7 @@ PUBLIC_PAGES = [
     "login",
     "request_access",
     "request_access_sent",
+    "interactions_additions",
 ]
 
 # Pages that need a logged-in user
@@ -41,6 +42,7 @@ LOGIN_PAGES = [
 STAFF_PAGES = [
     "tool_annotate",
     "signup",
+    "interaction_review",
 ]
 
 # Staff-only form handlers: they accept POST and send a plain GET back to My Uploads
