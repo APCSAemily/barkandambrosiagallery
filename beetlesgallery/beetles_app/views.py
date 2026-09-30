@@ -33,6 +33,7 @@ from django.core.management import call_command
 from .models import Beetles, UploadBatch, DownloadJob, UpdateBatch, ImageAsset
 from .schema import REQUIRED_COLS, MAX_ROWS
 from .forms import TailwindUserCreationForm, ProfileForm, PasswordChangeFormStyled, ValidSpeciesUploadForm, DescribedNamesUploadForm, UpdateBatchUploadForm
+from .predictions import import_predictions
 from .tasks import process_upload_task, process_update_task, build_downloads_task
 
 import pandas as pd
@@ -1963,3 +1964,31 @@ def interactions_preview(request):
     return render(request, 'beetles/interactions_preview.html', context)
 
 
+
+
+
+@superuser_required
+def upload_predictions(request):
+    """
+    Superuser page to upload classifier predictions (species suggestions for ROIs) from a CSV.
+    Everything is checked first; if any row is wrong nothing is saved and each problem is listed.
+    """
+    context = {"max_mb": getattr(settings, "MAX_UPLOAD_SIZE_PREDICTIONS", 50 * 1024 * 1024) // (1024 * 1024)}
+    if request.method == "POST":
+        csv_file = request.FILES.get("csv_file")
+        limit = getattr(settings, "MAX_UPLOAD_SIZE_PREDICTIONS", 50 * 1024 * 1024)
+        if not csv_file:
+            context["error"] = "Please attach a .csv file."
+        elif os.path.splitext(csv_file.name)[1].lower() != ".csv":
+            context["error"] = "The predictions file must be a .csv."
+        elif csv_file.size and csv_file.size > limit:
+            context["error"] = f"The file is too large ({_format_size(csv_file.size)}); the limit is {_format_size(limit)}."
+        else:
+            context["result"] = import_predictions(
+                csv_file, user=request.user,
+                default_model=request.POST.get("model_name", "").strip(),
+                default_version=request.POST.get("model_version", "").strip(),
+                dry_run=bool(request.POST.get("dry_run")),
+            )
+            context["filename"] = csv_file.name
+    return render(request, "beetles/upload_predictions.html", context)

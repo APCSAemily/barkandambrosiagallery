@@ -1407,3 +1407,54 @@ class GameReport(models.Model):
                 fields=["roi", "reporter"], condition=models.Q(status="open"), name="game_report_one_open_per_player"
             ),
         ]
+
+
+# -----------------------------
+# Classifier suggestions
+# -----------------------------
+class ModelPrediction(models.Model):
+    """
+    A species suggested for an ROI by a classifier model. Uploaded by a superuser
+    (Data Management -> Model predictions, or ``manage.py import_model_predictions``).
+
+    A prediction is a suggestion only: it never sets the ROI's label. Its confidence sets the
+    ROI's ``RoiDifficulty.model_difficulty`` for the game, and it is meant to be offered to
+    curators (and shown, marked as unverified, to viewers) while the ROI has no species.
+
+    One row per ROI, model name and model version: uploading the same model version again
+    replaces its predictions instead of adding to them.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    roi = models.ForeignKey(Beetles, on_delete=models.CASCADE, related_name="predictions")
+    valid_species_id = models.CharField(max_length=255, db_index=True)
+    taxon = models.ForeignKey(
+        "Taxon", on_delete=models.SET_NULL, null=True, blank=True, related_name="predictions",
+        help_text="The taxon for valid_species_id when it was uploaded.",
+    )
+    confidence = models.FloatField(help_text="Model confidence in this species, 0 to 1.")
+    top_k = models.JSONField(
+        default=list, blank=True,
+        help_text='Further candidates, best first: [{"valid_species_id": "1733", "confidence": 0.08}, ...]',
+    )
+    model_name = models.CharField(max_length=100)
+    model_version = models.CharField(max_length=50, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="model_predictions"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "model_prediction"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["roi", "model_name", "model_version"], name="model_prediction_roi_model_uniq"
+            ),
+            models.CheckConstraint(
+                check=models.Q(confidence__gte=0, confidence__lte=1), name="model_prediction_confidence_0_1"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.model_name}: {self.valid_species_id} ({self.confidence:.0%})"

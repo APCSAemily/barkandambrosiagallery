@@ -66,6 +66,19 @@
   {# --- SECTION: TAXONOMY REFERENCE MANAGEMENT (Admin/Superusers Only) --- #}
   {% if user.is_superuser %}
   <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
+    <h2 class="text-2xl font-bold mb-2 text-gray-800">Model Predictions</h2>
+    <p class="text-sm text-gray-600 mb-4 max-w-2xl">
+      Upload a classifier's species guesses for ROIs. They show as unverified suggestions on ROIs without a species label
+      and set how hard the game treats each image.
+    </p>
+    <a href="{% url 'upload_predictions' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Upload Model Predictions</span>
+    </a>
+  </div>
+
+  <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
     <h2 class="text-2xl font-bold mb-6 text-gray-800">Taxonomy Reference Management</h2>
 
     <div class="mb-4 max-w-xs">

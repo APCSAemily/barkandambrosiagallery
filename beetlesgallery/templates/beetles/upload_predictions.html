@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Model predictions | Bark & Ambrosia Beetle Gallery{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl">
+  <a href="{% url 'data_management' %}" class="text-sm text-gray-500 hover:text-gray-800">&larr; Data Management</a>
+  <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Model predictions</h1>
+  <p class="text-gray-600 mb-8">
+    Upload a classifier's species guesses for ROIs. They appear as an unverified suggestion on ROIs that
+    have no species label yet, and they set how hard the game treats each image.
+    A prediction never changes an ROI's label.
+  </p>
+
+  {% if error %}
+  <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+  <div class="mb-8 rounded-xl border p-5 {% if result.ok %}border-green-200 bg-green-50{% else %}border-red-200 bg-red-50{% endif %}" role="status">
+    {% if result.ok %}
+      <h2 class="text-lg font-semibold text-green-900 mb-1">
+        {% if result.dry_run %}{{ filename }} is valid{% else %}Saved {{ filename }}{% endif %}
+      </h2>
+      <p class="text-sm text-green-900">
+        {{ result.rows }} row{{ result.rows|pluralize }}:
+        {{ result.created }} new, {{ result.updated }} replacing an earlier upload.
+        {% if result.dry_run %}This was a check only, so nothing was saved.{% endif %}
+      </p>
+    {% else %}
+      <h2 class="text-lg font-semibold text-red-900 mb-1">{{ filename }} was not saved</h2>
+      <p class="text-sm text-red-900 mb-3">
+        {{ result.error_count }} problem{{ result.error_count|pluralize }} found, so nothing was saved.
+        Fix them and upload the file again.
+      </p>
+      <ul class="text-sm text-red-900 list-disc pl-5 space-y-1">
+        {% for message in result.errors %}<li>{{ message }}</li>{% endfor %}
+      </ul>
+      {% if result.hidden_errors %}
+      <p class="text-sm text-red-900 mt-2">&hellip;and {{ result.hidden_errors }} more.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm space-y-5">
+    {% csrf_token %}
+    <div>
+      <label for="csv_file" class="block text-sm font-semibold text-gray-700 mb-2">Predictions file (.csv, up to {{ max_mb }} MB)</label>
+      <input id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required
+        class="block w-full text-sm text-gray-700 file:mr-4 file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-4 file:py-2 file:font-semibold hover:file:bg-gray-50">
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label for="model_name" class="block text-sm font-semibold text-gray-700 mb-2">Model name <span class="font-normal text-gray-500">(if the file has no model_name column)</span></label>
+        <input id="model_name" name="model_name" type="text" maxlength="100" placeholder="ibbi-rtdetr"
+          class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+      </div>
+      <div>
+        <label for="model_version" class="block text-sm font-semibold text-gray-700 mb-2">Model version <span class="font-normal text-gray-500">(optional)</span></label>
+        <input id="model_version" name="model_version" type="text" maxlength="50" placeholder="2026-09"
+          class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+      </div>
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" name="dry_run" class="rounded border-gray-300"> Check the file only, don't save anything
+    </label>
+    <button type="submit"
+      class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i><span>Upload predictions</span>
+    </button>
+  </form>
+
+  <h2 class="text-xl font-semibold text-gray-900 mb-3">Columns</h2>
+  <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">record_id</td><td class="px-4 py-2 text-gray-600">The ROI's id (the record_id column of a gallery download). Required.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">valid_species_id</td><td class="px-4 py-2 text-gray-600">The predicted species, as in the species list. Required.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">confidence</td><td class="px-4 py-2 text-gray-600">0 to 1 (0.87, not 87). Required.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">model_name</td><td class="px-4 py-2 text-gray-600">Or give one name for the whole file above.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">model_version</td><td class="px-4 py-2 text-gray-600">Optional. Uploading the same model and version again replaces its predictions.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">top_k</td><td class="px-4 py-2 text-gray-600">Optional further candidates, best first: <span class="font-mono">1733:0.08;2210:0.03</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-gray-500 mt-3">
+    The whole file is checked before anything is saved. If any row is wrong, nothing is saved and every problem is listed with its row number.
+    For very large files, use <span class="font-mono">manage.py import_model_predictions</span> on the server.
+  </p>
+</section>
+{% endblock %}

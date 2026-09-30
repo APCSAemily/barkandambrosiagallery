@@ -215,6 +215,7 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_UPLOAD_SIZE_XLSX = 10 * 1024 * 1024
 MAX_UPLOAD_SIZE_CSV = 10 * 1024 * 1024  # metadata and update CSVs; keep in step with data-max-bytes in data_management.html
 MAX_UPLOAD_SIZE_TAXONOMY = 100 * 1024 * 1024  # taxonomy reference CSVs; same
+MAX_UPLOAD_SIZE_PREDICTIONS = 50 * 1024 * 1024  # classifier prediction CSVs (one row per ROI, ~70k rows is about 10-20 MB)
 MAX_UPLOAD_SIZE_ZIP = 2 * 1024 * 1024 * 1024
 MAX_UPLOAD_TOTAL_BYTES = 2 * 1024 * 1024 * 1024  # CSV + ZIP together; keep in step with data-max-bytes in data_management.html
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
