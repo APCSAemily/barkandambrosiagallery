@@ -43,6 +43,7 @@ STAFF_PAGES = [
     "tool_annotate",
     "signup",
     "interaction_review",
+    "upload_interactions",
 ]
 
 # Staff-only form handlers: they accept POST and send a plain GET back to My Uploads

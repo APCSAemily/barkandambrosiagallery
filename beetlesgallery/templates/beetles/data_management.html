@@ -71,12 +71,19 @@
       Interactions between beetles and fungi, nematodes, host trees and more, proposed from the literature with links to their sources.
       Read the evidence, then accept or reject.
     </p>
+    <div class="flex flex-wrap gap-4">
     <a href="{% url 'interaction_review' %}"
       class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
       <i class="fi fi-rr-microscope"></i>
       <span>Review Proposed Interactions</span>
       {% if waiting_interaction_proposals %}<span class="ml-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-xs text-amber-900" data-testid="waiting-interaction-count">{{ waiting_interaction_proposals }} waiting</span>{% endif %}
     </a>
+    <a href="{% url 'upload_interactions' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Upload or Update Interactions</span>
+    </a>
+    </div>
   </div>
   {% endif %}
 
