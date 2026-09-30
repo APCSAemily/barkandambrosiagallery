@@ -375,3 +375,22 @@ class RolesTests(AccessCase):
         self.assertEqual(access.role_needed(["browse", "game"]), "member")
         self.assertEqual(access.role_needed(["browse", "upload"]), "curator")
         self.assertEqual(access.role_needed([]), "member")
+
+
+class EmailSetupTests(PageBehaviourCase):
+    def test_the_test_email_command_reports_and_sends(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("send_test_email", "someone@example.org", stdout=out)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["someone@example.org"])
+        self.assertIn("Sent to someone@example.org", out.getvalue())
+
+    def test_the_test_email_command_reports_a_failure(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        with mock.patch("beetlesgallery.beetles_app.management.commands.send_test_email.send_mail",
+                        side_effect=ConnectionRefusedError("no server")):
+            with self.assertRaisesRegex(CommandError, "ConnectionRefusedError: no server"):
+                call_command("send_test_email", "someone@example.org", stdout=__import__("io").StringIO())
