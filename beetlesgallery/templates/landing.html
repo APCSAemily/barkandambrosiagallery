@@ -52,29 +52,6 @@
             </div>
           </a>
 
-          <a href="{% url 'taxonomy_browser' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-chart-tree text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Taxonomy Browser</h3>
-              <p class="text-sm text-gray-500">Browse species by taxonomic hierarchy.</p>
-            </div>
-          </a>
-
-          <a href="{% url 'interactions_preview' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-diagram-project text-xl"></i>
-            </div>
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Ecological Interactions</h3>
-                <span class="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">Preview</span>
-              </div>
-              <p class="text-sm text-gray-500">Explore host-pathogen and parasite associations.</p>
-            </div>
-          </a>
-
           <a href="{% url 'tool_classify' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
             <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
               <i class="fi fi-rr-sparkles text-xl"></i>
@@ -92,28 +69,6 @@
             <div>
               <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Beetle ID Game</h3>
               <p class="text-sm text-gray-500">Test your eye and help label beetle images.</p>
-            </div>
-          </a>
-
-          {% if user.is_staff %}
-          <a href="{% url 'tool_annotate' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-edit text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Data Annotation</h3>
-              <p class="text-sm text-gray-500">Annotate and label image data.</p>
-            </div>
-          </a>
-          {% endif %}
-
-          <a href="{% url 'data_management' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-folder text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Data Management</h3>
-              <p class="text-sm text-gray-500">Manage your contributions and/or exports.</p>
             </div>
           </a>
         </div>
@@ -148,7 +103,6 @@
         </div>
     </button>
   </section>
-
 
   <section id="team-section" class="lg:snap-start relative flex flex-col min-h-screen w-full bg-white">
     
