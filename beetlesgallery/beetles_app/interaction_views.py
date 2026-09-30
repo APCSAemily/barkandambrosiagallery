@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils.http import urlencode
 from django.views.decorators.http import require_GET
 
+from . import interaction_data as data
 from . import interaction_review as review
 from .areas import ANNOTATE, UPLOAD, INTERACTIONS, area_required, has_area
 from .models import InteractionProposal
@@ -72,6 +73,18 @@ def interaction_review(request):
 
 
 @require_GET
-def interactions_additions(request):
-    """Interactions published after the v1.0 dataset, for the interactions page to add to its table."""
-    return JsonResponse(review.additions_as_records(), safe=False)
+def interactions_records(request):
+    """Every interaction in the database, for the interactions page's table."""
+    return JsonResponse(data.master_records(), safe=False)
+
+
+@require_GET
+def interactions_hosts(request):
+    """One line per beetle, for the page's Beetle Hosts tab."""
+    return JsonResponse(data.hosts_summary(), safe=False)
+
+
+@require_GET
+def interactions_references(request):
+    """The publications cited, for the page's References tab."""
+    return JsonResponse(data.references(), safe=False)

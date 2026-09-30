@@ -233,21 +233,3 @@ def decide(key, decision, user, note="", partner_name="", category="", relations
         updates.update(status=InteractionProposal.Status.ACCEPTED, reviewed_by=user, reviewed_at=now,
                        review_note=note, published_as=row)
         return decision, row, len(ids)
-
-
-def additions_as_records():
-    """Published rows that are not part of the v1.0 dataset, in the shape of bark_beetle_pathogens_master.json."""
-    records = []
-    rows = PathogenInteraction.objects.exclude(origin=PathogenInteraction.Origin.DATASET).order_by("created_at")
-    for r in rows:
-        records.append({
-            "Records ID": f"A{str(r.id)[:8]}", "Beetle Host": r.beetle_host, "Beetle Host IDs": r.beetle_host_id or "",
-            "categories": r.category, "pathogens": r.pathogen, "country or region": r.country_or_region or "",
-            "ecological relationship": r.ecological_relationship or "", "experimental conditions": r.experimental_conditions or "",
-            "identification method": r.identification_method or "", "infection site": r.infection_site or "",
-            "organism source": r.organism_source or "", "validation type": r.validation_type or "",
-            "source": r.source or "", "year": int(r.year) if (r.year or "").isdigit() else (r.year or ""),
-            "full text": r.full_text_status or "", "title": r.title or "", "doi or full text": r.doi_or_full_text or "",
-            "origin": r.origin,
-        })
-    return records

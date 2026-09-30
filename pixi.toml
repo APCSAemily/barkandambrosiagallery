@@ -19,6 +19,8 @@ watch-css = "npx tailwindcss -i ./beetlesgallery/static/css/input.css -o ./beetl
 # Run this to start the server
 start = "python manage.py runserver 0.0.0.0:8000"
 migrate = "python manage.py migrate"
+# Adds the published interactions dataset (v1.0) to the database if it is missing; never changes a row that is there
+import-interactions = "python manage.py import_pathogen_interactions"
 collectstatic = "python manage.py collectstatic --noinput"
 gunicorn = "gunicorn beetlesgallery.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 4 --worker-class gthread"
 

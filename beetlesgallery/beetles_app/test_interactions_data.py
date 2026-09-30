@@ -31,21 +31,31 @@ def load(records, *flags):
 class DatasetImportTests(TestCase):
     def test_a_first_load_adds_every_record_as_dataset(self):
         out, _ = load(RECORDS)
-        self.assertIn("2 added, 0 updated, 0 unchanged", out)
+        self.assertIn("2 added, 0 updated, 0 already there", out)
         self.assertEqual(PathogenInteraction.objects.filter(origin="dataset").count(), 2)
 
     def test_loading_again_does_not_duplicate(self):
         load(RECORDS)
         out, _ = load(RECORDS)
-        self.assertIn("0 added, 0 updated, 2 unchanged", out)
+        self.assertIn("0 added, 0 updated, 2 already there", out)
         self.assertEqual(PathogenInteraction.objects.count(), 2)
 
-    def test_loading_again_updates_a_corrected_record_in_place(self):
+    def test_loading_again_leaves_a_row_that_was_corrected_in_the_database_alone(self):
+        load(RECORDS)
+        row = PathogenInteraction.objects.get(record_number="1")
+        row.pathogen = "Beauveria bassiana (corrected on the site)"
+        row.save()
+        out, _ = load(RECORDS)   # what every deploy does
+        self.assertIn("0 added, 0 updated, 2 already there", out)
+        row.refresh_from_db()
+        self.assertEqual(row.pathogen, "Beauveria bassiana (corrected on the site)")
+
+    def test_refresh_updates_a_record_from_the_file_in_place(self):
         load(RECORDS)
         before = PathogenInteraction.objects.get(record_number="1")
         corrected = [{**RECORDS[0], "pathogens": "Beauveria bassiana s.l."}, RECORDS[1]]
-        out, _ = load(corrected)
-        self.assertIn("0 added, 1 updated, 1 unchanged", out)
+        out, _ = load(corrected, "--refresh")
+        self.assertIn("0 added, 1 updated, 1 already there", out)
         after = PathogenInteraction.objects.get(record_number="1")
         self.assertEqual((after.id, after.pathogen), (before.id, "Beauveria bassiana s.l."))
 
