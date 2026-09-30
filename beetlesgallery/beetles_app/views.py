@@ -13,7 +13,7 @@ import logging
 from datetime import date, timedelta
 from io import BytesIO
 
-from django.db.models import Q, Count
+from django.db.models import Q, Count, F
 from django.utils import timezone
 from django.urls import reverse
 from django.conf import settings
@@ -481,6 +481,18 @@ def _build_gallery_filter_context(base_search_qs, active_filters):
     return filter_context
 
 
+# sort key -> (label, ordering). Rows without a value go last.
+GALLERY_SORTS = {
+    "newest": ("Newest added", (F("image_asset__created_at").desc(nulls_last=True),)),
+    "oldest": ("Oldest added", (F("image_asset__created_at").asc(nulls_last=True),)),
+    "species": ("Species A to Z", (F("taxon__scientific_name").asc(nulls_last=True),)),
+    "species_desc": ("Species Z to A", (F("taxon__scientific_name").desc(nulls_last=True),)),
+    "date_taken": ("Date taken (newest)", (F("image_asset__image_date_taken").desc(nulls_last=True),)),
+    "resolution": ("Largest image", (F("image_asset__image_width").desc(nulls_last=True),)),
+    "file_size": ("Largest file", (F("image_asset__image_size_bytes").desc(nulls_last=True),)),
+}
+
+
 def gallery(request):
     from .utils import build_query_q, filter_beetles_queryset, FILTERS_CONFIG
     NA = "None"
@@ -567,7 +579,13 @@ def gallery(request):
 
     # 5. Pagination
     final_qs = final_qs.order_by("image_asset", "id").distinct("image_asset")
-    
+
+    # Optional sort. DISTINCT ON (one row per image) needs its own ordering, so pick the rows first
+    # and sort the picked rows. No sort asked for keeps the original (fast) order.
+    sort = request.GET.get("sort", "")
+    if sort in GALLERY_SORTS:
+        final_qs = base_qs.filter(pk__in=final_qs.values("pk")).order_by(*GALLERY_SORTS[sort][1], "id")
+
     # Critical: Fetch taxon in the same SQL call to guarantee O(1) performance
     final_qs = final_qs.select_related("image_asset", "taxon")
     
@@ -668,6 +686,8 @@ def gallery(request):
         "filter_groups": filter_context,
         "selected_filters": active_filters,
         "per_page": page_size,
+        "sort": sort,
+        "sort_options": [(k, v[0]) for k, v in GALLERY_SORTS.items()],
         "size_min": size_min,
         "size_max": size_max,
         "res_min": res_min,
