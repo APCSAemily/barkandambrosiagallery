@@ -259,6 +259,28 @@
     </div>
   </div>
 
+  {% if areas.interactions %}
+  <!-- Staff and superusers: review, upload and update -->
+  <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3" data-testid="interaction-staff-tools">
+    <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Staff tools</span>
+    <a href="{% url 'interaction_review' %}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-microscope"></i>
+      <span>Review Proposed Interactions</span>
+      {% if waiting_interaction_proposals %}<span class="rounded-full bg-gray-200 border border-gray-300 px-2 py-0.5 text-xs text-gray-800" data-testid="waiting-interaction-count">{{ waiting_interaction_proposals }} waiting</span>{% endif %}
+    </a>
+    <a href="{% url 'upload_interactions' %}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Upload or Update Interactions</span>
+    </a>
+    {% if user.is_superuser %}
+    <a href="{% url 'upload_interaction_proposals' %}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Submit Proposed Interactions</span>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Top Navigation Menu Bar (Home & About merged into About) -->
   <div class="flex items-center gap-1 sm:gap-4 border-b border-gray-200 mb-6 overflow-x-auto text-xs sm:text-sm font-medium whitespace-nowrap scrollbar-none">
     <button type="button" id="tab-btn-about" class="nav-tab-btn active py-3 px-2 sm:px-3">

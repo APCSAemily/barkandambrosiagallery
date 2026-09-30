@@ -168,8 +168,17 @@ def my_account(request):
             "create_user_form": create_user_form,
             "active_modal": active_modal,
             "users_list": users_list,
+            "pending_access_requests": _pending_access_requests(user),
         },
     )
+
+def _pending_access_requests(user):
+    """How many verified requests wait for a decision (superusers only; everyone else sees 0)."""
+    if not user.is_superuser:
+        return 0
+    from .models import AccessRequest
+    return AccessRequest.objects.filter(status=AccessRequest.Status.PENDING, email_verified_at__isnull=False).count()
+
 
 class ApprovalAwareAuthenticationForm(AuthenticationForm):
     """The normal sign-in form, except that someone whose request is still waiting is told so instead of "wrong password"."""
@@ -1045,23 +1054,10 @@ def data_management(request):
         initial_archives = []
         initial_current = None
 
-    waiting_interaction_proposals = 0
-    if has_area(request.user, INTERACTIONS):
-        from .models import InteractionProposal
-        waiting_interaction_proposals = InteractionProposal.objects.filter(status=InteractionProposal.Status.PROPOSED).count()
-
-    pending_access_requests = 0
-    if request.user.is_superuser:
-        from .models import AccessRequest
-        pending_access_requests = AccessRequest.objects.filter(
-            status=AccessRequest.Status.PENDING, email_verified_at__isnull=False).count()
-
     return render(
         request,
         "beetles/data_management.html",
         {
-            "pending_access_requests": pending_access_requests,
-            "waiting_interaction_proposals": waiting_interaction_proposals,
             "batches": batches,
             "download_jobs": download_jobs,
             "update_batches": update_batches,
@@ -2033,6 +2029,10 @@ def interactions_preview(request):
         'total_sources': 281,
         'total_validated': 245,
     }
+    if has_area(request.user, INTERACTIONS):
+        from .models import InteractionProposal
+        context['waiting_interaction_proposals'] = InteractionProposal.objects.filter(
+            status=InteractionProposal.Status.PROPOSED).count()
     return render(request, 'beetles/interactions_preview.html', context)
 
 

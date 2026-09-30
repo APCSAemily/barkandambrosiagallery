@@ -269,10 +269,15 @@ class AdditionsTests(ReviewCase):
         self.assertContains(response, reverse("interactions_additions"))
         self.assertContains(response, "return res.ok ? res.json() : []")
 
-    def test_data_management_shows_the_number_waiting_to_staff_only(self):
+    def test_interactions_page_shows_the_review_links_and_number_waiting_to_staff_only(self):
         self.proposal()
         self.proposal("Beauveria bassiana", doi="10.1/b")
         self.client.force_login(self.staff)
-        self.assertContains(self.client.get(reverse("data_management")), "2 waiting")
-        self.client.force_login(self.user)
+        page = self.client.get(reverse("interactions_preview"))
+        self.assertContains(page, "2 waiting")
+        self.assertContains(page, "Upload or Update Interactions")
         self.assertNotContains(self.client.get(reverse("data_management")), "Review Proposed Interactions")
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("interactions_preview"))
+        self.assertNotContains(page, "Review Proposed Interactions")
+        self.assertNotContains(page, "Upload or Update Interactions")
