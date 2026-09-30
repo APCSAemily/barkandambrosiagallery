@@ -8,8 +8,9 @@ from beetlesgallery.beetles_app.models import PathogenInteraction
 
 class Command(BaseCommand):
     help = (
-        "Loads the published bark & ambrosia beetle pathogen dataset from JSON into the database. Safe to run "
-        "again: rows are matched on Records ID and updated, not duplicated. Never touches accepted proposals."
+        "Loads the published bark & ambrosia beetle pathogen dataset (v1.0) from JSON into the database. Safe to run "
+        "on every deploy: rows are matched on Records ID, and a row that is already in the database is left exactly "
+        "as it is, so corrections made through the upload page are never undone. Never touches proposals or uploads."
     )
 
     def add_arguments(self, parser):
@@ -18,6 +19,11 @@ class Command(BaseCommand):
             type=str,
             help="Path to bark_beetle_pathogens_master.json (defaults to static/data/bark_beetle_pathogens_master.json)",
             default=None,
+        )
+        parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help="Also overwrite rows that are already in the database with the file's values (undoes corrections made since)",
         )
         parser.add_argument(
             "--clear",
@@ -64,6 +70,9 @@ class Command(BaseCommand):
             if match is None:
                 to_create.append(PathogenInteraction(origin=PathogenInteraction.Origin.DATASET, **fields))
                 continue
+            if not options["refresh"]:
+                unchanged += 1
+                continue
             changed = [name for name, value in fields.items() if getattr(match, name) != value]
             if changed:
                 for name in changed:
@@ -83,7 +92,7 @@ class Command(BaseCommand):
         for row, changed in to_update:
             row.save(update_fields=changed + ["updated_at"])
         self.stdout.write(self.style.SUCCESS(
-            f"Pathogen interaction records: {len(to_create)} added, {len(to_update)} updated, {unchanged} unchanged."
+            f"Pathogen interaction records: {len(to_create)} added, {len(to_update)} updated, {unchanged} already there (left as they are)."
         ))
 
     @staticmethod

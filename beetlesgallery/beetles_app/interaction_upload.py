@@ -9,9 +9,9 @@ New rows need a beetle (beetle_host, or beetle_host_id), a pathogen (the other o
 On an update only the columns that are in the file are applied; a blank cell empties an optional field. Every row
 is checked before anything is written, and if any row is wrong nothing is saved.
 
-Rows added here have origin "upload". Rows that came with the published v1.0 dataset cannot be changed here: the
-interactions page shows that dataset from its fixed, versioned files, so a change would not appear. Correct those
-at the source, or accept a proposal that supersedes them.
+Rows added here have origin "upload". Every row can be corrected, including the ones that came with the published
+v1.0 dataset: the interactions page is built from the database, so a change shows there straight away. (Reloading the
+dataset from its file never overwrites a row that is already in the database, see import_pathogen_interactions.)
 """
 import csv
 import io
@@ -163,15 +163,16 @@ def import_interactions(source, user=None, dry_run=False):
                 problem(row_num, f"repeats row {seen_ids[record]} (the same record_id)")
                 continue
             seen_ids[record] = row_num
-            if target.origin == PathogenInteraction.Origin.DATASET:
-                problem(row_num, "this record is part of the published v1.0 dataset, which the interactions page shows from fixed files, "
-                                 "so a change here would not show. Correct it at the source")
-                continue
 
         values = {}
         # The beetle
-        if creating or "beetle_host" in row or "beetle_host_id" in row:
-            name, vid = row.get("beetle_host", ""), row.get("beetle_host_id", "")
+        name, vid = row.get("beetle_host", ""), row.get("beetle_host_id", "")
+        # A beetle that is left as it is needs no lookup, so a published row whose name is not in the species
+        # list (a name as the paper wrote it) can still have its other columns corrected.
+        host_unchanged = (not creating and ("beetle_host" in row or "beetle_host_id" in row)
+                          and (name or target.beetle_host) == target.beetle_host
+                          and (vid or target.beetle_host_id or "") == (target.beetle_host_id or ""))
+        if (creating or "beetle_host" in row or "beetle_host_id" in row) and not host_unchanged:
             taxon, error = (None, "give the beetle: beetle_host (a name in the species list) or beetle_host_id") \
                 if not name and not vid else species.find(name, vid)
             if not error and name and vid:
