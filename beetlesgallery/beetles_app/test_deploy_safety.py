@@ -139,6 +139,23 @@ class DeployScriptTests(SimpleTestCase):
         self.assertIn("/opt/barkandambrosia_data/media:/app/media", prod)
 
 
+class LocalOnlyComposeTests(SimpleTestCase):
+    """docker-compose.override.yml (the local mail catcher) must never reach production."""
+
+    def test_the_server_names_its_compose_files_so_the_local_override_is_never_loaded(self):
+        for workflow in (".github/workflows/deploy.yml", ".github/workflows/backup.yaml"):
+            text = (settings.BASE_DIR / workflow).read_text()
+            for line in text.splitlines():
+                if "docker compose" in line and not line.strip().startswith("#"):
+                    self.assertIn("-f docker-compose.yml -f docker-compose.prod.yml", line, f"{workflow}: {line.strip()}")
+
+    def test_the_override_only_adds_the_mail_catcher_and_points_the_site_at_it(self):
+        text = (settings.BASE_DIR / "docker-compose.override.yml").read_text()
+        self.assertIn("axllent/mailpit", text)
+        self.assertIn("EMAIL_HOST: ${EMAIL_HOST:-mailpit}", text)
+        self.assertNotIn("postgres_data", text)   # no volumes or database settings are touched
+
+
 class BackupCoversTheInteractionsTests(SimpleTestCase):
     """The interactions live in the database, so they are backed up exactly as the rest of the site is."""
 
