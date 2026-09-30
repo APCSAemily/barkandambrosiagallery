@@ -7,9 +7,10 @@
 
   {% if not taxonomy_tree_json or taxonomy_tree_json == "[]" %}
     <div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-gray-600">
-      The taxonomy tree has not been generated yet. An administrator can run
-      <code class="bg-gray-200 px-1.5 py-0.5 rounded text-sm">python manage.py build_taxonomy_tree</code>
-      inside the container to generate it.
+      The taxonomy has not been loaded yet. A superuser can upload the species list on the
+      Data Management page, or run
+      <code class="bg-gray-200 px-1.5 py-0.5 rounded text-sm">python manage.py migrate_taxonomy_to_db</code>
+      inside the container.
     </div>
   {% else %}
 

@@ -22,9 +22,6 @@ migrate = "python manage.py migrate"
 collectstatic = "python manage.py collectstatic --noinput"
 gunicorn = "gunicorn beetlesgallery.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 4 --worker-class gthread"
 
-# Run this to build the taxonomy tree
-build-tree = "python manage.py build_taxonomy_tree"
-
 
 # --- Dependencies for ALL platforms (Windows, Mac, Linux) ---
 [dependencies]
