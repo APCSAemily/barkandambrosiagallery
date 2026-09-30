@@ -11,7 +11,7 @@
     <a href="{% url 'request_access' %}" class="underline hover:text-black">request access</a> page.
     <strong>Member</strong> is a normal account (gallery, downloads, taxonomy, AI classifier, game).
     <strong>Curator</strong> also annotates, validates, and uploads and updates data. You can change anyone's role later under My Account.
-    Approving emails the person; a new account gets a link to set their own password.
+    Approving activates the account they made and emails them; they sign in with their own username and password and can reset it themselves. Only requests whose email is confirmed appear here.
   </p>
 
   <h2 class="text-xl font-semibold text-gray-900 mb-3">Waiting <span class="text-gray-400 font-normal">({{ pending|length }})</span></h2>
@@ -23,6 +23,7 @@
       <h3 class="text-lg font-semibold text-gray-900">{{ r.name }}</h3>
       <span class="text-xs text-gray-500">{{ r.created_at|date:"j M Y H:i" }} UTC</span>
     </div>
+    {% if r.user %}<p class="text-xs text-gray-500">Account: <strong>{{ r.user.username }}</strong> (chosen by them, {% if r.user.is_active %}already active{% else %}activated when you approve{% endif %}); email confirmed {{ r.email_verified_at|date:"j M H:i" }} UTC</p>{% endif %}
     <p class="text-sm text-gray-700"><a href="mailto:{{ r.email }}" class="underline hover:text-black">{{ r.email }}</a> &middot; {{ r.affiliation|default:"no affiliation given" }}</p>
     {% if r.existing_users %}
     <p class="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">

@@ -1593,6 +1593,9 @@ class AccessRequest(models.Model):
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    email_verified_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the applicant confirmed their email address. Approvers only see confirmed requests."
+    )
     notified_at = models.DateTimeField(null=True, blank=True, help_text="When the approvers were emailed.")
     notify_error = models.CharField(max_length=255, blank=True, help_text="Why the approvers could not be emailed.")
 
