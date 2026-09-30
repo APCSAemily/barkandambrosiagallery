@@ -57,7 +57,7 @@ class Migration(migrations.Migration):
                 (
                     "beetle_name",
                     models.CharField(
-                        help_text="The beetle, as named in the source.", max_length=255
+                        help_text="The beetle's valid name in the species list (a source that uses a synonym is matched to it).", max_length=255
                     ),
                 ),
                 (

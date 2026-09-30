@@ -1189,7 +1189,7 @@ class InteractionProposal(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # The claim
-    beetle_name = models.CharField(max_length=255, help_text="The beetle, as named in the source.")
+    beetle_name = models.CharField(max_length=255, help_text="The beetle's valid name in the species list (a source that uses a synonym is matched to it).")
     beetle_valid_species_id = models.CharField(
         max_length=64, blank=True, db_index=True, help_text="valid_species_id when the beetle is in the species list."
     )
