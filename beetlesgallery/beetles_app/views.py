@@ -78,9 +78,9 @@ def my_account(request):
                 active_modal = "modal-password"
                 messages.error(request, "Please correct the errors in the password form.")
 
-        # --- CASE 2: Create User (Staff Only) ---
+        # --- CASE 2: Create User (Superusers Only) ---
         elif "action_create_user" in request.POST:
-            if not user.is_staff:
+            if not user.is_superuser:
                 messages.error(request, "You do not have permission to create users.")
                 return redirect("my_account")
 
@@ -145,9 +145,9 @@ def my_account(request):
             messages.success(request, f"User '{target_user.username}' updated successfully.")
             return redirect("my_account")
         
-    # --- Fetch User List (Staff Only) ---
+    # --- Fetch User List (Superusers Only) ---
     users_list = []
-    if user.is_staff:
+    if user.is_superuser:
         User = get_user_model()
         users_list = list(User.objects.all().order_by('-date_joined'))
         from .models import AreaGrant
@@ -766,8 +766,8 @@ def beetle_detail(request, beetle_id):
 
 
 def signup(request):
-    # --- Security Check: Block non-staff users ---
-    if not request.user.is_staff:
+    # --- Security Check: only superusers make accounts ---
+    if not request.user.is_superuser:
         messages.info(request, "Accounts are given by approval. Use \"Request access\" to ask for one.")
         return redirect("login")
     # ---------------------------------------------

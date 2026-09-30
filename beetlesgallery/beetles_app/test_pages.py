@@ -38,10 +38,9 @@ LOGIN_PAGES = [
     "taxonomy_browser",
 ]
 
-# Pages that need a staff user (staff create contributor accounts via signup)
+# Pages that need a staff user
 STAFF_PAGES = [
     "tool_annotate",
-    "signup",
     "interaction_review",
     "upload_interactions",
 ]
@@ -56,6 +55,7 @@ STAFF_POST_ONLY = [
 SUPERUSER_PAGES = [
     "admin_valid_species",
     "admin_described_names",
+    "signup",
     "upload_predictions",
     "access_requests",
     "upload_interaction_proposals",

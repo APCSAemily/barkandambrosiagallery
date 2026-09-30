@@ -155,3 +155,26 @@ class EditingUsersIsForSuperusersTests(AreaCase):
         self.assertNotContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")
         self.client.force_login(self.superuser)
         self.assertContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")
+
+
+class StaffOnlySeeTheirOwnAccountTests(AreaCase):
+    def test_staff_cannot_create_users_or_see_the_directory(self):
+        self.client.force_login(self.staff)
+        page = self.client.get(reverse("my_account"))
+        for text in ("Create New User", "User Directory", "modal-create-user"):
+            self.assertNotContains(page, text)
+        before = self.user.__class__.objects.count()
+        self.client.post(reverse("my_account"), {"action_create_user": "1", "username": "newbie", "password1": "Correct-Horse-9-Staple", "password2": "Correct-Horse-9-Staple"})
+        self.assertEqual(self.user.__class__.objects.count(), before)
+        self.assertRedirectsToLogin(self.client.get(reverse("signup")))
+
+    def test_staff_can_still_change_their_own_password(self):
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(reverse("my_account")), "Change Password")
+
+    def test_superusers_see_and_can_do_all_of_it(self):
+        self.client.force_login(self.superuser)
+        page = self.client.get(reverse("my_account"))
+        for text in ("Create New User", "User Directory"):
+            self.assertContains(page, text)
+        self.assertEqual(self.client.get(reverse("signup")).status_code, 200)
