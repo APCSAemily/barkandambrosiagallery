@@ -2,7 +2,7 @@
 Player expertise and trusted game labels.
 
 Expertise is measured per rank *within a branch* of the taxonomy, from a player's scored
-"Name the beetle" answers (validated ROIs they didn't know were being scored):
+"Name That Beetle" answers (validated ROIs they didn't know were being scored):
 
     species   within a genus        e.g. species ID in Xyleborus
     genus     within a tribe        e.g. genus ID in Xyleborini

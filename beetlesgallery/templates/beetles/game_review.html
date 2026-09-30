@@ -47,12 +47,12 @@
       <tbody>
         {% for r in open_reports %}
         <tr class="border-t border-gray-100 align-top">
-          <td class="px-3 py-2 font-mono text-xs"><a class="text-blue-600 hover:underline" href="{% url 'beetle_detail' r.roi.id %}">{{ r.roi.id|stringformat:"s"|slice:":8" }}</a>
+          <td class="px-3 py-2 font-mono text-xs"><a class="text-gray-900 underline hover:text-gray-600" href="{% url 'beetle_detail' r.roi.id %}">{{ r.roi.id|stringformat:"s"|slice:":8" }}</a>
             {% if r.was_validated %}<div class="text-[10px] text-green-700 font-sans">was validated</div>{% endif %}</td>
           <td class="px-3 py-2 text-gray-600">{{ r.roi.taxon.scientific_name|default:"—" }}</td>
           <td class="px-3 py-2">{{ r.get_reason_display }}{% if r.note %}<div class="text-xs text-gray-500">&ldquo;{{ r.note }}&rdquo;</div>{% endif %}</td>
           <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ r.reporter.username }}<div class="text-xs text-gray-400">{{ r.created_at|date:"M j" }}</div></td>
-          <td class="px-3 py-2 whitespace-nowrap"><a class="text-blue-600 hover:underline" href="{% url 'tool_annotate' %}?image={{ r.roi.image_asset_id }}">Open in annotator</a></td>
+          <td class="px-3 py-2 whitespace-nowrap"><a class="text-gray-900 underline hover:text-gray-600" href="{% url 'tool_annotate' %}?image={{ r.roi.image_asset_id }}">Open in annotator</a></td>
         </tr>
         {% empty %}
         <tr><td colspan="5" class="px-3 py-6 text-center text-gray-400">No open reports.</td></tr>
@@ -69,8 +69,8 @@
         <tr>
           <th class="px-3 py-2 text-left" rowspan="2">Player</th>
           <th class="px-3 py-2 text-right" rowspan="2">Labelled</th>
-          <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Name the beetle</th>
-          <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Spot the relatives</th>
+          <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Name That Beetle</th>
+          <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Family Ties</th>
           <th class="px-3 py-2 text-left border-l border-gray-200" rowspan="2">Expert in</th>
         </tr>
         <tr>
@@ -81,7 +81,7 @@
       <tbody>
         {% for p in players %}
         <tr class="border-t border-gray-100">
-          <td class="px-3 py-2 font-medium"><a class="text-blue-600 hover:underline" href="{% url 'game_player_report' p.id %}">{{ p.username }}</a></td>
+          <td class="px-3 py-2 font-medium"><a class="text-gray-900 underline hover:text-gray-600" href="{% url 'game_player_report' p.id %}">{{ p.username }}</a></td>
           <td class="px-3 py-2 text-right tabular-nums">{{ p.labelled }}</td>
           {% for cell in p.classify %}
           <td class="px-3 py-2 text-right tabular-nums {% if forloop.first %}border-l border-gray-100{% endif %}">
@@ -130,7 +130,7 @@
       <tbody>
         {% for entry in consensus %}
         <tr class="border-t border-gray-100">
-          <td class="px-3 py-2"><a class="text-blue-600 hover:underline font-mono text-xs" href="{% url 'beetle_detail' entry.roi.id %}">{{ entry.roi.id|stringformat:"s"|slice:":8" }}</a></td>
+          <td class="px-3 py-2"><a class="text-gray-900 underline hover:text-gray-600 font-mono text-xs" href="{% url 'beetle_detail' entry.roi.id %}">{{ entry.roi.id|stringformat:"s"|slice:":8" }}</a></td>
           <td class="px-3 py-2 text-gray-500">{{ entry.roi.taxon.scientific_name|default:"—" }}</td>
           <td class="px-3 py-2 text-right tabular-nums">{{ entry.answers }} <span class="text-gray-400 text-xs">({{ entry.players }} player{{ entry.players|pluralize }})</span></td>
           {% for r, vote in entry.rank_list %}

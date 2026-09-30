@@ -209,10 +209,11 @@ class ClassifyApiTests(GameCase):
         self.roi(self.t_affinis)  # scored items never repeat, so the second round needs another
         rnd, item = self.play("classify")
         res = self.post("game_answer", {"index": item["index"], "skipped": True}, rnd.id)
-        self.assertTrue(res.json()["done"])
+        self.assertNotIn("done", res.json())           # the feed carries on into a new batch
+        self.assertNotEqual(res.json()["round"], str(rnd.id))
         self.assertTrue(GameAnswer.objects.get().skipped)
 
-        rnd, item = self.play("classify")
+        rnd, item = self.play("classify")              # a reload picks the new batch up
         self.post("game_answer", {"index": item["index"], "subfamily": "Scolytinae"}, rnd.id)
         ans = GameAnswer.objects.get(round=rnd)
         self.assertEqual((ans.correct_subfamily, ans.correct_genus), (True, None))

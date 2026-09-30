@@ -24,7 +24,21 @@ from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
 MODES = {m.value: m.label for m in GameRound.Mode}
+# What players see. (The model keeps its own plain labels; changing those would need a migration.)
+GAME_NAMES = {"classify": "Name That Beetle", "pair": "Family Ties"}
+GAME_TAGLINES = {
+    "classify": "One beetle, four guesses: subfamily, tribe, genus, species. Go as deep as you dare.",
+    "pair": "Two beetles. How close is the family? From total strangers to the very same species.",
+}
 PAIR_CHOICES = [(c.value, c.label) for c in GameAnswer.PairAnswer]
+# Family Ties: the ladder from strangers (top) to the same species (bottom). "Not sure" is its own button.
+RUNGS = [
+    ("different", "Different subfamily", "strangers"),
+    ("subfamily", "Same subfamily", "distant kin"),
+    ("tribe", "Same tribe", "cousins"),
+    ("genus", "Same genus", "siblings"),
+    ("species", "Same species", "twins"),
+]
 TAXA_CACHE_SECONDS = 600
 MAX_RESPONSE_MS = 60 * 60 * 1000
 
@@ -35,7 +49,9 @@ MAX_RESPONSE_MS = 60 * 60 * 1000
 @login_required
 def game_home(request):
     sort = "accuracy" if request.GET.get("sort") == "accuracy" else "labelled"
+    game.close_idle_rounds(request.user)   # anything they left open counts now
     return render(request, "beetles/game_home.html", {
+        "games": [{"mode": m, "name": GAME_NAMES[m], "tagline": GAME_TAGLINES[m]} for m in MODES],
         "summary": game.player_summary(request.user),
         "leaderboard": game.leaderboard(limit=25, sort=sort),
         "sort": sort,
@@ -48,8 +64,9 @@ def game_play(request, mode):
         raise Http404("Unknown game mode")
     return render(request, "beetles/game_play.html", {
         "mode": mode,
-        "mode_label": MODES[mode],
-        "pair_choices": PAIR_CHOICES,
+        "mode_label": GAME_NAMES[mode],
+        "ranks": [(r, r.capitalize()) for r in game.RANKS],
+        "rungs": RUNGS,
     })
 
 
@@ -283,10 +300,41 @@ def game_answer(request, round_id):
         # The same item was submitted twice (double tap, two tabs).
         return JsonResponse({"error": "That answer was already saved; please reload."}, status=409)
 
+    celebrate = _worth_celebrating(record, scores)
     nxt = _next_index(rnd, index + 1)
     if nxt is None:
-        return JsonResponse(_finish(rnd))
-    return JsonResponse({"item": _item_payload(rnd, nxt)})
+        # The feed carries straight on into a new batch. It only ends when there is nothing new left to show.
+        game.finish_round(rnd)
+        fresh = game.start_round(request.user, rnd.mode, fresh_only=True)
+        first = _next_index(fresh, 0) if fresh else None
+        if first is not None:
+            return JsonResponse({"round": str(fresh.id), "item": _item_payload(fresh, first), "celebrate": celebrate})
+        return JsonResponse(dict(_finish(rnd), celebrate=celebrate))
+    return JsonResponse({"item": _item_payload(rnd, nxt), "celebrate": celebrate})
+
+
+def _worth_celebrating(record, scores):
+    """
+    Confetti for a scored item the player got right: the species, or a pair with every judged claim right.
+    It says nothing on other items, so it is the only hint that an item was scored, and only when they won.
+    """
+    if not record.is_check or record.skipped:
+        return False
+    if record.mode == GameRound.Mode.CLASSIFY:
+        return scores.get("species") is True
+    judged = [ok for ok in scores.values() if ok is not None]
+    return bool(judged) and all(judged)
+
+
+@login_required
+@require_POST
+def game_exit(request):
+    """The player leaves the feed: close their current batch so their answers count, then go back to the game home."""
+    body = _json_body(request) or {}
+    rnd = GameRound.objects.filter(id=body.get("round"), player=request.user).first() if _is_uuid(body.get("round")) else None
+    if rnd is not None and rnd.finished_at is None:
+        game.finish_round(rnd)
+    return JsonResponse({"url": reverse("game_home")})
 
 
 # ---------------------------------------------------------------------------

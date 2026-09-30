@@ -183,3 +183,26 @@ Privacy rules for the player report:
 | `GAME_TRUST_Z` | 1.96 |
 | `GAME_TRUST_SIBLINGS` | 2 |
 | `GAME_TRUST_MIN_VOTES` | 1 |
+
+## Update: one continuous feed (supersedes sections 4.3, 5 and the round wording elsewhere)
+
+- **No rounds for the player.** They get a continuous feed of beetles until they tap **Exit**. Behind the scenes the feed is
+  still stored as batches (`GameRound`, 10 items), so scoring, skills, difficulty and the "Your answers" pages are unchanged;
+  when a batch ends the next one starts in the same response and the player never sees a break. The feed only ends
+  ("You're all caught up") when there is nothing new left to show (`start_round(..., fresh_only=True)`).
+- **Checks are dropped in now and then.** Within a batch the scored items are spread evenly with a random start (`game.spread`),
+  instead of a plain shuffle, so they are neither clumped nor a predictable rhythm. The 60% / 20% ratio is unchanged.
+- **Names:** *Name the beetle* is **Name That Beetle**; *Spot the relatives* is **Family Ties**. (Display only: the stored mode
+  values and model labels are unchanged, so there is no migration.)
+- **No live score.** There is no progress bar, count or accuracy while playing. Scores are on the game home and in
+  My performance. Leaving with **Exit** closes the current batch (`game_exit`) so the answers count at once; a batch that was
+  left open (tab closed) is closed the next time they open the game home (`close_idle_rounds`, after 10 idle minutes).
+- **Confetti** for a scored item answered right: the species in Name That Beetle, or every judged claim in Family Ties
+  (never for "Not sure"). It is the only hint that an item was scored, and only when the player won.
+- **Layout (phones first).** One fixed screen: header (Exit, title, search/help), photos, answer panel, and a fixed action row.
+  Nothing moves between beetles, so the buttons are always in the same place.
+  - Name That Beetle: four stacked lists, broad to specific (subfamily, tribe, genus, species), then **Skip** / **Next**.
+    Search by name is a button in the header.
+  - Family Ties: a vertical ladder from *different subfamily* (top) to *same species* (bottom) that fills like a meter and can be
+    tapped or dragged, then **Not sure** / **Next**. On a phone the two photos sit one above the other.
+  - Colours: grey, black and white only. Colour appears only for results and errors, and on the confetti.

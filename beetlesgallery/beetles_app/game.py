@@ -267,7 +267,7 @@ def focus_filter(player):
     return Q(taxon__genus__in=genera) | Q(taxon__tribe__in=tribes)
 
 
-def build_classify_items(player, size):
+def build_classify_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "classify", size)
     target = target_difficulty(player)
     revealed = list(revealed_ids(player))
@@ -284,7 +284,7 @@ def build_classify_items(player, size):
         return [{"a": str(i), "b": None, "check": True} for i in ids]
 
     def pick_open(n):
-        ids = _sample(open_rois(), n, target, seen_open)
+        ids = _sample(open_rois(), n, target, seen_open, allow_seen=not fresh_only)
         return [{"a": str(i), "b": None, "check": False} for i in ids]
 
     checks, opens = _fill(n_checks, n_open, pick_checks, pick_open)
@@ -333,7 +333,7 @@ def _partner_for(anchor, target, exclude=()):
     return one(pool)
 
 
-def build_pair_items(player, size):
+def build_pair_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "pair", size)
     target = target_difficulty(player)
     revealed = list(revealed_ids(player))
@@ -345,7 +345,7 @@ def build_pair_items(player, size):
         if is_check:
             anchor_ids = _sample(anchor_qs, n, target, exclude=exclude + revealed, allow_seen=False)
         else:
-            anchor_ids = _sample(anchor_qs, n, target, seen, exclude)
+            anchor_ids = _sample(anchor_qs, n, target, seen, exclude, allow_seen=not fresh_only)
         for anchor in Beetles.objects.select_related("taxon").filter(id__in=anchor_ids):
             # A scored pair must not lean on a partner whose label the player has been shown.
             partner = _partner_for(anchor, target, revealed if is_check else ())
@@ -374,15 +374,60 @@ def resumable_round(player, mode):
     )
 
 
-def start_round(player, mode, size=None):
-    """Create a round with freshly picked items in random order. Returns None if nothing is playable."""
+def spread(items):
+    """
+    Put the checks at even spacing among the open items, with a random start, instead of a plain shuffle.
+
+    The player sees one continuous feed, so scored items should turn up now and then, not in a clump and not
+    in a predictable rhythm: the gaps between them are the same on average but the first one is random.
+    """
+    checks = [i for i in items if i["check"]]
+    opens = [i for i in items if not i["check"]]
+    random.shuffle(checks)
+    random.shuffle(opens)
+    if not checks or not opens:
+        return checks + opens
+    total = len(items)
+    # positions of the checks: evenly spread over the batch, shifted by a random fraction of one gap
+    gap = total / len(checks)
+    offset = random.random() * gap
+    slots = {min(total - 1, int(offset + k * gap)) for k in range(len(checks))}
+    k = 0
+    while len(slots) < len(checks):          # two checks landed on one slot: take the next free one
+        if k not in slots:
+            slots.add(k)
+        k += 1
+    feed, c, o = [], iter(checks), iter(opens)
+    for position in range(total):
+        feed.append(next(c) if position in slots else next(o))
+    return feed
+
+
+def start_round(player, mode, size=None, fresh_only=False):
+    """
+    Create a batch of items for the player's continuous feed. Returns None if nothing is playable.
+
+    ``fresh_only`` leaves out unscored items the player has already answered: used to carry on from one batch
+    into the next, where running out of new beetles should end the feed rather than repeat what they've seen.
+    """
     size = size or game_setting("GAME_ROUND_SIZE", 10)
     builder = build_classify_items if mode == GameRound.Mode.CLASSIFY else build_pair_items
-    items = builder(player, size)
+    items = builder(player, size, fresh_only=fresh_only)
     if not items:
         return None
-    random.shuffle(items)
-    return GameRound.objects.create(player=player, mode=mode, items=items)
+    return GameRound.objects.create(player=player, mode=mode, items=spread(items))
+
+
+def close_idle_rounds(player, idle_minutes=10):
+    """
+    Finish the player's feed batches that were left open (they closed the tab, or their phone went to sleep),
+    so their answers reach their skills and the difficulty of the images without waiting for them to come back.
+    """
+    cutoff = timezone.now() - timedelta(minutes=idle_minutes)
+    for rnd in GameRound.objects.filter(player=player, finished_at__isnull=True, started_at__lt=cutoff):
+        last = rnd.answers.order_by("-answered_at").values_list("answered_at", flat=True).first()
+        if last is None or last < cutoff:
+            finish_round(rnd)
 
 
 def finish_round(rnd):

@@ -2,140 +2,168 @@
 
 {% block extra_css %}
 <style>
-  /* Crops keep their aspect ratio and fit the screen whatever the photo's shape */
-  .game-crop { display: block; margin: 0 auto; max-width: 100%; width: auto; height: auto; border-radius: 0.75rem; background: #f3f4f6; }
-  .game-crop-single { max-height: 48vh; }
-  .game-crop-pair { max-height: 36vh; }
-  .game-option.selected { border-color: #111827; background: #111827; color: #fff; }
-  .game-select { -webkit-appearance: none; appearance: none; background-image: none; }
+  /* The game is one fixed screen: header, photos, answer panel. Nothing moves between beetles, so the buttons are
+     always exactly where your thumb left them. */
+  #game { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #fff;
+          height: 100vh; height: 100dvh; }
+  #photos { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            padding: 0.5rem; background: #f3f4f6; }
+  #photos .cell { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; height: 100%; display: flex; align-items: center; justify-content: center; }
+  #photos button.frame { position: relative; width: 100%; height: 100%; display: block; padding: 0; border: 0; background: none; }
+  /* The crop fills its cell and keeps its proportions, whatever the shape of the photo or the screen */
+  #photos canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #photos.fade canvas { opacity: 0; }
+  #photos canvas { transition: opacity 0.15s ease; }
+  #panel { flex: 0 0 auto; padding: 0.625rem 0.75rem calc(0.625rem + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: #fff; }
+  .rank-row { display: flex; align-items: center; height: 2.75rem; border: 1px solid #d1d5db; border-radius: 0.75rem; background: #fff; }
+  .rank-row label { flex: 0 0 6.25rem; padding-left: 0.875rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7280; }
+  .rank-row select { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 2rem 0 0.25rem; font-size: 1rem; color: #111827; background: transparent; border: 0; border-radius: 0 0.75rem 0.75rem 0;
+                     -webkit-appearance: none; appearance: none; text-overflow: ellipsis; }
+  .rank-row select:disabled { color: #9ca3af; }
+  .rank-row.has-value { border-color: #111827; }
+  .rank-row.is-disabled { background: #f9fafb; border-color: #e5e7eb; }
+  .rank-row:focus-within { box-shadow: 0 0 0 2px #111827; }
+  .rank-row .chev { position: absolute; right: 0.875rem; pointer-events: none; color: #9ca3af; font-size: 0.75rem; }
+
+  /* The relatedness ladder: a meter that fills from "strangers" down to "same species" */
+  #ladder { position: relative; display: flex; flex-direction: column; gap: 0.25rem; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .rung { position: relative; display: flex; align-items: center; height: 2.5rem; padding: 0 0.875rem 0 2.75rem; border: 1px solid #d1d5db; border-radius: 0.75rem; background: #fff;
+          font-size: 0.9375rem; font-weight: 500; color: #111827; text-align: left; width: 100%; }
+  .rung small { margin-left: auto; padding-left: 0.5rem; font-size: 0.6875rem; font-weight: 500; color: #9ca3af; }
+  .rung::before { content: ""; position: absolute; left: 1.0625rem; top: 50%; width: 0.75rem; height: 0.75rem; margin-top: -0.375rem; border-radius: 9999px; background: #fff; border: 2px solid #9ca3af; z-index: 1; }
+  .rung.filled::before { background: #111827; border-color: #111827; }
+  .rung::after { content: ""; position: absolute; left: 1.375rem; top: -0.3125rem; width: 2px; height: calc(100% + 0.3125rem); background: #e5e7eb; }
+  .rung:first-child::after { display: none; }
+  .rung.filled::after { background: #111827; }
+  .rung.selected { background: #111827; border-color: #111827; color: #fff; }
+  .rung.selected small { color: #d1d5db; }
+  .rung.selected::before { background: #fff; border-color: #fff; }
+
+  #actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  #actions button { height: 3rem; border-radius: 0.75rem; font-size: 1rem; }
+  #skip { flex: 0 0 32%; font-weight: 500; color: #4b5563; border: 1px solid #d1d5db; background: #fff; }
+  #submit { flex: 1 1 auto; font-weight: 600; color: #fff; background: #111827; }
+  #submit:disabled { background: #d1d5db; }
+  #actions button:active:not(:disabled) { transform: scale(0.98); }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; color: #374151; }
+  .icon-btn:active { background: #f3f4f6; }
+  /* On a phone the two photos of Family Ties sit one above the other so each gets the full width */
+  @media (max-width: 639px) { #game[data-mode="pair"] #photos { flex-direction: column; } #game[data-mode="pair"] #photos .cell { height: auto; width: 100%; } }
+  /* On a wide screen keep the answer buttons a comfortable width in the middle */
+  @media (min-width: 700px) { #panel { padding-left: calc((100% - 38rem) / 2); padding-right: calc((100% - 38rem) / 2); } }
+  @media (prefers-reduced-motion: reduce) { #photos canvas { transition: none; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div id="game" class="max-w-2xl mx-auto -mt-4 sm:mt-0" data-mode="{{ mode }}"
+<div id="game" data-mode="{{ mode }}"
   data-start-url="{% url 'game_start' %}"
   data-answer-url="{% url 'game_answer' '00000000-0000-0000-0000-000000000000' %}"
+  data-exit-url="{% url 'game_exit' %}"
+  data-home-url="{% url 'game_home' %}"
   data-taxa-url="{% url 'game_taxa' %}"
   data-search-url="{% url 'game_taxa_search' %}">
 
-  <!-- Header + progress -->
-  <div class="flex items-center gap-3 mb-3">
-    <a href="{% url 'game_home' %}" class="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" aria-label="Back to game home">
-      <i class="fi fi-rr-angle-left text-lg"></i>
-    </a>
-    <h1 class="flex-1 font-semibold text-gray-900 text-lg tracking-tight">
-      {% if mode == 'classify' %}Name the beetle{% else %}Spot the relatives{% endif %}
-    </h1>
-    <span id="progress-text" class="text-sm text-gray-500 tabular-nums"></span>
-  </div>
-  <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">
-    <div id="progress-bar" class="h-full bg-gray-900 transition-all duration-300" style="width: 0%"></div>
-  </div>
+  <!-- Header: leave any time; your score is on the game home, not here -->
+  <header class="flex items-center gap-1 px-2 h-14 border-b border-gray-200 bg-white">
+    <button type="button" id="exit" class="icon-btn gap-1 pr-3 font-medium text-sm" aria-label="Exit the game">
+      <i class="fi fi-rr-angle-left text-lg"></i><span>Exit</span>
+    </button>
+    <h1 class="flex-1 text-center font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
+    {% if mode == 'classify' %}
+    <button type="button" id="open-search" class="icon-btn" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
+    {% else %}
+    <button type="button" id="open-help" class="icon-btn" aria-label="How it works"><i class="fi fi-rr-interrogation text-lg"></i></button>
+    {% endif %}
+  </header>
 
-  <div id="error" class="hidden mb-4 p-3 rounded-xl border bg-red-50 border-red-200 text-red-700 text-sm"></div>
+  <div id="error" class="hidden mx-3 mt-2 p-2.5 rounded-lg border bg-red-50 border-red-200 text-red-700 text-sm"></div>
 
   <!-- Loading -->
-  <div id="loading" class="py-20 text-center text-gray-400">
+  <div id="loading" class="flex-1 flex flex-col items-center justify-center text-gray-400">
     <i class="fi fi-rr-spinner animate-spin inline-block text-3xl"></i>
-    <p class="mt-2 text-sm">Loading&hellip;</p>
+    <p class="mt-2 text-sm">Finding a beetle&hellip;</p>
   </div>
 
-  <!-- Question -->
-  <div id="stage" class="hidden">
-    <div id="images" class="{% if mode == 'pair' %}grid grid-cols-2 gap-2 items-center{% endif %} mb-2"></div>
-    <p class="text-center text-xs text-gray-400 mb-4">Tap a photo to see the whole image.</p>
+  <!-- The feed -->
+  <div id="stage" class="hidden flex-1 min-h-0 flex flex-col">
+    <div id="photos"></div>
 
-    {% if mode == 'classify' %}
-    <div class="space-y-3">
-      <div class="relative">
-        <label for="search" class="sr-only">Search for a genus or species</label>
-        <i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-        <input id="search" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
-          placeholder="Search genus or species&hellip;"
-          class="w-full pl-10 pr-3 py-3 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900">
-        <ul id="search-results" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg"></ul>
+    <div id="panel">
+      {% if mode == 'classify' %}
+      <div class="space-y-2" id="ranks">
+        {% for rank, label in ranks %}
+        <div class="rank-row relative" data-row="{{ rank }}">
+          <label for="pick-{{ rank }}">{{ label }}</label>
+          <select id="pick-{{ rank }}" data-rank="{{ rank }}"></select>
+          <i class="fi fi-rr-angle-small-down chev"></i>
+        </div>
+        {% endfor %}
       </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="block">
-          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subfamily</span>
-          <select data-rank="subfamily" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
-        </label>
-        <label class="block">
-          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Tribe</span>
-          <select data-rank="tribe" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
-        </label>
-        <label class="block">
-          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Genus</span>
-          <select data-rank="genus" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
-        </label>
-        <label class="block">
-          <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Species</span>
-          <select data-rank="species" class="game-select mt-1 w-full px-3 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"></select>
-        </label>
+      {% else %}
+      <div id="ladder" role="radiogroup" aria-label="How closely related are these two beetles?">
+        {% for value, label, hint in rungs %}
+        <button type="button" role="radio" aria-checked="false" data-choice="{{ value }}" class="rung">{{ label }}<small>{{ hint }}</small></button>
+        {% endfor %}
       </div>
-      <p class="text-xs text-gray-400">Only go as far as you're confident. Leave the rest as &ldquo;Not sure&rdquo;.</p>
-    </div>
-    {% else %}
-    <p class="text-center font-semibold text-gray-900 mb-3">How closely related are these two beetles?</p>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      {% for value, label in pair_choices %}
-      <button type="button" data-choice="{{ value }}"
-        class="game-option w-full px-4 py-3.5 text-left text-base font-medium border-2 border-gray-200 rounded-xl active:scale-[0.99] transition-all">
-        {{ label }}
-      </button>
-      {% endfor %}
-    </div>
-    {% endif %}
+      {% endif %}
 
-    <!-- Actions stay reachable under the thumb on phones -->
-    <div class="sticky bottom-0 -mx-6 px-6 pt-3 pb-4 mt-4 bg-white/95 backdrop-blur border-t border-gray-100 flex gap-3">
-      <button type="button" id="skip"
-        class="px-4 py-3.5 text-base font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">
-        Skip
-      </button>
-      <button type="button" id="submit" disabled
-        class="flex-1 px-4 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl disabled:bg-gray-300 disabled:cursor-not-allowed">
-        Next
-      </button>
+      <div id="actions">
+        <button type="button" id="skip">{% if mode == 'pair' %}Not sure{% else %}Skip{% endif %}</button>
+        <button type="button" id="submit" disabled>Next</button>
+      </div>
     </div>
   </div>
 
-  <!-- Round summary -->
-  <div id="summary" class="hidden py-6 text-center">
+  <!-- Nothing new left to show -->
+  <div id="caughtup" class="hidden flex-1 overflow-y-auto px-6 py-10 text-center">
     <div class="inline-flex p-4 bg-gray-100 rounded-full mb-4"><i class="fi fi-rr-trophy text-3xl text-gray-700"></i></div>
-    <h2 class="text-2xl font-bold text-gray-900">Round complete!</h2>
-    <p class="mt-1 text-gray-500">Thanks for helping label the collection.</p>
-    <div class="grid grid-cols-3 gap-2 my-6">
-      <div class="p-3 bg-gray-50 rounded-2xl">
-        <div class="text-2xl font-bold text-gray-900" id="sum-round">0</div>
-        <div class="text-xs text-gray-500">this round</div>
-      </div>
-      <div class="p-3 bg-gray-50 rounded-2xl">
-        <div class="text-2xl font-bold text-gray-900" id="sum-total">0</div>
-        <div class="text-xs text-gray-500">labelled in total</div>
-      </div>
-      <div class="p-3 bg-gray-50 rounded-2xl">
-        <div class="text-2xl font-bold text-gray-900" id="sum-accuracy">&ndash;</div>
-        <div class="text-xs text-gray-500">accuracy</div>
-      </div>
+    <h2 class="text-2xl font-bold text-gray-900">You&rsquo;re all caught up</h2>
+    <p class="mt-1 text-gray-500">You&rsquo;ve seen every beetle we have for now. New ones arrive as the gallery grows.</p>
+    <div class="grid grid-cols-3 gap-2 my-6 max-w-sm mx-auto">
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="sum-round">0</div><div class="text-xs text-gray-500">this session</div></div>
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="sum-total">0</div><div class="text-xs text-gray-500">in total</div></div>
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="sum-accuracy">&ndash;</div><div class="text-xs text-gray-500">accuracy</div></div>
     </div>
-    <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <a id="review-link" href="#" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl">
-        <i class="fi fi-rr-list-check"></i> See the answers
-      </a>
-      <button type="button" id="again" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-200 rounded-xl">Play another round</button>
-      <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-200 rounded-xl">Leaderboard</a>
+    <div class="flex flex-col gap-3 max-w-sm mx-auto">
+      <a id="review-link" href="#" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl"><i class="fi fi-rr-list-check"></i> See the answers</a>
+      <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">Back to the game home</a>
+    </div>
+  </div>
+
+  <!-- Search (Name That Beetle): jump straight to a genus or species -->
+  <div id="search-sheet" class="hidden absolute inset-0 z-10 bg-white flex-col">
+    <div class="flex items-center gap-2 px-2 h-14 border-b border-gray-200">
+      <button type="button" id="close-search" class="icon-btn" aria-label="Close search"><i class="fi fi-rr-cross text-lg"></i></button>
+      <input id="search" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search a genus or species&hellip;"
+        class="flex-1 h-10 px-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+    </div>
+    <ul id="search-results" class="flex-1 overflow-y-auto"></ul>
+  </div>
+
+  <!-- How it works (Family Ties) -->
+  <div id="help-sheet" class="hidden absolute inset-0 z-10 bg-white flex-col">
+    <div class="flex items-center gap-2 px-2 h-14 border-b border-gray-200">
+      <button type="button" id="close-help" class="icon-btn" aria-label="Close"><i class="fi fi-rr-cross text-lg"></i></button>
+      <h2 class="font-semibold text-gray-900">How it works</h2>
+    </div>
+    <div class="p-5 text-gray-700 space-y-3 overflow-y-auto">
+      <p>You see two beetles, <strong>A</strong> and <strong>B</strong>. Tap the closest family tie you are sure of.</p>
+      <p>The list runs from <strong>different subfamily</strong> at the top to <strong>same species</strong> at the bottom. Pick the lowest line you are confident about, and everything above it is included.</p>
+      <p>Not sure? Tap <strong>Not sure</strong>. That is always fine.</p>
+      <p>Tap a photo to see the whole image.</p>
     </div>
   </div>
 </div>
+
+<canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:95"></canvas>
 
 <!-- Full image viewer -->
 <div id="lightbox" class="hidden fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-3" role="dialog" aria-label="Whole image">
   <button type="button" class="absolute top-3 right-3 p-3 text-white text-xl" aria-label="Close"><i class="fi fi-rr-cross"></i></button>
   <div class="relative inline-block">
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
-    <div id="lightbox-box" class="absolute border-2 border-amber-400 rounded-sm pointer-events-none"></div>
+    <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
 </div>
 {% endblock %}
@@ -148,11 +176,13 @@
   const RANKS = ["subfamily", "tribe", "genus", "species"];
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const $ = (id) => document.getElementById(id);
+  const SEARCH_ON = MODE === "classify";
 
   let roundId = null;
   let item = null;
   let busy = false;
   let shownAt = 0;
+  let answered = 0;
   const prefetched = [];
 
   // ---------- helpers ----------
@@ -179,7 +209,9 @@
   }
 
   function show(which) {
-    ["loading", "stage", "summary"].forEach((id) => $(id).classList.toggle("hidden", id !== which));
+    ["loading", "stage", "caughtup"].forEach((id) => {
+      $(id).classList.toggle("hidden", id !== which);
+    });
   }
 
   // Draw the bounding box region (plus a little context) onto a canvas.
@@ -193,8 +225,7 @@
     const scale = Math.min(1, 1400 / Math.max(sw, sh));
     canvas.width = Math.round(sw * scale);
     canvas.height = Math.round(sh * scale);
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   }
 
   function loadImage(url) {
@@ -207,9 +238,8 @@
   }
 
   function openLightbox(url, box) {
-    const img = $("lightbox-img");
+    $("lightbox-img").src = url;
     const b = $("lightbox-box");
-    img.src = url;
     b.style.left = box[0] * 100 + "%";
     b.style.top = box[1] * 100 + "%";
     b.style.width = box[2] * 100 + "%";
@@ -217,22 +247,57 @@
     $("lightbox").classList.remove("hidden");
   }
   $("lightbox").addEventListener("click", () => $("lightbox").classList.add("hidden"));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") $("lightbox").classList.add("hidden");
-  });
 
-  // Warm the browser cache with the next item's photos while this one is answered.
+  // Warm the browser cache with the next beetle's photos while this one is answered.
   function prefetch(urls) {
     prefetched.length = 0;
-    (urls || []).forEach((url) => {
-      const img = new Image();
-      img.src = url;
-      prefetched.push(img);
-    });
+    (urls || []).forEach((url) => { const img = new Image(); img.src = url; prefetched.push(img); });
   }
 
-  // ---------- rounds ----------
-  async function startRound() {
+  // ---------- confetti (only ever for a right answer on a beetle we know) ----------
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function confetti() {
+    if (reduceMotion) return;
+    const canvas = $("confetti");
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = innerWidth * dpr;
+    canvas.height = innerHeight * dpr;
+    ctx.scale(dpr, dpr);
+    const colours = ["#111827", "#374151", "#9ca3af", "#d1d5db", "#ffffff", "#16a34a"];
+    const pieces = Array.from({ length: 70 }, () => ({
+      x: innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: innerHeight * 0.55,
+      vx: (Math.random() - 0.5) * 9,
+      vy: -Math.random() * 11 - 4,
+      size: 5 + Math.random() * 6,
+      spin: Math.random() * Math.PI,
+      vs: (Math.random() - 0.5) * 0.4,
+      colour: colours[(Math.random() * colours.length) | 0],
+    }));
+    const start = performance.now();
+    (function frame(now) {
+      const t = now - start;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      pieces.forEach((p) => {
+        p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.spin += p.vs;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.spin);
+        ctx.globalAlpha = Math.max(0, 1 - t / 1600);
+        ctx.fillStyle = p.colour;
+        ctx.strokeStyle = "#9ca3af";
+        ctx.lineWidth = 0.5;
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        if (p.colour === "#ffffff") ctx.strokeRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        ctx.restore();
+      });
+      if (t < 1600) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+    })(start);
+  }
+
+  // ---------- the feed ----------
+  async function startFeed() {
     show("loading");
     showError("");
     try {
@@ -247,43 +312,38 @@
 
   async function showItem(next) {
     item = next;
-    $("progress-text").textContent = item.position + " / " + item.total;
-    $("progress-bar").style.width = ((item.position - 1) / item.total * 100) + "%";
-
     let images;
     try {
       images = await Promise.all(item.images.map((im) => loadImage(im.url)));
     } catch (e) {
       images = null;
     }
-    const holder = $("images");
+    const holder = $("photos");
     holder.innerHTML = "";
     item.images.forEach((im, i) => {
       const cell = document.createElement("div");
-      cell.className = "text-center";
-      const wrap = document.createElement("button");
-      wrap.type = "button";
-      wrap.className = "relative inline-block max-w-full align-middle";
-      wrap.setAttribute("aria-label", "See the whole image");
+      cell.className = "cell";
+      const frame = document.createElement("button");
+      frame.type = "button";
+      frame.className = "frame";
+      frame.setAttribute("aria-label", "See the whole image");
       const canvas = document.createElement("canvas");
-      canvas.className = "game-crop " + (MODE === "pair" ? "game-crop-pair" : "game-crop-single");
       if (images) drawCrop(canvas, images[i], im.box);
-      wrap.appendChild(canvas);
+      frame.appendChild(canvas);
       if (MODE === "pair") {
         const tag = document.createElement("span");
-        tag.className = "absolute top-2 left-2 px-2 py-0.5 text-xs font-bold bg-white/90 rounded-md";
+        tag.className = "absolute top-1 left-1 px-2 py-0.5 text-xs font-bold bg-white/90 rounded-md text-gray-900";
         tag.textContent = i === 0 ? "A" : "B";
-        wrap.appendChild(tag);
+        frame.appendChild(tag);
       }
-      wrap.addEventListener("click", () => openLightbox(im.url, im.box));
-      cell.appendChild(wrap);
+      frame.addEventListener("click", () => openLightbox(im.url, im.box));
+      cell.appendChild(frame);
       holder.appendChild(cell);
     });
-    if (!images) showError("An image failed to load. You can skip this one.");
+    showError(images ? "" : "An image failed to load. You can skip this one.");
 
     resetAnswer();
     show("stage");
-    window.scrollTo({ top: 0 });
     shownAt = Date.now();
     prefetch(item.prefetch);
   }
@@ -292,56 +352,91 @@
     if (busy) return;
     busy = true;
     $("submit").disabled = true;
+    $("skip").disabled = true;
     showError("");
     try {
       const data = await api(
         root.dataset.answerUrl.replace("00000000-0000-0000-0000-000000000000", roundId),
         Object.assign({ index: item.index, elapsed_ms: Date.now() - shownAt }, extra)
       );
+      answered += 1;
+      if (data.celebrate) confetti();
       if (data.done) {
         $("review-link").href = data.review_url;
-        finish(data.summary);
+        $("sum-round").textContent = answered;
+        $("sum-total").textContent = data.summary.labelled;
+        $("sum-accuracy").textContent = data.summary.accuracy === null ? "–" : Math.round(data.summary.accuracy * 100) + "%";
+        show("caughtup");
       } else {
-        show("loading");
+        if (data.round) roundId = data.round;   // the feed moved on to its next batch; the player never notices
         await showItem(data.item);
       }
     } catch (e) {
-      busy = false;
       if (e.status === 409) {
-        // Out of step (another tab, double tap): pick the round up where the server has it.
-        await startRound();
+        // Out of step (another tab, double tap): pick the feed up where the server has it.
+        busy = false;
+        await startFeed();
         return;
       }
       showError(e.message);
-      updateSubmit();
     } finally {
       busy = false;
+      $("skip").disabled = false;
+      updateSubmit();
     }
   }
 
-  function finish(summary) {
-    $("progress-bar").style.width = "100%";
-    $("sum-round").textContent = summary.round_labelled;
-    $("sum-total").textContent = summary.labelled;
-    $("sum-accuracy").textContent = summary.accuracy === null ? "–" : Math.round(summary.accuracy * 100) + "%";
-    show("summary");
-  }
-
-  $("again").addEventListener("click", startRound);
-  $("skip").addEventListener("click", () => send({ skipped: true }));
+  $("skip").addEventListener("click", () => {
+    send(MODE === "pair" ? { pair_answer: "unsure" } : { skipped: true });
+  });
   $("submit").addEventListener("click", () => send(currentAnswer()));
 
-  // ---------- pair mode ----------
-  let pairChoice = null;
-  document.querySelectorAll("[data-choice]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      pairChoice = btn.dataset.choice;
-      document.querySelectorAll("[data-choice]").forEach((b) => b.classList.toggle("selected", b === btn));
-      updateSubmit();
-    });
+  // Leave: close the feed so the answers count, then go to the game home where the score is.
+  let leaving = false;
+  $("exit").addEventListener("click", async () => {
+    if (leaving) return;
+    leaving = true;
+    try {
+      await Promise.race([
+        api(root.dataset.exitUrl, { round: roundId }),
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]);
+    } catch (e) { /* the home page closes anything left open */ }
+    location.href = root.dataset.homeUrl;
   });
 
-  // ---------- classify mode: cascading pickers + search ----------
+  // ---------- Family Ties: the relatedness ladder ----------
+  let pairChoice = null;
+  const rungs = Array.from(document.querySelectorAll(".rung"));
+  function setRung(index) {
+    if (index < 0 || index >= rungs.length) return;
+    pairChoice = rungs[index].dataset.choice;
+    rungs.forEach((r, i) => {
+      r.classList.toggle("selected", i === index);
+      r.classList.toggle("filled", i <= index);
+      r.setAttribute("aria-checked", i === index ? "true" : "false");
+    });
+    updateSubmit();
+  }
+  if (rungs.length) {
+    rungs.forEach((r, i) => r.addEventListener("click", () => setRung(i)));
+    // Drag a finger down the ladder like a slider
+    const ladder = $("ladder");
+    let dragging = false;
+    const rungAt = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return el ? rungs.indexOf(el.closest(".rung")) : -1;
+    };
+    ladder.addEventListener("pointerdown", (e) => { dragging = true; const i = rungAt(e.clientX, e.clientY); if (i >= 0) setRung(i); });
+    ladder.addEventListener("pointermove", (e) => { if (dragging) { const i = rungAt(e.clientX, e.clientY); if (i >= 0) setRung(i); } });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((t) => ladder.addEventListener(t, () => { dragging = false; }));
+  }
+  if ($("open-help")) {
+    $("open-help").addEventListener("click", () => { $("help-sheet").classList.remove("hidden"); $("help-sheet").classList.add("flex"); });
+    $("close-help").addEventListener("click", () => { $("help-sheet").classList.add("hidden"); $("help-sheet").classList.remove("flex"); });
+  }
+
+  // ---------- Name That Beetle: four stacked lists, broad to specific ----------
   const selects = {};
   document.querySelectorAll("select[data-rank]").forEach((s) => { selects[s.dataset.rank] = s; });
   let pick = { subfamily: "", tribe: "", genus: "", species: "" };
@@ -358,11 +453,12 @@
     return optionCache.get(key);
   }
 
-  function fill(select, opts, value, labelFn) {
+  function fill(rank, opts, value, labelFn) {
+    const select = selects[rank];
     select.innerHTML = "";
     const none = document.createElement("option");
     none.value = "";
-    none.textContent = opts.length ? "Not sure" : "—";
+    none.textContent = opts.length ? "Not sure" : (rank === "species" ? "Pick a genus first" : "—");
     select.appendChild(none);
     opts.forEach((o) => {
       const el = document.createElement("option");
@@ -372,6 +468,9 @@
     });
     select.value = value;
     select.disabled = !opts.length;
+    const row = select.closest(".rank-row");
+    row.classList.toggle("has-value", !!value);
+    row.classList.toggle("is-disabled", !opts.length);
   }
 
   // Reload every list for the current picks. The token drops stale responses.
@@ -389,10 +488,10 @@
       if (token !== renderToken) return;
       genusInfo = {};
       genera.forEach((g) => { genusInfo[g.value] = g; });
-      fill(selects.subfamily, subfamilies, pick.subfamily);
-      fill(selects.tribe, tribes, pick.tribe);
-      fill(selects.genus, genera, pick.genus);
-      fill(selects.species, species, pick.species, (o) => pick.genus + " " + o.value);
+      fill("subfamily", subfamilies, pick.subfamily);
+      fill("tribe", tribes, pick.tribe);
+      fill("genus", genera, pick.genus);
+      fill("species", species, pick.species, (o) => pick.genus + " " + o.value);
     } catch (e) {
       showError(e.message);
     }
@@ -415,26 +514,35 @@
     });
   });
 
+  // Search sheet
   const search = $("search");
   const results = $("search-results");
   let searchTimer = null;
-  if (search) {
+  function openSearch(open) {
+    const sheet = $("search-sheet");
+    sheet.classList.toggle("hidden", !open);
+    sheet.classList.toggle("flex", open);
+    if (open) { search.value = ""; results.innerHTML = ""; setTimeout(() => search.focus(), 50); }
+  }
+  if (SEARCH_ON) {
+    $("open-search").addEventListener("click", () => openSearch(true));
+    $("close-search").addEventListener("click", () => openSearch(false));
     search.addEventListener("input", () => {
       clearTimeout(searchTimer);
       const q = search.value.trim();
-      if (q.length < 2) { results.classList.add("hidden"); return; }
+      if (q.length < 2) { results.innerHTML = ""; return; }
       searchTimer = setTimeout(async () => {
         try {
           const data = await api(root.dataset.searchUrl + "?q=" + encodeURIComponent(q));
           results.innerHTML = "";
           if (!data.results.length) {
-            results.innerHTML = '<li class="px-4 py-3 text-sm text-gray-400">No matches</li>';
+            results.innerHTML = '<li class="px-5 py-4 text-sm text-gray-400">No matches</li>';
           }
           data.results.forEach((r) => {
             const li = document.createElement("li");
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.className = "w-full text-left px-4 py-3 hover:bg-gray-50 active:bg-gray-100 border-b border-gray-50";
+            btn.className = "w-full text-left px-5 py-3.5 active:bg-gray-100 border-b border-gray-100";
             const name = document.createElement("span");
             name.className = r.kind === "species" ? "italic" : "font-semibold";
             name.textContent = r.label;
@@ -444,21 +552,16 @@
             btn.append(name, sub);
             btn.addEventListener("click", () => {
               pick = { subfamily: r.subfamily, tribe: r.tribe, genus: r.genus, species: r.species };
-              search.value = "";
-              results.classList.add("hidden");
+              openSearch(false);
               renderPickers();
             });
             li.appendChild(btn);
             results.appendChild(li);
           });
-          results.classList.remove("hidden");
         } catch (e) {
           showError(e.message);
         }
       }, 250);
-    });
-    document.addEventListener("click", (e) => {
-      if (!results.contains(e.target) && e.target !== search) results.classList.add("hidden");
     });
   }
 
@@ -474,14 +577,17 @@
 
   function resetAnswer() {
     pairChoice = null;
-    document.querySelectorAll("[data-choice]").forEach((b) => b.classList.remove("selected"));
+    rungs.forEach((r) => { r.classList.remove("selected", "filled"); r.setAttribute("aria-checked", "false"); });
     pick = { subfamily: "", tribe: "", genus: "", species: "" };
-    if (search) { search.value = ""; results.classList.add("hidden"); }
     renderPickers();
     updateSubmit();
   }
 
-  startRound();
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { $("lightbox").classList.add("hidden"); if (SEARCH_ON) openSearch(false); }
+  });
+
+  startFeed();
 })();
 </script>
 {% endblock %}
