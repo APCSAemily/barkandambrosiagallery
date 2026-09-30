@@ -51,7 +51,6 @@ for u in get_user_model().objects.filter(is_superuser=True, is_active=True):
     print(' -', u.username, u.email or '(no email: they will not get notifications)')
 "
 echo "To make someone a superuser: sign in as a superuser -> My Account -> edit the user -> role Superuser."
-# echo "Access-request emails also go to ACCESS_REQUEST_RECIPIENTS (default gmarais@ufl.edu,hulcr@ufl.edu)."
 echo "Access-request emails also go to ACCESS_REQUEST_RECIPIENTS (default gmarais@ufl.edu)."
 echo
 echo "Done."

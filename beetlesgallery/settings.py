@@ -186,10 +186,11 @@ LOGIN_REDIRECT_URL = "image_browser"
 LOGOUT_REDIRECT_URL = "image_browser"
 
 # Access requests (beetles_app/access.py): who is emailed when someone asks for an account.
-# They read and decide the requests on Data Management -> Access requests, so they need superuser accounts.
+# They read and decide the requests on My Account -> Access Requests, so they need superuser accounts.
+# Every active superuser who has an email address is also told, so keep the superuser list to people who should be.
 ACCESS_REQUEST_RECIPIENTS = [
     address.strip()
-    for address in os.environ.get("ACCESS_REQUEST_RECIPIENTS", "gmarais@ufl.edu,hulcr@ufl.edu").split(",")
+    for address in os.environ.get("ACCESS_REQUEST_RECIPIENTS", "gmarais@ufl.edu").split(",")
     if address.strip()
 ]
 PASSWORD_RESET_TIMEOUT = 7 * 24 * 60 * 60  # the "set your password" link in an approval email lasts a week

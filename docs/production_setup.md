@@ -17,5 +17,5 @@ bash scripts/post_deploy_setup.sh
    to tell reviewers when a claim is already published. It is safe to run again and never touches accepted or uploaded rows.
 
 It also lists who can approve access requests. **Every superuser can**, and every superuser with an email address is emailed when a
-request arrives, in addition to `ACCESS_REQUEST_RECIPIENTS` (default `gmarais@ufl.edu,hulcr@ufl.edu`). Make someone a superuser under
+request arrives, in addition to `ACCESS_REQUEST_RECIPIENTS` (default `gmarais@ufl.edu`). Make someone a superuser under
 *My Account → edit user → role*.
