@@ -157,7 +157,7 @@ class ConfirmEmailTests(AccessCase):
         self.send()
         self.client.force_login(self.superuser)
         self.assertNotContains(self.client.get(reverse("access_requests")), "Ada Lovelace")
-        self.assertNotContains(self.client.get(reverse("data_management")), "waiting")
+        self.assertNotContains(self.client.get(reverse("my_account")), "waiting")
 
     @override_settings(ACCESS_REQUEST_RECIPIENTS=[])
     def test_with_no_approvers_configured_the_request_is_still_listed(self):
@@ -197,7 +197,8 @@ class ReviewPageTests(AccessCase):
         for text in ("Ada Lovelace", "<strong>ada</strong>", "Browse and download images", "I study ambrosia beetles."):
             self.assertContains(page, text)
         self.assertNotContains(page, "already has an account")   # their own new account is not a duplicate
-        self.assertContains(self.client.get(reverse("data_management")), "1 waiting")
+        self.assertContains(self.client.get(reverse("my_account")), "1 waiting")
+        self.assertNotContains(self.client.get(reverse("data_management")), "Review Access Requests")
 
 
 class ApprovalTests(AccessCase):
