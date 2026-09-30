@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from .interaction_proposals import SpeciesLookup, clean_doi
+from .interaction_names import SpeciesLookup, clean_doi
 from .models import PathogenInteraction
 
 EXPORT_COLUMNS = [
@@ -107,8 +107,9 @@ def normalise_link(value):
     value = (value or "").strip()
     if not value:
         return "", None
-    if re.match(r"^https?://\S+$", value, re.I) and not re.match(r"^https?://(dx\.)?doi\.org/", value, re.I):
-        return value, None
+    if re.match(r"^https?://\S+$", value, re.I):
+        as_doi = re.match(r"^https?://(?:dx\.)?doi\.org/(\S+)$", value, re.I)
+        return (f"https://doi.org/{as_doi.group(1).lower()}" if as_doi else value), None
     doi = clean_doi(value)
     if re.fullmatch(r"10\.\d{4,9}/\S+", doi):
         return f"https://doi.org/{doi}", None

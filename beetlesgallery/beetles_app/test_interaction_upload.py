@@ -99,8 +99,8 @@ class RejectionTests(UploadCase):
                 self.assertRejected(row, message)
 
     def test_one_bad_row_saves_nothing_and_every_problem_is_listed_with_its_row(self):
-        result = self.load(csv_text(NEW_ROW, NEW_ROW.replace("Fungi", "").replace("10.1000/ABC", "10.1/x"),
-                                    NEW_ROW.replace("Ips typographus", "Nope nope").replace("10.1000/ABC", "10.1/y")))
+        result = self.load(csv_text(NEW_ROW, NEW_ROW.replace("Fungi", "").replace("10.1000/ABC", "10.1234/x"),
+                                    NEW_ROW.replace("Ips typographus", "Nope nope").replace("10.1000/ABC", "10.1234/y")))
         self.assertFalse(PathogenInteraction.objects.exists())
         self.assertEqual(sorted(e.split(":")[0] for e in result.errors), ["Row 3", "Row 4"])
 
@@ -193,7 +193,7 @@ class PageTests(UploadCase):
         self.assertEqual(PathogenInteraction.objects.get().added_by, self.staff)
 
     def test_the_page_lists_problems_with_row_numbers_and_saves_nothing(self):
-        response = self.post(csv_text(NEW_ROW, NEW_ROW.replace("Fungi", "").replace("10.1000/ABC", "10.1/x")))
+        response = self.post(csv_text(NEW_ROW, NEW_ROW.replace("Fungi", "").replace("10.1000/ABC", "10.1234/x")))
         self.assertContains(response, "Row 3")
         self.assertContains(response, "nothing was saved")
         self.assertFalse(PathogenInteraction.objects.exists())
@@ -223,7 +223,7 @@ class ExportTests(UploadCase):
         self.assertEqual(self.download().status_code, 200)
 
     def test_the_download_has_record_ids_and_can_be_uploaded_again_unchanged(self):
-        self.uploaded(year="2019", source="Smith, 2019", doi_or_full_text="https://doi.org/10.1/x")
+        self.uploaded(year="2019", source="Smith, 2019", doi_or_full_text="https://doi.org/10.1234/x")
         PathogenInteraction.objects.create(beetle_host="Ips typographus", beetle_host_id="1733", pathogen="Beauveria", category="Fungi", origin="dataset", record_number="3")
         response = self.download()
         self.assertIn("text/csv", response["Content-Type"])
