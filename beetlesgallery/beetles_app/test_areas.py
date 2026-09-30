@@ -123,3 +123,58 @@ class AccountPageTests(AreaCase):
         self.grant(self.user, "upload", "annotate")
         self.client.force_login(self.superuser)
         self.assertContains(self.client.get(reverse("my_account")), "'annotate,upload'")
+
+
+class EditingUsersIsForSuperusersTests(AreaCase):
+    def edit(self, actor, **fields):
+        self.client.force_login(actor)
+        data = {"action_edit_user": "1", "user_id": self.user.id, "username": self.user.username, "role": "standard", "is_active": "on", **fields}
+        return self.client.post(reverse("my_account"), data)
+
+    def test_staff_cannot_change_anyones_role_status_name_or_password(self):
+        for fields in ({"role": "superuser"}, {"role": "staff"}, {"is_active": ""}, {"username": "renamed"}, {"new_password": "Changed-pw-99"}):
+            with self.subTest(fields=fields):
+                self.edit(self.staff, **fields)
+                self.user.refresh_from_db()
+                self.assertEqual((self.user.username, self.user.is_staff, self.user.is_superuser, self.user.is_active), ("user", False, False, True))
+                self.assertTrue(self.user.check_password("pw"))
+
+    def test_staff_cannot_promote_themselves(self):
+        self.client.force_login(self.staff)
+        self.client.post(reverse("my_account"), {"action_edit_user": "1", "user_id": self.staff.id, "username": "staff", "role": "superuser", "is_active": "on"})
+        self.staff.refresh_from_db()
+        self.assertFalse(self.staff.is_superuser)
+
+    def test_a_superuser_still_can(self):
+        self.edit(self.superuser, role="staff", username="renamed")
+        self.user.refresh_from_db()
+        self.assertEqual((self.user.username, self.user.is_staff, self.user.is_superuser), ("renamed", True, False))
+
+    def test_the_edit_button_is_only_shown_to_superusers(self):
+        self.client.force_login(self.staff)
+        self.assertNotContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")
+        self.client.force_login(self.superuser)
+        self.assertContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")
+
+
+class StaffOnlySeeTheirOwnAccountTests(AreaCase):
+    def test_staff_cannot_create_users_or_see_the_directory(self):
+        self.client.force_login(self.staff)
+        page = self.client.get(reverse("my_account"))
+        for text in ("Create New User", "User Directory", "modal-create-user"):
+            self.assertNotContains(page, text)
+        before = self.user.__class__.objects.count()
+        self.client.post(reverse("my_account"), {"action_create_user": "1", "username": "newbie", "password1": "Correct-Horse-9-Staple", "password2": "Correct-Horse-9-Staple"})
+        self.assertEqual(self.user.__class__.objects.count(), before)
+        self.assertRedirectsToLogin(self.client.get(reverse("signup")))
+
+    def test_staff_can_still_change_their_own_password(self):
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(reverse("my_account")), "Change Password")
+
+    def test_superusers_see_and_can_do_all_of_it(self):
+        self.client.force_login(self.superuser)
+        page = self.client.get(reverse("my_account"))
+        for text in ("Create New User", "User Directory"):
+            self.assertContains(page, text)
+        self.assertEqual(self.client.get(reverse("signup")).status_code, 200)

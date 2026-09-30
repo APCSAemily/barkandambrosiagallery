@@ -16,8 +16,8 @@
             <span>Change Password</span>
         </button>
 
-        {# Action 2: Create User (Staff Only) #}
-        {% if request.user.is_staff %}
+        {# Action 2: Create User (Superusers Only) #}
+        {% if request.user.is_superuser %}
             <button onclick="openModal('modal-create-user')" 
                class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
                 <i class="fi fi-rr-user-add"></i>
@@ -28,8 +28,8 @@
     </div>
   </div>
 
-  {# --- SECTION 2: USER LIST (Staff Only) --- #}
-  {% if request.user.is_staff %}
+  {# --- SECTION 2: USER LIST (Superusers Only) --- #}
+  {% if request.user.is_superuser %}
   <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
     <div class="mb-8 border-b border-gray-200 pb-4">
       <h2 class="text-2xl font-bold mb-2 text-gray-800">User Directory</h2>
@@ -90,6 +90,7 @@
 
               {# Actions Cell #}
               <td class="px-4 py-3 text-right">
+                {% if request.user.is_superuser %}
                 <button type="button" 
                    onclick="openEditUserModal(
                      '{{ u.id }}', 
@@ -102,6 +103,7 @@
                    title="Edit User">
                    <i class="fi fi-rr-edit"></i>
                 </button>
+                {% endif %}
               </td>
             </tr>
             {% empty %}
@@ -167,8 +169,8 @@
   </div>
 </div>
 
-{# --- MODAL 2: CREATE USER (Staff Only) --- #}
-{% if request.user.is_staff %}
+{# --- MODAL 2: CREATE USER (Superusers Only) --- #}
+{% if request.user.is_superuser %}
 <div id="modal-create-user" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title-create" role="dialog" aria-modal="true">
   <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity" onclick="closeModal('modal-create-user')"></div>
   <div class="flex min-h-screen items-center justify-center p-4 text-center">
