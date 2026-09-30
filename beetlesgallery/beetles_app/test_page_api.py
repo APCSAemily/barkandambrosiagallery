@@ -324,6 +324,19 @@ class AnnotationFeedTests(ApiTestCase):
         self.assertTrue(by_id[str(self.pending.id)]["has_unvalidated_boxes"])
         self.assertEqual(by_id[str(self.unboxed.id)]["annotation_count"], 0)
 
+    def test_every_sort_works_and_oldest_reverses_newest(self):
+        for key in ("newest", "oldest", "unvalidated_first", "date_taken", "name", "resolution", "largest"):
+            with self.subTest(sort=key):
+                self.assertEqual(self.feed(f"ordering={key}")["count"], 3)
+        newest = [r["image_asset_id"] for r in self.feed("ordering=newest")["results"]]
+        oldest = [r["image_asset_id"] for r in self.feed("ordering=oldest")["results"]]
+        self.assertEqual(newest, oldest[::-1])
+
+    def test_an_unknown_or_hostile_sort_is_ignored_not_an_error(self):
+        for value in ("bogus", "id", "image_file__x", "-created_at"):
+            with self.subTest(value=value):
+                self.assertEqual(self.feed(f"ordering={value}")["count"], 3)
+
     def test_first_page_carries_summary_stats(self):
         self.assertEqual(self.feed()["stats"], {
             "images_validated": 1, "images_unvalidated": 2, "images_no_bbox": 1,

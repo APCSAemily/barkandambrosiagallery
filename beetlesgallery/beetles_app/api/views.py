@@ -405,7 +405,7 @@ class BeetlesViewSet(viewsets.ModelViewSet):
 
         page_num = int(request.GET.get('page', 1))
         page_size = min(int(request.GET.get('page_size', 50)), 200)
-        ordering = request.GET.get('ordering', '-created_at')
+        ordering = request.GET.get('ordering', 'newest')
         search = request.GET.get('search', '').strip()
 
         beetles_qs = Beetles.objects.filter(is_deleted=False)
@@ -466,10 +466,18 @@ class BeetlesViewSet(viewsets.ModelViewSet):
                 'rois_unvalidated': roi_stats['unval_count'] or 0
             }
 
-        if ordering == '-created_at':
-            image_qs = image_qs.order_by('-created_at')
-        else:
-            image_qs = image_qs.order_by(ordering)
+        # Only known sorts are accepted (the value used to go straight into order_by). Empty values go last.
+        from django.db.models import F
+        sorts = {
+            'newest': (F('created_at').desc(nulls_last=True),),
+            'oldest': (F('created_at').asc(nulls_last=True),),
+            'date_taken': (F('image_date_taken').desc(nulls_last=True),),
+            'largest': (F('image_size_bytes').desc(nulls_last=True),),
+            'resolution': (F('image_width').desc(nulls_last=True),),
+            'name': (F('full_path_at_import').asc(),),
+            'unvalidated_first': (F('is_validated').asc(), F('created_at').desc(nulls_last=True)),
+        }
+        image_qs = image_qs.order_by(*sorts.get(ordering, sorts['newest']), 'id')
 
         paginator = Paginator(image_qs, page_size)
         page_obj = paginator.get_page(page_num)
