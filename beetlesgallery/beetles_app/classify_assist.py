@@ -4,6 +4,11 @@
 The new ROIs are never validated: a person does that. A box that overlaps an existing ROI of the image is skipped,
 so running it twice, or on an image that already has boxes, adds only what is new. Each proposed species is also
 kept as a ModelPrediction, so the model's confidence and runners-up are not lost.
+
+A new ROI gets the same metadata as one drawn with the mouse (see roi_defaults.py): the first box fills the image's
+box-less template ROI if it has one, and every other box copies the specimen and collection details (aspect, country,
+sex, notes...) of the ROI that was most recently updated. The species is the model's; a copied species is never kept
+for a box the model labelled differently or not at all.
 """
 import re
 
@@ -12,6 +17,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from . import roi_defaults
 from .bbox_rules import TOLERANCE
 from .models import Beetles, ModelPrediction, Taxon
 
@@ -85,6 +91,9 @@ def add_rois(asset, result, user):
         (b.bbox_x, b.bbox_y, b.bbox_width, b.bbox_height)
         for b in Beetles.objects.filter(image_asset=asset, is_deleted=False, bbox_x__isnull=False)
     ]
+    # The metadata every new box starts with, from what the image had before this run
+    template = roi_defaults.template_roi(asset)
+    inherited = roi_defaults.inherited_fields(roi_defaults.latest_roi(asset), species=False)
     created, skipped = [], 0
     with transaction.atomic():
         for det in sorted(result.get("detections", []), key=lambda d: -float(d.get("score") or 0)):
@@ -95,11 +104,23 @@ def add_rois(asset, result, user):
                 skipped += 1
                 continue
             taxon = names.get(_norm(det.get("label")))
-            roi = Beetles.objects.create(
-                image_asset=asset, bbox_x=box[0], bbox_y=box[1], bbox_width=box[2], bbox_height=box[3],
+            audit = dict(
+                bbox_x=box[0], bbox_y=box[1], bbox_width=box[2], bbox_height=box[3],
                 bbox_is_validated=False, bbox_created_by=user, bbox_created_at=now, last_updated_by=user,
-                depicts_valid_name_id=taxon.valid_species_id if taxon else None,
             )
+            if template is not None:
+                # The image's own metadata stays; the model's species only fills a blank one.
+                roi, template = template, None
+                for name, value in audit.items():
+                    setattr(roi, name, value)
+                if taxon and not roi.depicts_valid_name_id:
+                    roi.depicts_valid_name_id = taxon.valid_species_id
+                roi.save()
+            else:
+                roi = Beetles.objects.create(
+                    image_asset=asset, depicts_valid_name_id=taxon.valid_species_id if taxon else None,
+                    **inherited, **audit,
+                )
             if taxon:
                 probs = det.get("probs") or []
                 runners = sorted(

@@ -119,6 +119,86 @@ class ClassifyTests(ClassifyCase):
         self.assertContains(self.client.get("/tools/annotate/"), "classifyCurrentImage")
 
 
+SPECIMEN = dict(aspect="dorsal", collection_country="Brazil", collection_stateProvince="Sao Paulo",
+                specimen_sex="female", specimen_notes="from the gallery", alternative_id="ALT-7")
+
+
+class ProposedRoiMetadataTests(ClassifyCase):
+    """A box from the classifier starts with what a box drawn with the mouse starts with."""
+
+    def other_box(self, label="Xyleborus_affinis"):
+        return {**DETECTION, "box": [600, 100, 800, 300], "label": label}
+
+    def copied(self, roi):
+        return {name: getattr(roi, name) for name in SPECIMEN}
+
+    def test_a_new_box_copies_the_specimen_details_of_the_latest_roi(self):
+        existing = make_beetle(image=self.asset, taxon=self.typo, bbox="validated", **SPECIMEN)
+        self.classify([self.other_box()])
+        roi = Beetles.objects.exclude(pk=existing.pk).get(image_asset=self.asset)
+        self.assertEqual(self.copied(roi), SPECIMEN)
+        self.assertEqual(roi.depicts_valid_name_id, "2210")          # the model's species, not the copied one
+        self.assertEqual(roi.taxon, self.affinis)
+        self.assertFalse(roi.bbox_is_validated)
+
+    def test_a_copied_species_is_never_kept_for_a_box_the_model_did_not_label(self):
+        existing = make_beetle(image=self.asset, taxon=self.typo, bbox="validated", **SPECIMEN)
+        self.classify([self.other_box("Not_in_the_list")])
+        roi = Beetles.objects.exclude(pk=existing.pk).get(image_asset=self.asset)
+        self.assertEqual(self.copied(roi), SPECIMEN)
+        self.assertIsNone(roi.depicts_valid_name_id)
+        self.assertIsNone(roi.taxon)
+
+    def test_every_box_of_one_run_gets_the_details_from_before_the_run(self):
+        existing = make_beetle(image=self.asset, taxon=self.typo, bbox="validated", **SPECIMEN)
+        third = {**DETECTION, "box": [100, 300, 300, 450], "label": "Ips_typographus", "score": 0.5}
+        self.classify([self.other_box(), third])
+        new = Beetles.objects.exclude(pk=existing.pk).filter(image_asset=self.asset)
+        self.assertEqual(new.count(), 2)
+        self.assertEqual({tuple(self.copied(r).items()) for r in new}, {tuple(SPECIMEN.items())})
+        self.assertEqual({r.depicts_valid_name_id for r in new}, {"2210", "1733"})
+
+    def test_the_first_box_fills_the_images_boxless_template_roi(self):
+        template = make_beetle(image=self.asset, **SPECIMEN)
+        self.assertIsNone(template.bbox_x)
+        self.classify()
+        self.assertEqual(Beetles.objects.filter(image_asset=self.asset).count(), 1)
+        template.refresh_from_db()
+        self.assertEqual((template.bbox_x, template.bbox_is_validated, template.bbox_created_by), (0.1, False, self.staff))
+        self.assertEqual(self.copied(template), SPECIMEN)
+        self.assertEqual(template.depicts_valid_name_id, "2210")     # it had no species, so the model's is used
+        self.assertEqual(ModelPrediction.objects.get(roi=template).valid_species_id, "2210")
+
+    def test_a_template_roi_keeps_a_species_a_person_gave_it(self):
+        template = make_beetle(image=self.asset, taxon=self.typo, **SPECIMEN)
+        self.classify()
+        template.refresh_from_db()
+        self.assertEqual(template.depicts_valid_name_id, "1733")
+        self.assertEqual(ModelPrediction.objects.get(roi=template).valid_species_id, "2210")  # still kept as a suggestion
+
+    def test_the_second_box_after_a_template_copies_its_details(self):
+        template = make_beetle(image=self.asset, **SPECIMEN)
+        self.classify([DETECTION, self.other_box()])
+        boxes = Beetles.objects.filter(image_asset=self.asset)
+        self.assertEqual(boxes.count(), 2)
+        for roi in boxes:
+            self.assertEqual(self.copied(roi), SPECIMEN)
+
+    def test_it_matches_a_box_drawn_with_the_mouse(self):
+        make_beetle(image=self.asset, taxon=self.typo, bbox="validated", **SPECIMEN)
+        drawn = self.client.post(
+            "/api/v1/beetles/",
+            {"image_asset_id": str(self.asset.id), "bbox_x": 0.6, "bbox_y": 0.2, "bbox_width": 0.2, "bbox_height": 0.4},
+            content_type="application/json",
+        )
+        self.assertEqual(drawn.status_code, 201, drawn.content)
+        mouse = Beetles.objects.get(pk=drawn.json()["id"])
+        Beetles.objects.filter(pk=mouse.pk).update(is_deleted=True)   # so the next box is not judged against it
+        self.classify([{**DETECTION, "box": [100, 300, 300, 450], "label": "Xyleborus_affinis"}])
+        proposed = Beetles.objects.filter(image_asset=self.asset, is_deleted=False, bbox_is_validated=False).exclude(pk=mouse.pk).get()
+        self.assertEqual(self.copied(proposed), self.copied(mouse))
+
+
 class ClassifierPageSavesImagesTests(PageBehaviourCase):
     """Images sent to the public classifier page that contain a beetle are kept, unvalidated, once."""
 

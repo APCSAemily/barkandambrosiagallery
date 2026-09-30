@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 from beetlesgallery.beetles_app.models import ImageAsset, Beetles, ImageLock
+from .. import roi_defaults
 from .serializers import ImageAssetSerializer, BeetlesSerializer, SpeciesSerializer
 import json
 import zipfile
@@ -274,39 +275,15 @@ class BeetlesViewSet(viewsets.ModelViewSet):
             image_asset = serializer.validated_data.get('image_asset')
 
             if image_asset:
-                # 1. Look for a "Template/Ghost" ROI (has metadata, but NULL bbox coordinates)
-                template_beetle = Beetles.objects.filter(
-                    image_asset=image_asset,
-                    bbox_x__isnull=True,
-                    is_deleted=False
-                ).first()
-
+                # 1. A "Template/Ghost" ROI (has metadata, but NULL bbox coordinates) is filled in;
+                #    serializer.instance makes serializer.save() an UPDATE instead of an INSERT.
+                # 2. Otherwise the new ROI copies the metadata of the most recent existing ROI.
+                #    (The same rules give the classifier's boxes their metadata, see roi_defaults.py.)
+                template_beetle = roi_defaults.template_roi(image_asset)
                 if template_beetle:
-                    # Instruct DRF to UPSERT: By setting serializer.instance, the subsequent 
-                    # serializer.save() executes an SQL UPDATE instead of an INSERT.
                     serializer.instance = template_beetle
                 else:
-                    # 2. No Template found. Create a NEW ROI by copying metadata from the most recent existing ROI.
-                    existing_beetle = Beetles.objects.filter(
-                        image_asset=image_asset,
-                        is_deleted=False
-                    ).order_by('-last_updated_at').first()
-                    
-                    if existing_beetle:
-                        save_kwargs.update({
-                            'taxon': existing_beetle.taxon,  # Critical: Maintains materialized tree link
-                            'aspect': existing_beetle.aspect,
-                            'depicts_specimen': existing_beetle.depicts_specimen,
-                            'depicts_valid_name_id': existing_beetle.depicts_valid_name_id,
-                            'depicts_described_name_id': existing_beetle.depicts_described_name_id,
-                            'depicts_name_verbatim': existing_beetle.depicts_name_verbatim,
-                            'alternative_id': existing_beetle.alternative_id,
-                            'collection_country': existing_beetle.collection_country,
-                            'collection_stateProvince': existing_beetle.collection_stateProvince,
-                            'specimen_sex': existing_beetle.specimen_sex,
-                            'specimen_type_status': existing_beetle.specimen_type_status,
-                            'specimen_notes': existing_beetle.specimen_notes,
-                        })
+                    save_kwargs.update(roi_defaults.inherited_fields(roi_defaults.latest_roi(image_asset)))
 
         # 3. Terminal Execution: Execute the save exclusively through the serializer pipeline
         serializer.save(**save_kwargs)
