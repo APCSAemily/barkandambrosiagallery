@@ -112,6 +112,12 @@
       transition: transform 0.3s ease-in-out;
     }
 
+    /* The collapsed sidebar is narrower than an item's padding plus icon, so the icons used to be
+       squeezed and re-centred as it opened. Never shrink them: they stay put. */
+    #sidenav i.fi {
+      flex-shrink: 0;
+    }
+
     #sidenav-footer a {
       color: rgb(156 163 175);
       transition: color 0.15s ease-in-out;
