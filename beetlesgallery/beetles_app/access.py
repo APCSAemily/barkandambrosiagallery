@@ -115,7 +115,13 @@ def submit_request(data, review_url):
 
 
 def notify_approvers(access_request, review_url):
+    # The configured addresses, plus every active superuser who has one: all superusers can decide requests.
     recipients = list(settings.ACCESS_REQUEST_RECIPIENTS)
+    known = {r.lower() for r in recipients}
+    for address in get_user_model().objects.filter(is_superuser=True, is_active=True).exclude(email="").values_list("email", flat=True):
+        if address.lower() not in known:
+            known.add(address.lower())
+            recipients.append(address)
     if not recipients:
         access_request.notify_error = "No approvers are configured (ACCESS_REQUEST_RECIPIENTS)."
     else:

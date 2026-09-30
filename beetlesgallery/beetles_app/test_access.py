@@ -126,6 +126,14 @@ class RequestFormTests(AccessCase):
         self.assertIsNone(saved.notified_at)
         self.assertIn("no route", saved.notify_error)
 
+    def test_every_superuser_with_an_email_is_told_too(self):
+        self.superuser.email = "boss@example.org"
+        self.superuser.save()
+        User.objects.create_superuser("gone", email="gone@example.org", password="pw", is_active=False)
+        User.objects.create_superuser("dup", email="HULCR@example.org", password="pw")
+        self.send()
+        self.assertEqual(sorted(mail.outbox[0].to), sorted(APPROVERS + ["boss@example.org"]))
+
     @override_settings(ACCESS_REQUEST_RECIPIENTS=[])
     def test_the_request_is_kept_when_no_approvers_are_configured(self):
         self.send()
