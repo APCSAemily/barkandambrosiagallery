@@ -208,3 +208,32 @@ class DetailHeadingTests(PageBehaviourCase):
     def test_unlinked_specimen_is_unidentified(self):
         beetle = make_beetle(depicts_specimen="Vial_1")
         self.assertEqual(self.heading(beetle), "Unidentified")
+
+
+class GallerySortTests(PageBehaviourCase):
+    def setUp(self):
+        super().setUp()
+        from beetlesgallery.beetles_app.testing import make_beetle, make_taxon, make_image
+        self.client.force_login(self.user)
+        self.a = make_beetle(taxon=make_taxon(valid_species_id="1", genus="Zeta", species="a", scientific_name="Zeta a"))
+        self.b = make_beetle(taxon=make_taxon(valid_species_id="2", genus="Alpha", species="b", scientific_name="Alpha b"))
+        self.none = make_beetle()
+
+    def order(self, sort):
+        response = self.client.get(reverse("beetles_image_browser"), {"sort": sort})
+        self.assertEqual(response.status_code, 200)
+        return [b.id for b in response.context["beetles"]]
+
+    def test_species_sort_both_ways_with_unidentified_last(self):
+        self.assertEqual(self.order("species"), [self.b.id, self.a.id, self.none.id])
+        self.assertEqual(self.order("species_desc"), [self.a.id, self.b.id, self.none.id])
+
+    def test_every_sort_loads_and_keeps_one_row_per_image(self):
+        from beetlesgallery.beetles_app.views import GALLERY_SORTS
+        for key in GALLERY_SORTS:
+            with self.subTest(sort=key):
+                self.assertEqual(len(self.order(key)), 3)
+
+    def test_unknown_sort_is_ignored_and_the_choices_are_offered(self):
+        self.assertEqual(len(self.order("bogus")), 3)
+        self.assertContains(self.client.get(reverse("beetles_image_browser"), {"sort": "species"}), 'value="species" selected')
