@@ -8,7 +8,7 @@
     <div class="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
       <div class="w-full p-4 sm:p-12.5">
         <p class="mb-6 block font-medium text-black">
-          New here? <a href="{% url 'request_access' %}" class="font-bold underline hover:text-blue-900">Request access</a>.
+          New here? <a href="{% url 'request_access' %}" class="inline-block py-2 font-bold underline hover:text-gray-600">Request access</a>.
           Accounts are given by approval.
         </p>
         <form method="POST" action="{% url 'login' %}">
@@ -38,7 +38,7 @@
             </div>
           </div>
 
-          <p class="mb-4 text-sm"><a href="{% url 'password_reset' %}" class="underline hover:text-blue-900">Forgot your password?</a></p>
+          <p class="mb-4 text-sm"><a href="{% url 'password_reset' %}" class="inline-block py-2 underline hover:text-gray-600">Forgot your password?</a></p>
 
           <input type="hidden" name="next" value="{{ next }}" />
 
