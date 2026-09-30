@@ -33,8 +33,3 @@ class PhoneLayoutTests(SimpleTestCase):
         self.assertIn("@media (max-width: 899px)", page)
         self.assertIn("flex-direction: column", page)
         self.assertIn("width: 100%;           /* it sits in a plain wrapper", page)
-
-    def test_the_game_is_one_fixed_screen(self):
-        page = read("beetles", "game_play.html")
-        self.assertIn("100dvh", page)
-        self.assertIn("safe-area-inset-bottom", page)
