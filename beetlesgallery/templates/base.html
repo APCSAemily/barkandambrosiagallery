@@ -27,6 +27,22 @@
     /* The icon fonts load from a CDN. Until they are in, the icons would show as empty boxes and then swap in,
        so keep them invisible (they keep their space) and show them all at once. */
     html:not(.icons-ready) i[class*="fi-"] { visibility: hidden; }
+
+    /* Touch screens: controls big enough for a finger, and text fields that do not make iPhones zoom in */
+    @media (pointer: coarse) {
+      input[type="checkbox"], input[type="radio"] { width: 1.25rem; height: 1.25rem; }
+      #toggle-filters-btn, #view-toggle-card, #view-toggle-gallery, #expand-all-btn, #collapse-all-btn,
+      .btn-download, .tree-toggle, .tree-browse-link, #btn-history, #btn-downloads, #btn-uploads, #btn-updates {
+        min-height: 2.5rem; min-width: 2.5rem; display: inline-flex; align-items: center; justify-content: center;
+      }
+      .tree-toggle { justify-content: flex-start; }
+      /* the species and taxonomy links in the gallery cards */
+      #gallery-results-container .truncate a { display: inline-block; padding: 0.3rem 0; }
+    }
+    @media (pointer: coarse) and (max-width: 767px) {
+      select, textarea, input[type="text"], input[type="search"], input[type="email"], input[type="password"],
+      input[type="number"], input[type="url"], input[type="tel"] { font-size: 16px; min-height: 2.5rem; }
+    }
   </style>
   <script>
     (function () {

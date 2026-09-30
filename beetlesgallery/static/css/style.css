@@ -660,6 +660,10 @@ video {
   visibility: visible;
 }
 
+.invisible {
+  visibility: hidden;
+}
+
 .collapse {
   visibility: collapse;
 }
@@ -1288,10 +1292,6 @@ video {
 
 .min-w-\[12rem\] {
   min-width: 12rem;
-}
-
-.min-w-\[240px\] {
-  min-width: 240px;
 }
 
 .min-w-\[260px\] {
@@ -3196,11 +3196,6 @@ video {
 .hover\:text-blue-800:hover {
   --tw-text-opacity: 1;
   color: rgb(30 64 175 / var(--tw-text-opacity, 1));
-}
-
-.hover\:text-blue-900:hover {
-  --tw-text-opacity: 1;
-  color: rgb(30 58 138 / var(--tw-text-opacity, 1));
 }
 
 .hover\:text-emerald-900:hover {

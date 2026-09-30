@@ -114,13 +114,31 @@
      and the panel scrolls, instead of a dropdown floating past the image box. */
   #browser-section-content { min-height: 14rem; }
 
+  /* Phones and small tablets: the three panels become three tabs (Images, Canvas, Details) instead of three columns. */
+  #annotation-canvas { touch-action: none; }   /* a finger draws and drags boxes instead of scrolling the page */
+  #annot-tabs { display: none; }
+  @media (max-width: 1023px) {
+    #annot-row { display: block !important; height: calc(100vh - 13.5rem) !important; height: calc(100dvh - 13.5rem) !important; }
+    #annot-row > .resizer { display: none !important; }
+    #annot-row > #panel-left, #annot-row > #panel-center, #annot-row > #panel-right {
+      display: none !important; width: 100% !important; min-width: 0 !important; max-width: none !important; height: 100% !important; opacity: 1 !important;
+      border-width: 1px !important; margin: 0 !important;
+    }
+    #annot-row > #panel-left.m-active, #annot-row > #panel-right.m-active { display: flex !important; }
+    #annot-row > #panel-center.m-active { display: flex !important; }
+    #annot-tabs { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; background: #fff; border-top: 1px solid #e5e7eb;
+                  padding-bottom: env(safe-area-inset-bottom); }
+    #annot-tabs button { flex: 1 1 0; height: 3.25rem; font-size: 0.8125rem; font-weight: 500; color: #6b7280; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+    #annot-tabs button.on { color: #111827; font-weight: 600; box-shadow: inset 0 2px 0 #111827; }
+    main { padding-bottom: 4.5rem !important; }
+  }
 </style>
 
 <div class="h-full flex flex-col">
   <div class="flex items-center justify-between mb-4 flex-shrink-0">
     <div>
-      <h1 class="text-3xl font-bold text-gray-900">Data Curation & Annotation</h1>
-      <p class="text-xs text-gray-500 mt-1">
+      <h1 class="text-xl sm:text-3xl font-bold text-gray-900">Data Curation & Annotation</h1>
+      <p class="text-xs text-gray-500 mt-1 hidden md:block">
         <kbd class="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">W/S or Up/Down</kbd> Prev/Next Image
         <kbd class="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] ml-2">D</kbd> Switch Tab
         <kbd class="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] ml-2">A</kbd> Save Target
@@ -130,7 +148,7 @@
     </div>
   </div>
 
-  <div class="flex h-full min-h-0" style="height: calc(100vh - 8rem);">
+  <div id="annot-row" class="flex h-full min-h-0" style="height: calc(100vh - 8rem);">
     
     <div id="panel-left" class="space-y-4 overflow-y-auto flex flex-col panel-transition" style="width: 25%; min-width: 320px; height: 100%;">
       <div id="browser-card" class="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col flex-1 min-h-0">
@@ -449,7 +467,26 @@
   </div>
 </div>
 
+<nav id="annot-tabs" aria-label="Annotation panels">
+  <button type="button" data-tab="left" onclick="mobileTab('left')"><i class="fi fi-rr-list text-lg"></i><span>Images</span></button>
+  <button type="button" data-tab="center" onclick="mobileTab('center')"><i class="fi fi-rr-picture text-lg"></i><span>Canvas</span></button>
+  <button type="button" data-tab="right" onclick="mobileTab('right')"><i class="fi fi-rr-edit text-lg"></i><span>Details</span></button>
+</nav>
+
 <script>
+// ---------------------------------------------------------
+// PHONES: one panel at a time (Images, Canvas, Details)
+// ---------------------------------------------------------
+const phoneLayout = window.matchMedia('(max-width: 1023px)');
+function mobileTab(name) {
+  ['left', 'center', 'right'].forEach((side) => {
+    document.getElementById('panel-' + side).classList.toggle('m-active', side === name);
+  });
+  document.querySelectorAll('#annot-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+  if (name === 'center') setTimeout(() => { if (state.currentImageObj) fitToScreen(); }, 60);   // the canvas was hidden, so refit
+}
+mobileTab('left');
+
 // ---------------------------------------------------------
 // GLOBAL STATE
 // ---------------------------------------------------------
@@ -1007,6 +1044,7 @@ async function selectImage(img) {
 
   state.selectedImageId = img.image_asset_id;
   renderImageList(state.images, false);
+  if (phoneLayout.matches) mobileTab('center');   // on a phone, choosing an image opens it
 
   document.getElementById('canvas-title').textContent = img.image_asset_id;
   document.getElementById('canvas-empty').classList.add('hidden');
@@ -1928,10 +1966,12 @@ document.addEventListener('mousedown', (e) => {
 // CANVAS INTERACTIONS (DRAW, MOVE, RESIZE, CANVAS DELETE X)
 // ---------------------------------------------------------
 function setupCanvasEvents() {
-  canvas.addEventListener('mousedown', onMouseDown);
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
-  canvas.addEventListener('mousemove', updateCursor);
+  // Pointer events cover mouse, pen and finger alike (the mouse behaves exactly as before)
+  canvas.addEventListener('pointerdown', onMouseDown);
+  window.addEventListener('pointermove', onMouseMove);
+  window.addEventListener('pointerup', onMouseUp);
+  window.addEventListener('pointercancel', onMouseUp);
+  canvas.addEventListener('pointermove', updateCursor);
   wrapper.addEventListener('wheel', handleZoomWheel, { passive: false });
 }
 
@@ -1945,8 +1985,9 @@ function getPointer(e) {
 function hitTest(x, y) {
   const W = canvas.width;
   const H = canvas.height;
-  const handleSize = 14 / state.zoom;
-  const margin = 8 / state.zoom;
+  const coarse = window.matchMedia('(pointer: coarse)').matches;   // a finger needs bigger handles than a mouse
+  const handleSize = (coarse ? 28 : 14) / state.zoom;
+  const margin = (coarse ? 16 : 8) / state.zoom;
 
   // Helper to check boundaries for a single box index
   const checkBounds = (i) => {
