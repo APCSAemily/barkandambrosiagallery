@@ -6,12 +6,31 @@
   <div class="mb-6">
     <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">Beetle ID Game</h1>
     <p class="mt-1 text-sm sm:text-base text-gray-500">
-      Help name the beetles in our images. Every answer helps build better labels for the gallery.
+      Beetles keep coming for as long as you like. Every answer helps build better labels for the gallery.
     </p>
   </div>
 
-  <!-- Your stats (only change when a round ends) -->
-  <div class="grid grid-cols-2 gap-3 mb-6">
+  <!-- Play -->
+  <div class="flex flex-col gap-3 mb-8">
+    {% for game in games %}
+    <a href="{% url 'game_play' game.mode %}"
+      class="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-2xl shadow-sm active:bg-gray-50 hover:shadow-md transition-all">
+      <div class="p-3 bg-gray-900 text-white rounded-xl">
+        <i class="fi {% if game.mode == 'classify' %}fi-rr-search{% else %}fi-rr-users{% endif %} text-2xl"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <h2 class="font-bold text-gray-900 text-lg">{{ game.name }}</h2>
+        <p class="text-sm text-gray-500">{{ game.tagline }}</p>
+      </div>
+      <span class="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg">Play</span>
+      <i class="fi fi-rr-angle-right text-gray-400 sm:hidden"></i>
+    </a>
+    {% endfor %}
+    <p class="text-xs text-gray-400 px-1">There are no rounds: beetles keep coming until you tap Exit. Your score is shown here, never while you play.</p>
+  </div>
+
+  <!-- Your stats -->
+  <div class="grid grid-cols-2 gap-3 mb-3">
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Beetles labelled</div>
       <div class="mt-1 text-2xl font-bold text-gray-900">{{ summary.labelled }}</div>
@@ -22,36 +41,14 @@
         {% if summary.accuracy is not None %}{% widthratio summary.accuracy 1 100 %}%{% else %}<span class="text-gray-400">&ndash;</span>{% endif %}
       </div>
       {% if summary.accuracy is None %}
-      <div class="text-xs text-gray-400 mt-1">Play a few rounds to see it</div>
+      <div class="text-xs text-gray-400 mt-1">Play a little to see it</div>
       {% endif %}
     </div>
   </div>
-  <a href="{% url 'game_report' %}" class="flex items-center justify-between -mt-3 mb-6 px-4 py-3 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+  <a href="{% url 'game_report' %}" class="flex items-center justify-between mb-8 px-4 py-3 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
     <span><i class="fi fi-rr-chart-line-up mr-1"></i> My performance and expertise</span>
     <i class="fi fi-rr-angle-right text-gray-400"></i>
   </a>
-
-  <!-- Modes -->
-  <div class="flex flex-col gap-3 mb-8">
-    <a href="{% url 'game_play' 'classify' %}"
-      class="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-2xl shadow-sm active:bg-gray-50 hover:shadow-md transition-all">
-      <div class="p-3 bg-gray-100 text-gray-700 rounded-xl"><i class="fi fi-rr-search text-2xl"></i></div>
-      <div class="flex-1">
-        <h2 class="font-bold text-gray-900 text-lg">Name the beetle</h2>
-        <p class="text-sm text-gray-500">See one beetle and give its subfamily, tribe, genus and species. Stop at whatever rank you're sure of.</p>
-      </div>
-      <i class="fi fi-rr-angle-right text-gray-400"></i>
-    </a>
-    <a href="{% url 'game_play' 'pair' %}"
-      class="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-2xl shadow-sm active:bg-gray-50 hover:shadow-md transition-all">
-      <div class="p-3 bg-gray-100 text-gray-700 rounded-xl"><i class="fi fi-rr-copy-alt text-2xl"></i></div>
-      <div class="flex-1">
-        <h2 class="font-bold text-gray-900 text-lg">Spot the relatives</h2>
-        <p class="text-sm text-gray-500">See two beetles and say how closely related they are.</p>
-      </div>
-      <i class="fi fi-rr-angle-right text-gray-400"></i>
-    </a>
-  </div>
 
   <!-- Leaderboard -->
   <div class="mb-6">
@@ -76,7 +73,7 @@
         </thead>
         <tbody>
           {% for row in leaderboard %}
-          <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-amber-50 font-semibold{% endif %}">
+          <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-gray-100 font-semibold{% endif %}">
             <td class="py-2.5 pl-4 pr-2 text-gray-400">{{ row.position }}</td>
             <td class="py-2.5 px-2 text-gray-900 truncate max-w-[9rem]">{{ row.username }}</td>
             <td class="py-2.5 px-2 text-right tabular-nums">{{ row.labelled }}</td>
@@ -91,7 +88,6 @@
     {% else %}
     <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-2xl">No one has played yet. Be the first!</p>
     {% endif %}
-    <p class="mt-2 text-xs text-gray-400">Scores update at the end of each round.</p>
   </div>
 
   {% if user.is_staff %}

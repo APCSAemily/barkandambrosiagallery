@@ -1368,7 +1368,7 @@ class GameAnswer(models.Model):
 class PlayerSkill(models.Model):
     """
     How well a player identifies one rank within one branch of the taxonomy, from
-    their scored "Name the beetle" answers. Recomputed whenever they finish a round.
+    their scored "Name That Beetle" answers. Recomputed whenever they finish a round.
 
       rank=species,   branch=<genus>      species ID within that genus
       rank=genus,     branch=<tribe>      genus ID within that tribe

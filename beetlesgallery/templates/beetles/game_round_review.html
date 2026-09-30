@@ -15,7 +15,7 @@
     </a>
     <div class="flex-1">
       <h1 class="text-2xl font-semibold text-gray-900 tracking-tight">Your answers</h1>
-      <p class="text-sm text-gray-500">{% if round.mode == 'classify' %}Name the beetle{% else %}Spot the relatives{% endif %} · {{ round.finished_at|date:"M j, Y H:i" }}</p>
+      <p class="text-sm text-gray-500">{% if round.mode == 'classify' %}Name That Beetle{% else %}Family Ties{% endif %} · {{ round.finished_at|date:"M j, Y H:i" }}</p>
     </div>
   </div>
 
@@ -35,7 +35,7 @@
 
   <div class="flex flex-col sm:flex-row gap-3 mt-6">
     {% if is_self %}
-    <a href="{% url 'game_play' round.mode %}" class="px-6 py-3.5 text-center text-base font-semibold text-white bg-gray-900 rounded-xl">Play another round</a>
+    <a href="{% url 'game_play' round.mode %}" class="px-6 py-3.5 text-center text-base font-semibold text-white bg-gray-900 rounded-xl">Keep playing</a>
     {% endif %}
     <a href="{% url 'game_report' %}" class="px-6 py-3.5 text-center text-base font-medium text-gray-700 border border-gray-200 rounded-xl">My performance</a>
   </div>
@@ -70,7 +70,7 @@
 <div id="lightbox" class="hidden fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-3" role="dialog" aria-label="Whole image">
   <div class="relative inline-block">
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
-    <div id="lightbox-box" class="absolute border-2 border-amber-400 rounded-sm pointer-events-none"></div>
+    <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
 </div>
 
