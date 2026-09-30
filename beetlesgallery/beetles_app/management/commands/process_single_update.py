@@ -13,6 +13,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 
 from beetlesgallery.beetles_app.models import UpdateBatch, Beetles, ImageAsset, Taxon
+from beetlesgallery.beetles_app.bbox_rules import BOX_COLUMNS, is_blank, parse_box
 
 try:
     import pandas as pd
@@ -53,6 +54,18 @@ def _none(v):
         s = v.strip().lower()
         if s == "" or s == "nan": return None
     return v
+
+def _same_cell(new, current):
+    """Does this CSV cell hold what is already stored (None for blank)? Used to leave old data alone."""
+    if is_blank(new):
+        return current is None
+    if current is None:
+        return False
+    try:
+        return abs(float(str(new).strip()) - float(current)) < 1e-9
+    except ValueError:
+        return False
+
 
 def _to_float(v):
     v = _none(v)
@@ -179,13 +192,71 @@ class Command(BaseCommand):
                     # Update image fields
                     i_updates[col] = val
             
+            # A validation flag must be a readable true/false (blank leaves it alone). Otherwise a typo
+            # would either be ignored or reach the database as a raw error.
+            unreadable = [
+                (col, raw) for col, raw in (
+                    ("bbox_is_validated", b_updates.get("bbox_is_validated")),
+                    ("is_validated", i_updates.get("is_validated")),
+                ) if not is_blank(raw) and _to_bool(raw) is None
+            ]
+            if unreadable:
+                col, raw = unreadable[0]
+                errors.append(f"Row {row_num}: {col} '{raw}' must be true or false.")
+                continue
+
+            # 3. Bounding box rules (same as the annotator API). Only what this row changes is checked,
+            # so old data that predates the rules does not block unrelated edits.
+            current_cells = [None if is_new else getattr(beetle_obj, c) for c in BOX_COLUMNS]
+            final_cells = [b_updates.get(c, cur) for c, cur in zip(BOX_COLUMNS, current_cells)]
+            box_touched = any(c in b_updates for c in BOX_COLUMNS)
+            box_changed = is_new or (box_touched and not all(
+                _same_cell(new, cur) for new, cur in zip(final_cells, current_cells)
+            ))
+            if box_touched and box_changed:
+                final_box, box_error = parse_box(*final_cells)
+                if box_error:
+                    errors.append(f"Row {row_num}: {box_error}.")
+                    continue
+            else:
+                stored_box, stored_error = parse_box(*current_cells)
+                final_box = None if stored_error else stored_box
+
+            if "bbox_is_validated" in b_updates:
+                wants_validated = _to_bool(b_updates["bbox_is_validated"])
+                was_validated = False if is_new else bool(beetle_obj.bbox_is_validated)
+                if wants_validated and not was_validated and final_box is None:
+                    errors.append(f"Row {row_num}: bbox_is_validated is true but the row has no box.")
+                    continue
+
             updates_plan.append({
                 "beetle": beetle_obj,
                 "b_data": b_updates,
                 "i_data": i_updates,
                 "is_new": is_new,
-                "row_num": row_num
+                "row_num": row_num,
+                "final_box": final_box,
             })
+
+        # A new box on an image whose record has no box yet would leave that record behind, unboxed,
+        # next to a duplicate. The box belongs on that record (use its record_id), as in the annotator.
+        boxed_here = {p["beetle"].pk for p in updates_plan if not p["is_new"] and p["final_box"]}
+        unboxed_by_image = {}
+        for plan in updates_plan:
+            if not (plan["is_new"] and plan["final_box"]):
+                continue
+            image_id = plan["beetle"].image_asset_id
+            if image_id not in unboxed_by_image:
+                unboxed_by_image[image_id] = list(
+                    Beetles.objects.filter(image_asset_id=image_id, is_deleted=False, bbox_x__isnull=True)
+                    .exclude(pk__in=boxed_here).values_list("id", flat=True)[:1]
+                )
+            if unboxed_by_image[image_id]:
+                errors.append(
+                    f"Row {plan['row_num']}: image {image_id} already has a record without a box "
+                    f"(record_id {unboxed_by_image[image_id][0]}). Put the box on that record instead "
+                    "of adding a new one; use 'NEW' only for an additional box."
+                )
 
         if errors:
             self._fail(batch, "\n".join(errors[:20])) # Limit error msg size
@@ -201,6 +272,15 @@ class Command(BaseCommand):
             
             with transaction.atomic():
                 images_to_unvalidate = {}
+                # An image's validated state as it was when the batch began. Saving a validated ROI makes
+                # the image validated (models.update_image_asset_validation_status), so the row's
+                # is_validated cell (usually the value at download time) must be compared with this,
+                # not with the live value, or it would undo the validation this same batch just made.
+                start_image_validated = dict(
+                    ImageAsset.objects.filter(
+                        pk__in={p["beetle"].image_asset_id for p in updates_plan if p["beetle"].image_asset_id}
+                    ).values_list("id", "is_validated")
+                )
                 for plan in updates_plan:
                     obj = plan["beetle"]
                     b_data = plan["b_data"]
@@ -208,6 +288,8 @@ class Command(BaseCommand):
                     
                     # 1. Update/Create Beetle
                     has_b_change = False
+                    had_box = obj.bbox_x is not None
+                    was_validated = bool(obj.bbox_is_validated)
                     for k, v in b_data.items():
                         # Type conversion
                         if k == "specimen_sex": 
@@ -216,6 +298,8 @@ class Command(BaseCommand):
                             val = _to_float(v)
                         elif k == "bbox_is_validated":
                             val = _to_bool(v)
+                            if val is None:
+                                continue  # blank: leave it (a new record starts unvalidated)
                             if val is False:
                                 obj.bbox_validated_by = None
                                 obj.bbox_validated_at = None
@@ -236,6 +320,18 @@ class Command(BaseCommand):
                             if k == "depicts_valid_name_id":
                                 obj.taxon = taxon_map.get(val) if val else None
                     
+                    # Audit trail for boxes, as the annotator API keeps it.
+                    now = timezone.now()
+                    has_box = obj.bbox_x is not None
+                    if has_box and not had_box:
+                        obj.bbox_created_by, obj.bbox_created_at = batch.uploaded_by, now
+                    elif had_box and not has_box:
+                        obj.bbox_created_by = obj.bbox_created_at = None
+                        obj.bbox_validated_by = obj.bbox_validated_at = None
+                        obj.bbox_is_validated = False
+                    if obj.bbox_is_validated and not was_validated:
+                        obj.bbox_validated_by, obj.bbox_validated_at = batch.uploaded_by, now
+
                     if plan["is_new"]:
                         obj.save() # Insert
                         changed_count += 1
@@ -264,14 +360,18 @@ class Command(BaseCommand):
                             if k == "image_has_multiple_individuals": val = _to_bool(v)
                             elif k == "is_validated":
                                 val = _to_bool(v)
+                                if val is None:
+                                    continue  # blank: leave it
                                 # Devalidating a validated image cascades to all its ROIs (applied after the loop)
-                                if val is False and img.is_validated:
+                                if val is False and start_image_validated.get(img.id, img.is_validated):
                                     images_to_unvalidate[img.id] = img
                             elif k == "resolution_in_ppmm": val = _to_decimal(v)
                             elif k == "image_date_taken": val = _to_date(v)
                             else: val = _none(v)
 
                             current = getattr(img, k, None)
+                            if k == "is_validated":
+                                current = start_image_validated.get(img.id, current)
                             if str(val) != str(current):
                                 setattr(img, k, val)
                                 has_i_change = True

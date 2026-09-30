@@ -17,6 +17,12 @@ except ImportError:
     pd = None
 
 from beetlesgallery.beetles_app.schema import REQUIRED_COLS, MAX_ROWS, IMAGE_EXTENSIONS, MANIFEST_NAME, MANIFEST_VERSION
+from beetlesgallery.beetles_app.bbox_rules import BOX_COLUMNS, is_blank, parse_box
+
+# Spellings of a boolean cell (same as import_validated._to_bool)
+_TRUE = {"1", "true", "t", "yes", "y"}
+_FALSE = {"0", "false", "f", "no", "n"}
+
 
 def _is_blank(v):
     """Treat NaN/None/''/whitespace as blank."""
@@ -206,6 +212,24 @@ class Command(BaseCommand):
                 vid = _normalize_valid_id(valid_id)
                 if vid not in valid_taxa_set:
                     errors.append(f"Row {row_num}: 'depicts_valid_name_id' not found in reference database: '{vid}'.")
+                    row_errors += 1
+                    continue
+
+            # Bounding box: all four values or none, as fractions of the image (same rules as the annotator).
+            box, box_error = parse_box(*(row.get(c) for c in BOX_COLUMNS))
+            if box_error:
+                errors.append(f"Row {row_num}: {box_error}.")
+                row_errors += 1
+                continue
+            flag = row.get("bbox_is_validated")
+            if not is_blank(flag):
+                flag_value = str(flag).strip().lower()
+                if flag_value not in _TRUE and flag_value not in _FALSE:
+                    errors.append(f"Row {row_num}: bbox_is_validated '{flag}' must be true or false.")
+                    row_errors += 1
+                    continue
+                if flag_value in _TRUE and box is None:
+                    errors.append(f"Row {row_num}: bbox_is_validated is true but the row has no box.")
                     row_errors += 1
                     continue
 

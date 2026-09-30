@@ -1335,6 +1335,8 @@ def update_upload(request):
         sample_ids = df["record_id"].dropna().astype(str).head(20).tolist()
         badly_formed = []
         for s in sample_ids:
+            if str(s).strip().lower() == "new":
+                continue  # a row that adds a specimen/box to an image (see process_single_update)
             try:
                 uuid.UUID(str(s).strip())
             except Exception:

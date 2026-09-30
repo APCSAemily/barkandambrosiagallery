@@ -610,7 +610,7 @@
               <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title-update">Update Metadata</h3>
 
               <div class="mt-4 text-sm text-gray-500">
-                <p class="mb-3">Upload a CSV containing Record IDs to update specific fields.</p>
+                <p class="mb-3">Upload a CSV containing Record IDs to update specific fields. To add a bounding box, fill the four <code>bbox_</code> columns on the record's row. To add a further box to an image that already has one, add a row with <code>record_id</code> = <code>NEW</code> and the <code>image_id</code>.</p>
                 <p class="mb-3 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800"><strong>Size limit:</strong> the CSV must be less than 10 MB.</p>
 
                 {# --- SPLIT ROW: Template & Definitions --- #}
@@ -836,23 +836,23 @@
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">bbox_x</td>
-              <td class="px-6 py-3">Bounding box X coordinate (normalized 0-1, top-left corner position).</td>
+              <td class="px-6 py-3">Bounding box X coordinate: the left edge as a fraction of the image width (0-1, <strong>not pixels</strong>). A box needs all four of <code>bbox_x</code>, <code>bbox_y</code>, <code>bbox_width</code> and <code>bbox_height</code> and must fit inside the image; leave all four blank for no box.</td>
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">bbox_y</td>
-              <td class="px-6 py-3">Bounding box Y coordinate (normalized 0-1, top-left corner position).</td>
+              <td class="px-6 py-3">Bounding box Y coordinate: the top edge as a fraction of the image height (0-1).</td>
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">bbox_width</td>
-              <td class="px-6 py-3">Bounding box width (normalized 0-1).</td>
+              <td class="px-6 py-3">Bounding box width as a fraction of the image width (above 0, up to 1).</td>
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">bbox_height</td>
-              <td class="px-6 py-3">Bounding box height (normalized 0-1).</td>
+              <td class="px-6 py-3">Bounding box height as a fraction of the image height (above 0, up to 1).</td>
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">bbox_is_validated</td>
-              <td class="px-6 py-3">Whether the bounding box coordinates have been manually validated. Accepted values: 0/1, True/False, or Yes/No.</td>
+              <td class="px-6 py-3">Whether the bounding box coordinates have been manually validated (needs a box). Accepted values: 0/1, True/False, or Yes/No. Leave blank to keep the current value.</td>
             </tr>
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-3 font-mono text-xs font-semibold text-gray-700">collection_country</td>

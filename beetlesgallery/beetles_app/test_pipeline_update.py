@@ -248,14 +248,14 @@ class ProcessSingleUpdateTests(PageBehaviourCase):
     def test_database_error_on_a_later_row_rolls_back_the_earlier_rows(self):
         first, second = make_beetle(collection_country="USA"), make_beetle(collection_country="USA")
 
-        # An unreadable boolean becomes None, which the NOT NULL bbox_is_validated column refuses.
+        # A value the column cannot hold gets past the row checks and fails in the database.
         batch = self.run_rows(
             download_row(first, collection_country="Peru"),
-            download_row(second, collection_country="Peru", bbox_is_validated="maybe"),
+            download_row(second, collection_country="Peru", specimen_sex="x" * 60),
         )
 
         self.assertFailed(batch, "Database error during apply")
-        self.assertIn("bbox_is_validated", batch.error_message)
+        self.assertIn("value too long", batch.error_message)
         self.assertEqual(fresh(first).collection_country, "USA")
         self.assertEqual(first.history.count(), 1)
 
@@ -268,13 +268,14 @@ class ProcessSingleUpdateTests(PageBehaviourCase):
 
     # --- known gaps in what gets written ------------------------------------
 
-    # KNOWN BUG: _to_float (process_single_update.py:57-61) turns unreadable text into None, so a typo clears the stored coordinate and the batch still ends "applied".
-    @expectedFailure
+    # Fixed (was a KNOWN BUG: a typo cleared the stored coordinate and the batch still ended "applied").
+    # More box cases are in test_pipeline_bbox.py.
     def test_non_numeric_bbox_value_does_not_clear_the_box(self):
         beetle = make_beetle(bbox="validated")
 
-        self.run_rows(download_row(beetle, bbox_x="0,3"))
+        batch = self.run_rows(download_row(beetle, bbox_x="0,3"))
 
+        self.assertFailed(batch, "Row 2: bbox_x '0,3' is not a number")
         self.assertEqual(fresh(beetle).bbox_x, 0.1)
 
     # KNOWN BUG: the counts are set only in memory (process_single_update.py:125,191,270); every later save passes update_fields without them (models.py:689-713), so they stay 0.
