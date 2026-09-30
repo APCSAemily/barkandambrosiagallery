@@ -28,7 +28,7 @@
     <div class="flex justify-between items-start mb-6">
       <h2 class="text-2xl font-bold text-gray-800">Data Actions</h2>
       
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
       <button onclick="openModal('modal-field-definitions')" 
               class="group flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-gray-600 transition">
         <i class="fi fi-rr-info text-base"></i>
@@ -40,7 +40,7 @@
     <div class="flex flex-wrap gap-4">
 
       {# Staff Only: Upload & Update Buttons #}
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
       <button onclick="openModal('modal-upload-new')"
         class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
         <i class="fi fi-rr-upload"></i>
@@ -64,7 +64,7 @@
   </div>
 
   {# --- SECTION: INTERACTION REVIEW (Staff) --- #}
-  {% if user.is_staff %}
+  {% if areas.interactions %}
   <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
     <h2 class="text-2xl font-bold mb-2 text-gray-800">Ecological Interactions</h2>
     <p class="text-sm text-gray-600 mb-4 max-w-2xl">
@@ -392,7 +392,7 @@
       </div>
 
       {# --- STAFF TABLES (Uploads & Updates) --- #}
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
 
       {# TABLE 2: MY UPLOADS #}
       <div>
