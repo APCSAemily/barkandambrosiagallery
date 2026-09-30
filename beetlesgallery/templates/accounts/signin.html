@@ -8,9 +8,8 @@
     <div class="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
       <div class="w-full p-4 sm:p-12.5">
         <p class="mb-6 block font-medium text-black">
-          Please email Jiri Hulcr at 
-          <a href="mailto:hulcr@ufl.edu" class="font-bold underline hover:text-blue-900">hulcr@ufl.edu</a> 
-          to request an account.
+          New here? <a href="{% url 'request_access' %}" class="font-bold underline hover:text-blue-900">Request access</a>.
+          Accounts are given by approval.
         </p>
         <form method="POST" action="{% url 'login' %}">
           {% csrf_token %}

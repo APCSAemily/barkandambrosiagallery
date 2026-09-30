@@ -184,6 +184,29 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "image_browser"
 LOGOUT_REDIRECT_URL = "image_browser"
 
+# Access requests (beetles_app/access.py): who is emailed when someone asks for an account.
+# They read and decide the requests on Data Management -> Access requests, so they need superuser accounts.
+ACCESS_REQUEST_RECIPIENTS = [
+    address.strip()
+    for address in os.environ.get("ACCESS_REQUEST_RECIPIENTS", "gmarais@ufl.edu,hulcr@ufl.edu").split(",")
+    if address.strip()
+]
+PASSWORD_RESET_TIMEOUT = 7 * 24 * 60 * 60  # the "set your password" link in an approval email lasts a week
+
+# Email. Set EMAIL_HOST (and the rest) in the server's .env to send real mail; without EMAIL_HOST,
+# mail is written to the log instead of being sent.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
+EMAIL_TIMEOUT = 10  # seconds; a mail server that does not answer must not hang a page
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST else "django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@barkandambrosiagallery.org")
+
 # Beetle ID game (beetles_app/game.py)
 GAME_ROUND_SIZE = 10                  # items per round
 GAME_CALIBRATION_CHECKS = 20          # scored answers before a player counts as calibrated

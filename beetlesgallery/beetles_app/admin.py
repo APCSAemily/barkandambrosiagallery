@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction,
+    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -858,3 +858,12 @@ class ModelPredictionAdmin(admin.ModelAdmin):
     search_fields = ("=roi__id", "valid_species_id", "model_name")
     raw_id_fields = ("roi", "taxon")
     readonly_fields = ("id", "created_at")
+
+
+@admin.register(AccessRequest)
+class AccessRequestAdmin(admin.ModelAdmin):
+    list_display = ("name", "email", "status", "granted_role", "created_at", "decided_by", "decided_at")
+    list_filter = ("status", "granted_role")
+    search_fields = ("name", "email", "affiliation")
+    raw_id_fields = ("user", "decided_by")
+    readonly_fields = ("id", "created_at", "notified_at", "notify_error")

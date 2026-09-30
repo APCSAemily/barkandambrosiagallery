@@ -751,7 +751,7 @@ def beetle_detail(request, beetle_id):
 def signup(request):
     # --- Security Check: Block non-staff users ---
     if not request.user.is_staff:
-        messages.info(request, "Account creation is restricted. Please email to request an account.")
+        messages.info(request, "Accounts are given by approval. Use \"Request access\" to ask for one.")
         return redirect("login")
     # ---------------------------------------------
     
@@ -986,10 +986,16 @@ def data_management(request):
         initial_archives = []
         initial_current = None
 
+    pending_access_requests = 0
+    if request.user.is_superuser:
+        from .models import AccessRequest
+        pending_access_requests = AccessRequest.objects.filter(status=AccessRequest.Status.PENDING).count()
+
     return render(
         request,
         "beetles/data_management.html",
         {
+            "pending_access_requests": pending_access_requests,
             "batches": batches,
             "download_jobs": download_jobs,
             "update_batches": update_batches,

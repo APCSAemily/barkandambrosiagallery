@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.db.models.functions import Upper
+from django.db.models.functions import Lower, Upper
 from django.contrib.postgres.indexes import GinIndex
 
 import uuid
@@ -1458,3 +1458,53 @@ class ModelPrediction(models.Model):
 
     def __str__(self):
         return f"{self.model_name}: {self.valid_species_id} ({self.confidence:.0%})"
+
+
+# -----------------------------
+# Access requests
+# -----------------------------
+class AccessRequest(models.Model):
+    """
+    Someone asking for an account (or more access) through the public form.
+
+    Approvers (superusers) decide on Data Management -> Access requests. Nothing is created
+    until a request is approved; see beetles_app/access.py.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        DENIED = "denied", "Denied"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    email = models.EmailField()
+    affiliation = models.CharField(max_length=200, blank=True)
+    reason = models.TextField(blank=True)
+    areas = models.JSONField(default=list, blank=True, help_text="Keys of the parts of the site they asked for.")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    granted_role = models.CharField(max_length=10, blank=True, help_text="member or curator, once approved.")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="access_requests",
+        help_text="The account created or updated when approved.",
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    notified_at = models.DateTimeField(null=True, blank=True, help_text="When the approvers were emailed.")
+    notify_error = models.CharField(max_length=255, blank=True, help_text="Why the approvers could not be emailed.")
+
+    class Meta:
+        db_table = "access_request"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"), condition=models.Q(status="pending"), name="access_request_one_pending_per_email"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} <{self.email}> ({self.status})"

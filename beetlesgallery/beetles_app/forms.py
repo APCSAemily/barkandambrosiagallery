@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.contrib.auth import get_user_model
 
+from . import access
+
 User = get_user_model()
 
 # Updated styles to match your HTML template exactly (Dark mode + Padding)
@@ -91,3 +93,30 @@ class UpdateBatchUploadForm(forms.Form):
         if getattr(f, "size", 0) > 10 * 1024 * 1024:
             raise forms.ValidationError("File is too large (max 10 MB).")
         return f
+
+class AccessRequestForm(forms.Form):
+    """The public "request access" form (see beetles_app/access.py)."""
+
+    name = forms.CharField(label="Your name", max_length=200)
+    email = forms.EmailField(label="Email", max_length=254)
+    affiliation = forms.CharField(label="Institution or affiliation", max_length=200)
+    areas = forms.MultipleChoiceField(
+        label="What do you want to use?",
+        choices=[(key, label) for key, label, _, _ in access.AREAS],
+        widget=forms.CheckboxSelectMultiple,
+        error_messages={"required": "Choose at least one part of the site."},
+    )
+    reason = forms.CharField(
+        label="What will you use it for?", max_length=2000, widget=forms.Textarea(attrs={"rows": 4}),
+    )
+    # Hidden from people; a bot that fills every field fills this one too.
+    leave_blank = forms.CharField(required=False, widget=forms.TextInput(attrs={"tabindex": "-1", "autocomplete": "off"}))
+
+    def clean_name(self):
+        return " ".join(self.cleaned_data["name"].split())  # one line: it goes in an email subject
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()
+
+    def clean_affiliation(self):
+        return " ".join(self.cleaned_data["affiliation"].split())

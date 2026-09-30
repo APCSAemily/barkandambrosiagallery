@@ -26,6 +26,8 @@ PUBLIC_PAGES = [
     "interactions_preview",
     "tool_classify",
     "login",
+    "request_access",
+    "request_access_sent",
 ]
 
 # Pages that need a logged-in user
@@ -51,6 +53,8 @@ STAFF_POST_ONLY = [
 SUPERUSER_PAGES = [
     "admin_valid_species",
     "admin_described_names",
+    "upload_predictions",
+    "access_requests",
 ]
 
 
