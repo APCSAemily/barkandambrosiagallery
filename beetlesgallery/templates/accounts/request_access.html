@@ -7,8 +7,8 @@
   <a href="{% url 'login' %}" class="text-sm text-gray-500 hover:text-gray-800">&larr; Sign in</a>
   <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Request access</h1>
   <p class="text-gray-600 mb-8">
-    Accounts are given by approval. Tell us who you are and which parts of the site you want to use.
-    Your request goes to the people who run the gallery, and you will get an email with their decision.
+    Accounts are given by approval. Choose a username and password, tell us who you are and which parts of the site you want to use.
+    Confirm your email, then the people who run the gallery review your request and email you their decision.
   </p>
 
   <form method="post" novalidate class="bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm space-y-5">
@@ -36,6 +36,32 @@
         class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
       {% for error in form.email.errors %}<p class="text-sm text-red-700 mt-1">{{ error }}</p>{% endfor %}
     </div>
+
+    {% if not signed_in %}
+    <div class="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+      <p class="text-sm text-gray-600">Choose the username and password you will sign in with. We send a link to your email to confirm it; nothing is approved until we have reviewed your request.</p>
+      <div>
+        <label for="id_username" class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+        <input id="id_username" name="username" type="text" maxlength="150" required autocomplete="username" value="{{ form.username.value|default:'' }}"
+          class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+        {% for error in form.username.errors %}<p class="text-sm text-red-700 mt-1">{{ error }}</p>{% endfor %}
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="id_password1" class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+          <input id="id_password1" name="password1" type="password" required autocomplete="new-password"
+            class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+          {% for error in form.password1.errors %}<p class="text-sm text-red-700 mt-1">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="id_password2" class="block text-sm font-semibold text-gray-700 mb-2">Confirm password</label>
+          <input id="id_password2" name="password2" type="password" required autocomplete="new-password"
+            class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+          {% for error in form.password2.errors %}<p class="text-sm text-red-700 mt-1">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <div>
       <label for="id_affiliation" class="block text-sm font-semibold text-gray-700 mb-2">Institution or affiliation</label>

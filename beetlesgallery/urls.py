@@ -24,6 +24,9 @@ urlpatterns = [
     path("accounts/request-access/", access_views.request_access, name="request_access"),
     path("accounts/request-access/sent/", access_views.request_access_sent, name="request_access_sent"),
     path("accounts/set-password/<uidb64>/<token>/", access_views.SetPasswordView.as_view(), name="password_set"),
+    path("accounts/verify-email/<uidb64>/<token>/", access_views.verify_email, name="verify_email"),
+    path("accounts/password-reset/", access_views.ResetRequestView.as_view(), name="password_reset"),
+    path("accounts/password-reset/sent/", access_views.password_reset_done, name="password_reset_done"),
     path("accounts/me/", beetles_views.my_account, name="my_account"),
 
     # --- Pages ---

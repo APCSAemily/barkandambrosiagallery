@@ -68,10 +68,6 @@
 
         {# placeholder shown until a species is clicked #}
         <div id="species-detail-placeholder" class="flex flex-col items-center justify-center text-gray-400 p-12 flex-1">
-          <svg class="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
           <p class="text-sm">Select a species from the tree to view details</p>
         </div>
 
@@ -832,8 +828,8 @@
     pointer-events: auto;
   }
   .tree-browse-link:hover {
-    color: #1d4ed8;           /* blue-700 */
-    background-color: #eff6ff; /* blue-50 */
+    color: #1f2937;           /* grey (was blue-700) */
+    background-color: #f3f4f6; /* grey (was blue-50) */
   }
 
   /* Browse icon */
@@ -906,16 +902,16 @@
     cursor: pointer;
     text-align: left;
     font-size: 0.9rem;
-    color: #1d4ed8;          /* blue-700 – clickable feel */
+    color: #1f2937;          /* grey (was blue-700) */
     transition: background-color 0.15s, color 0.15s;
   }
   .tree-species-btn:hover {
-    background-color: #eff6ff; /* blue-50 */
-    color: #1e40af;            /* blue-800 */
+    background-color: #f3f4f6; /* grey (was blue-50) */
+    color: #111827;            /* grey (was blue-800) */
   }
   .tree-species-btn--active {
-    background-color: #dbeafe; /* blue-100 */
-    color: #1e40af;
+    background-color: #e5e7eb; /* grey (was blue-100) */
+    color: #111827;
     font-weight: 600;
   }
 
@@ -939,8 +935,8 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .taxonomy-filter-select:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px #bfdbfe;
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px #d1d5db;
   }
 
   .taxonomy-filter-input {
@@ -959,8 +955,8 @@
     color: #9ca3af;
   }
   .taxonomy-filter-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px #bfdbfe;
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px #d1d5db;
   }
 
   /* Autocomplete suggestions */
@@ -990,7 +986,7 @@
 
   .taxonomy-suggestion-item:hover,
   .taxonomy-suggestion-item--selected {
-    background-color: #eff6ff;  /* blue-50 */
+    background-color: #f3f4f6;  /* grey (was blue-50) */
   }
 
   .taxonomy-suggestion-item:not(:last-child) {
@@ -1015,8 +1011,8 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .species-thumb-link:hover {
-    border-color: #3b82f6;          /* blue-500 */
-    box-shadow: 0 0 0 2px #bfdbfe;  /* blue-200 ring */
+    border-color: #6b7280;          /* grey (was blue-500) */
+    box-shadow: 0 0 0 2px #d1d5db;  /* grey (was blue-200) */
   }
 
   .species-thumb-img {

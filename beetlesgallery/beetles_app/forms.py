@@ -109,8 +109,47 @@ class AccessRequestForm(forms.Form):
     reason = forms.CharField(
         label="What will you use it for?", max_length=2000, widget=forms.Textarea(attrs={"rows": 4}),
     )
+    # Someone without an account chooses their own (they are left out when asking while signed in).
+    username = forms.CharField(label="Username", max_length=150, required=False)
+    password1 = forms.CharField(label="Password", widget=forms.PasswordInput, required=False)
+    password2 = forms.CharField(label="Confirm password", widget=forms.PasswordInput, required=False)
     # Hidden from people; a bot that fills every field fills this one too.
     leave_blank = forms.CharField(required=False, widget=forms.TextInput(attrs={"tabindex": "-1", "autocomplete": "off"}))
+
+    def __init__(self, *args, signed_in=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.signed_in = signed_in
+        if signed_in:
+            for name in ("username", "password1", "password2"):
+                del self.fields[name]
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username", "").strip()
+        if not username:
+            raise forms.ValidationError("Choose a username.")
+        User.username_validator(username)
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("That username is taken. Please choose another.")
+        return username
+
+    def clean(self):
+        data = super().clean()
+        if self.signed_in:
+            return data
+        email, p1, p2 = data.get("email"), data.get("password1"), data.get("password2")
+        if email and User.objects.filter(email__iexact=email, is_active=True).exists():
+            self.add_error("email", "An account with this email already exists. Sign in, or use \"Forgot your password?\" on the sign-in page.")
+        if not p1:
+            self.add_error("password1", "Choose a password.")
+        elif p1 != p2:
+            self.add_error("password2", "The two passwords do not match.")
+        else:
+            from django.contrib.auth.password_validation import validate_password
+            try:
+                validate_password(p1, User(username=data.get("username", ""), email=email or ""))
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
+        return data
 
     def clean_name(self):
         return " ".join(self.cleaned_data["name"].split())  # one line: it goes in an email subject

@@ -13,7 +13,7 @@ import logging
 from datetime import date, timedelta
 from io import BytesIO
 
-from django.db.models import Q, Count
+from django.db.models import Q, Count, F
 from django.utils import timezone
 from django.urls import reverse
 from django.conf import settings
@@ -25,6 +25,8 @@ from django.contrib.auth import login, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView, redirect_to_login
+from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ValidationError
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files.storage import default_storage
@@ -78,9 +80,9 @@ def my_account(request):
                 active_modal = "modal-password"
                 messages.error(request, "Please correct the errors in the password form.")
 
-        # --- CASE 2: Create User (Staff Only) ---
+        # --- CASE 2: Create User (Superusers Only) ---
         elif "action_create_user" in request.POST:
-            if not user.is_staff:
+            if not user.is_superuser:
                 messages.error(request, "You do not have permission to create users.")
                 return redirect("my_account")
 
@@ -93,9 +95,9 @@ def my_account(request):
                 active_modal = "modal-create-user"
                 messages.error(request, "Please correct the errors in the user creation form.")
 
-        # --- CASE 3: Edit User (Staff Only) ---
+        # --- CASE 3: Edit User (Superusers Only: role, status, username, password, extra access) ---
         elif "action_edit_user" in request.POST:
-            if not user.is_staff:
+            if not user.is_superuser:
                 messages.error(request, "Permission denied.")
                 return redirect("my_account")
             
@@ -145,9 +147,9 @@ def my_account(request):
             messages.success(request, f"User '{target_user.username}' updated successfully.")
             return redirect("my_account")
         
-    # --- Fetch User List (Staff Only) ---
+    # --- Fetch User List (Superusers Only) ---
     users_list = []
-    if user.is_staff:
+    if user.is_superuser:
         User = get_user_model()
         users_list = list(User.objects.all().order_by('-date_joined'))
         from .models import AreaGrant
@@ -169,8 +171,28 @@ def my_account(request):
         },
     )
 
+class ApprovalAwareAuthenticationForm(AuthenticationForm):
+    """The normal sign-in form, except that someone whose request is still waiting is told so instead of "wrong password"."""
+
+    def clean(self):
+        try:
+            return super().clean()
+        except ValidationError:
+            from .models import AccessRequest
+            username, password = self.cleaned_data.get("username"), self.cleaned_data.get("password")
+            user = get_user_model().objects.filter(username__iexact=username, is_active=False).first() if username else None
+            if user is not None and user.check_password(password or ""):
+                waiting = AccessRequest.objects.filter(user=user, status=AccessRequest.Status.PENDING).first()
+                if waiting is not None and waiting.email_verified_at is None:
+                    raise ValidationError("Please confirm your email first: we sent a link to the address you gave.", code="unconfirmed")
+                if waiting is not None:
+                    raise ValidationError("Your request is waiting for approval. We will email you when it is decided.", code="pending")
+            raise
+
+
 class LoginViewWithRedirectMessage(DjangoLoginView):
     template_name = "accounts/signin.html"
+    authentication_form = ApprovalAwareAuthenticationForm
 
     def get(self, request, *args, **kwargs):
         # self.redirect_field_name is "next" by default
@@ -481,6 +503,18 @@ def _build_gallery_filter_context(base_search_qs, active_filters):
     return filter_context
 
 
+# sort key -> (label, ordering). Rows without a value go last.
+GALLERY_SORTS = {
+    "newest": ("Newest added", (F("image_asset__created_at").desc(nulls_last=True),)),
+    "oldest": ("Oldest added", (F("image_asset__created_at").asc(nulls_last=True),)),
+    "species": ("Species A to Z", (F("taxon__scientific_name").asc(nulls_last=True),)),
+    "species_desc": ("Species Z to A", (F("taxon__scientific_name").desc(nulls_last=True),)),
+    "date_taken": ("Date taken (newest)", (F("image_asset__image_date_taken").desc(nulls_last=True),)),
+    "resolution": ("Largest image", (F("image_asset__image_width").desc(nulls_last=True),)),
+    "file_size": ("Largest file", (F("image_asset__image_size_bytes").desc(nulls_last=True),)),
+}
+
+
 def gallery(request):
     from .utils import build_query_q, filter_beetles_queryset, FILTERS_CONFIG
     NA = "None"
@@ -567,7 +601,13 @@ def gallery(request):
 
     # 5. Pagination
     final_qs = final_qs.order_by("image_asset", "id").distinct("image_asset")
-    
+
+    # Optional sort. DISTINCT ON (one row per image) needs its own ordering, so pick the rows first
+    # and sort the picked rows. No sort asked for keeps the original (fast) order.
+    sort = request.GET.get("sort", "")
+    if sort in GALLERY_SORTS:
+        final_qs = base_qs.filter(pk__in=final_qs.values("pk")).order_by(*GALLERY_SORTS[sort][1], "id")
+
     # Critical: Fetch taxon in the same SQL call to guarantee O(1) performance
     final_qs = final_qs.select_related("image_asset", "taxon")
     
@@ -668,6 +708,8 @@ def gallery(request):
         "filter_groups": filter_context,
         "selected_filters": active_filters,
         "per_page": page_size,
+        "sort": sort,
+        "sort_options": [(k, v[0]) for k, v in GALLERY_SORTS.items()],
         "size_min": size_min,
         "size_max": size_max,
         "res_min": res_min,
@@ -766,8 +808,8 @@ def beetle_detail(request, beetle_id):
 
 
 def signup(request):
-    # --- Security Check: Block non-staff users ---
-    if not request.user.is_staff:
+    # --- Security Check: only superusers make accounts ---
+    if not request.user.is_superuser:
         messages.info(request, "Accounts are given by approval. Use \"Request access\" to ask for one.")
         return redirect("login")
     # ---------------------------------------------
@@ -1011,7 +1053,8 @@ def data_management(request):
     pending_access_requests = 0
     if request.user.is_superuser:
         from .models import AccessRequest
-        pending_access_requests = AccessRequest.objects.filter(status=AccessRequest.Status.PENDING).count()
+        pending_access_requests = AccessRequest.objects.filter(
+            status=AccessRequest.Status.PENDING, email_verified_at__isnull=False).count()
 
     return render(
         request,

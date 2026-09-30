@@ -1,21 +1,22 @@
 """
 Requests for access to the site.
 
-Anyone can fill in the form at /accounts/request-access/ saying who they are and which parts of the
-site they want. The approvers (settings.ACCESS_REQUEST_RECIPIENTS) are emailed a link to
-Data Management -> Access requests, where a superuser approves the request as a Member or a Curator,
-or denies it. Nothing is created until a request is approved, and nobody is emailed except the
-approvers (when a request arrives) and the applicant (when it is decided).
+Someone fills in /accounts/request-access/ with who they are, which parts of the site they want, and the username
+and password they want to use. They get an inactive account and an email with a link to confirm their address.
+Once it is confirmed the approvers (every superuser, plus settings.ACCESS_REQUEST_RECIPIENTS) are emailed a link to
+Data Management -> Access requests, where a superuser approves the request as a Member or a Curator, or denies it.
+Approving activates the account and emails the applicant; they sign in as usual and can reset their own password.
+A denied applicant's unused account is removed.
+
+Someone who already has an account can ask for more access the same way: their email is already confirmed, so
+the approvers are told straight away.
 
 Roles are the ones the site already has:
 
     Member    a normal account: gallery and downloads, taxonomy, AI classifier, Beetle ID game
     Curator   is_staff: also annotate and validate, upload and update data
 
-Superuser is never granted through a request.
-
-A new account is created without a password. The approval email carries a link, valid for
-settings.PASSWORD_RESET_TIMEOUT, where the person sets their own.
+Superuser is never granted through a request. Finer access is set per person on My Account (see areas.py).
 """
 import logging
 import re
@@ -96,21 +97,100 @@ def absolute_url(request, name, *args):
 # ---------------------------------------------------------------------------
 # A request arrives
 # ---------------------------------------------------------------------------
-def submit_request(data, review_url):
+def verification_url(request, user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    return request.build_absolute_uri(reverse("verify_email", args=[uid, default_token_generator.make_token(user)]))
+
+
+def send_verification_email(access_request, url):
+    """Email the applicant a link that proves the address is theirs. Returns an error text, or ''."""
+    days = settings.PASSWORD_RESET_TIMEOUT // (24 * 60 * 60)
+    try:
+        EmailMessage(
+            subject="Confirm your email for the Bark & Ambrosia Beetle Gallery",
+            body=(
+                f"Hello {access_request.name},\n\n"
+                "Thank you for asking for an account. Please confirm this email address by opening this link "
+                f"(it works for {days} days):\n{url}\n\n"
+                "After that, the people who run the gallery will review your request and email you their decision. "
+                "You can sign in with the username and password you chose once it is approved.\n\n"
+                "If you did not ask for an account, you can ignore this email."
+            ),
+            to=[access_request.email],
+        ).send(fail_silently=False)
+    except Exception as exc:
+        logger.exception("Could not send the confirmation email for access request %s", access_request.pk)
+        return f"{type(exc).__name__}: {exc}"[:255]
+    return ""
+
+
+def submit_request(request, data):
     """
-    Save a request and email the approvers. ``data`` is a form's cleaned_data.
-    Returns the AccessRequest, or None when this email already has a request waiting.
-    The request is kept even if the email cannot be sent (see AccessRequest.notify_error).
+    Save a request from the form's cleaned_data.
+
+    Someone without an account gets an inactive one with the username and password they chose, and is emailed
+    a link to confirm their address; the approvers are told once it is confirmed. Someone already signed in asking
+    for more access is already confirmed, so the approvers are told straight away.
+    Returns the AccessRequest, or None when this email already has a request waiting (the confirmation email is
+    sent again, to that address only).
     """
+    User = get_user_model()
+    review_url = absolute_url(request, "access_requests")
+    signed_in = request.user.is_authenticated
+    # A request made before people chose their own password has no account attached and can never be approved:
+    # a new one for the same email replaces it.
+    AccessRequest.objects.filter(
+        email__iexact=data["email"], status=AccessRequest.Status.PENDING, user__isnull=True
+    ).update(status=AccessRequest.Status.DENIED, decision_note="Replaced by a newer request.", decided_at=timezone.now())
     try:
         with transaction.atomic():
+            if signed_in:
+                user, verified = request.user, timezone.now()
+            else:
+                user = User(username=data["username"], email=data["email"], first_name=data["name"][:150], is_active=False)
+                user.set_password(data["password1"])
+                user.save()
+                verified = None
             access_request = AccessRequest.objects.create(
-                name=data["name"], email=data["email"], affiliation=data["affiliation"],
-                reason=data["reason"], areas=list(data["areas"]),
+                name=data["name"], email=data["email"], affiliation=data["affiliation"], reason=data["reason"],
+                areas=list(data["areas"]), user=user, email_verified_at=verified,
             )
     except IntegrityError:
+        waiting = AccessRequest.objects.filter(
+            email__iexact=data["email"], status=AccessRequest.Status.PENDING, email_verified_at__isnull=True,
+            user__is_active=False,
+        ).select_related("user").first()
+        if waiting:
+            send_verification_email(waiting, verification_url(request, waiting.user))
         return None
-    notify_approvers(access_request, review_url)
+    if signed_in:
+        notify_approvers(access_request, review_url)
+    else:
+        error = send_verification_email(access_request, verification_url(request, user))
+        if error:
+            access_request.notify_error = f"Confirmation email failed: {error}"
+            access_request.save(update_fields=["notify_error"])
+    return access_request
+
+
+def confirm_email(request, uidb64, token):
+    """The link in the confirmation email. Returns the AccessRequest (now confirmed), or None for a bad or old link."""
+    from django.utils.http import urlsafe_base64_decode
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=urlsafe_base64_decode(uidb64).decode())
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return None
+    if not default_token_generator.check_token(user, token):
+        return None
+    access_request = AccessRequest.objects.filter(user=user, status=AccessRequest.Status.PENDING).first()
+    if access_request is None:
+        return None
+    if access_request.email_verified_at is None:
+        access_request.email_verified_at = timezone.now()
+        access_request.save(update_fields=["email_verified_at"])
+        notify_approvers(access_request, absolute_url(request, "access_requests"))
     return access_request
 
 
@@ -153,46 +233,33 @@ def notify_approvers(access_request, review_url):
 class Decision:
     access_request: AccessRequest
     user: object = None
-    created: bool = False
-    setup_url: str = ""
     email_error: str = ""
 
 
-def _free_username(email):
-    User = get_user_model()
-    base = re.sub(r"[^\w.@+-]", "", email.split("@")[0])[:140] or "user"
-    username, n = base, 1
-    while User.objects.filter(username__iexact=username).exists():
-        n += 1
-        username = f"{base}{n}"
-    return username
-
-
 def _grant(access_request, role):
-    """Create the account, or raise an existing one to ``role`` (never lowering it). Returns (user, created)."""
-    User = get_user_model()
-    matches = list(User.objects.filter(email__iexact=access_request.email))
-    if len(matches) > 1:
-        raise AccessError(
-            f"Several accounts use {access_request.email}. Change the right one under My Account instead."
-        )
-    if matches:
-        user = matches[0]
-        if not user.is_active:
-            raise AccessError(
-                f"{access_request.email} belongs to a deactivated account ({user.username}). "
-                "Reactivate it under My Account if you want them back."
-            )
-        if role == CURATOR and not user.is_staff:
-            user.is_staff = True
-            user.save(update_fields=["is_staff"])
-        return user, False
+    """Activate the requester's account (the one they made, or the one they already had) at ``role``, never lowering it."""
+    user = access_request.user
+    if user is None:
+        raise AccessError("This request has no account attached.")
+    if access_request.email_verified_at is None:
+        raise AccessError(f"{access_request.name} has not confirmed their email address yet.")
+    changed = []
+    if not user.is_active:
+        user.is_active = True
+        changed.append("is_active")
+    if role == CURATOR and not user.is_staff:
+        user.is_staff = True
+        changed.append("is_staff")
+    if changed:
+        user.save(update_fields=changed)
+    return user
 
-    user = User(username=_free_username(access_request.email), email=access_request.email,
-                first_name=access_request.name[:150], is_staff=(role == CURATOR))
-    user.set_unusable_password()
-    user.save()
-    return user, True
+
+def _discard_unused_account(access_request):
+    """A denied applicant's account (made for this request, never signed in to) is removed so the username is free."""
+    user = access_request.user
+    if user is not None and not user.is_active and user.last_login is None and not user.is_staff:
+        user.delete()
 
 
 def decide(request_id, choice, decided_by, note, absolute_uri):
@@ -211,28 +278,27 @@ def decide(request_id, choice, decided_by, note, absolute_uri):
             raise AccessError("That request no longer exists.")
         if access_request.status != AccessRequest.Status.PENDING:
             raise AccessError(f"{access_request.name}'s request was already {access_request.status}.")
-        user, created = (None, False) if choice == DENY else _grant(access_request, choice)
+        user = None if choice == DENY else _grant(access_request, choice)
         access_request.status = AccessRequest.Status.DENIED if choice == DENY else AccessRequest.Status.APPROVED
         access_request.granted_role = "" if choice == DENY else choice
-        access_request.user = user
         access_request.decided_by = decided_by
         access_request.decided_at = timezone.now()
         access_request.decision_note = note
         access_request.save()
+        applicant = access_request.user
+        if choice == DENY:
+            _discard_unused_account(access_request)
 
-    decision = Decision(access_request, user=user, created=created)
-    if created:
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        decision.setup_url = absolute_uri(reverse("password_set", args=[uid, default_token_generator.make_token(user)]))
+    decision = Decision(access_request, user=user or applicant)
     try:
-        _email_applicant(decision, absolute_uri(reverse("login")))
+        _email_applicant(decision, absolute_uri(reverse("login")), absolute_uri(reverse("password_reset")))
     except Exception as exc:  # the decision stands; the approver is told to pass it on
         logger.exception("Could not email the applicant for access request %s", access_request.pk)
         decision.email_error = f"{type(exc).__name__}: {exc}"[:255]
     return decision
 
 
-def _email_applicant(decision, login_url):
+def _email_applicant(decision, login_url, reset_url):
     access_request = decision.access_request
     note = f"\nA note from the reviewer:\n{access_request.decision_note}\n" if access_request.decision_note else ""
     if access_request.status == AccessRequest.Status.DENIED:
@@ -247,14 +313,9 @@ def _email_applicant(decision, login_url):
         role = ROLE_LABELS[access_request.granted_role]
         subject = "Your access to the Bark & Ambrosia Beetle Gallery"
         body = f"Hello {access_request.name},\n\nYour access request was approved. You have {role} access: {ROLE_SUMMARY[access_request.granted_role]}.\n"
-        if decision.created:
-            days = settings.PASSWORD_RESET_TIMEOUT // (24 * 60 * 60)
-            body += (
-                f"\nYour username is: {decision.user.username}\n"
-                f"Choose your password here (the link works for {days} days):\n{decision.setup_url}\n"
-                f"\nThen sign in at {login_url}\n"
-            )
-        else:
-            body += f"\nYour existing account ({decision.user.username}) now has this access. Sign in at {login_url}\n"
+        body += (
+            f"\nSign in at {login_url} with the username you chose: {decision.user.username}\n"
+            f"If you forget your password, you can reset it from the sign-in page: {reset_url}\n"
+        )
         body += note
     EmailMessage(subject=subject, body=body, to=[access_request.email]).send(fail_silently=False)
