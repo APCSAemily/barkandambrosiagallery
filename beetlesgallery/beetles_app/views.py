@@ -25,6 +25,8 @@ from django.contrib.auth import login, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView, redirect_to_login
+from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ValidationError
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files.storage import default_storage
@@ -169,8 +171,28 @@ def my_account(request):
         },
     )
 
+class ApprovalAwareAuthenticationForm(AuthenticationForm):
+    """The normal sign-in form, except that someone whose request is still waiting is told so instead of "wrong password"."""
+
+    def clean(self):
+        try:
+            return super().clean()
+        except ValidationError:
+            from .models import AccessRequest
+            username, password = self.cleaned_data.get("username"), self.cleaned_data.get("password")
+            user = get_user_model().objects.filter(username__iexact=username, is_active=False).first() if username else None
+            if user is not None and user.check_password(password or ""):
+                waiting = AccessRequest.objects.filter(user=user, status=AccessRequest.Status.PENDING).first()
+                if waiting is not None and waiting.email_verified_at is None:
+                    raise ValidationError("Please confirm your email first: we sent a link to the address you gave.", code="unconfirmed")
+                if waiting is not None:
+                    raise ValidationError("Your request is waiting for approval. We will email you when it is decided.", code="pending")
+            raise
+
+
 class LoginViewWithRedirectMessage(DjangoLoginView):
     template_name = "accounts/signin.html"
+    authentication_form = ApprovalAwareAuthenticationForm
 
     def get(self, request, *args, **kwargs):
         # self.redirect_field_name is "next" by default
@@ -1031,7 +1053,8 @@ def data_management(request):
     pending_access_requests = 0
     if request.user.is_superuser:
         from .models import AccessRequest
-        pending_access_requests = AccessRequest.objects.filter(status=AccessRequest.Status.PENDING).count()
+        pending_access_requests = AccessRequest.objects.filter(
+            status=AccessRequest.Status.PENDING, email_verified_at__isnull=False).count()
 
     return render(
         request,
