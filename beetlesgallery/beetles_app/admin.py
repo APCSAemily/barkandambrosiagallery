@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty, GameReport, PathogenInteraction,
+    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -849,3 +849,12 @@ class PathogenInteractionAdmin(admin.ModelAdmin):
     readonly_fields = ("id", "created_at", "updated_at")
     list_per_page = 50
     empty_value_display = "—"
+
+
+@admin.register(ModelPrediction)
+class ModelPredictionAdmin(admin.ModelAdmin):
+    list_display = ("roi", "valid_species_id", "confidence", "model_name", "model_version", "uploaded_by", "created_at")
+    list_filter = ("model_name", "model_version", "created_at")
+    search_fields = ("=roi__id", "valid_species_id", "model_name")
+    raw_id_fields = ("roi", "taxon")
+    readonly_fields = ("id", "created_at")

@@ -52,6 +52,7 @@ urlpatterns = [
     path('update_single/<uuid:beetle_id>/', beetles_views.update_single_beetle, name='update_single_beetle'),
     path('tools/classify/', beetles_views.tool_classify, name='tool_classify'),
     path('tools/annotate/', beetles_views.tool_annotate, name='tool_annotate'),
+    path('tools/predictions/', beetles_views.upload_predictions, name='upload_predictions'),
 
     # --- Beetle ID game ---
     path('game/', game_views.game_home, name='game_home'),
