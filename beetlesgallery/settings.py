@@ -208,6 +208,9 @@ EMAIL_BACKEND = os.environ.get(
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@barkandambrosiagallery.org")
 
+# The AI classifier service (used by the classifier page and "Classify with AI" on the annotation page)
+MODAL_API_URL = os.environ.get("MODAL_API_URL", "https://christophermarais--ibbi-api-fastapi-app.modal.run/analyze")
+
 # Beetle ID game (beetles_app/game.py)
 GAME_ROUND_SIZE = 10                  # items per round
 GAME_CALIBRATION_CHECKS = 20          # scored answers before a player counts as calibrated

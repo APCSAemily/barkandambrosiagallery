@@ -58,6 +58,33 @@ class ImageAssetViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No image file available'}, status=404)
         return FileResponse(asset.image_file.open('rb'))
 
+    @action(detail=True, methods=['post'], url_path='classify')
+    def classify(self, request, pk=None):
+        """
+        "Classify with AI": add the classifier's boxes and species to this image as new, unvalidated ROIs.
+        POST /api/v1/image-assets/{uuid}/classify/  {"architecture": "rtdetr", "box_threshold": 0.25}
+        """
+        from ..classify_assist import ClassifyError, add_rois, call_classifier
+        asset = self.get_object()
+        if not asset.image_file:
+            return Response({'error': 'This image has no file.'}, status=400)
+        lock = getattr(asset, 'active_lock', None)
+        if lock and lock.locked_by != request.user and not lock.is_expired():
+            return Response({'error': f'Being edited by {lock.locked_by.username}'}, status=status.HTTP_409_CONFLICT)
+        try:
+            threshold = min(1.0, max(0.05, float(request.data.get('box_threshold', 0.25))))
+        except (TypeError, ValueError):
+            threshold = 0.25
+        try:
+            with asset.image_file.open('rb') as fh:
+                data = fh.read()
+            result = call_classifier(data, os.path.basename(asset.image_file.name), 'image/jpeg',
+                                     request.data.get('architecture', 'rtdetr'), threshold)
+            created, skipped = add_rois(asset, result, request.user)
+        except ClassifyError as exc:
+            return Response({'error': str(exc)}, status=502)
+        return Response({'added': len(created), 'already_boxed': skipped, 'model': result.get('model_used', '')})
+
     @action(detail=True, methods=['post'], url_path='heartbeat')
     def heartbeat(self, request, pk=None):
         """

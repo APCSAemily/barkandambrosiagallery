@@ -40,7 +40,7 @@ from .tasks import process_upload_task, process_update_task, build_downloads_tas
 import pandas as pd
 from io import BytesIO, StringIO
 
-MODAL_API_URL = "https://christophermarais--ibbi-api-fastapi-app.modal.run/analyze"
+MODAL_API_URL = settings.MODAL_API_URL
 
 logger = logging.getLogger(__name__)
 
