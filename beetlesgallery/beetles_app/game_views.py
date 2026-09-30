@@ -20,6 +20,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import game, game_feedback, game_trust
+from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
 MODES = {m.value: m.label for m in GameRound.Mode}
@@ -386,7 +387,7 @@ def _proposal_json(entry, review):
     }
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_GET
 def game_proposals(request):
     """Game label proposals for the ROIs of one image, keyed by ROI id."""
@@ -413,7 +414,7 @@ def game_proposals(request):
     return JsonResponse({"proposals": proposals, "reports": reports})
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def game_resolve_reports(request, roi_id):
     """Close the open player reports on one ROI (see game_feedback.resolve_reports)."""
@@ -426,7 +427,7 @@ def game_resolve_reports(request, roi_id):
     return JsonResponse({"closed": closed})
 
 
-@staff_member_required
+@area_required(ANNOTATE)
 @require_POST
 def game_proposal_review(request, roi_id):
     """

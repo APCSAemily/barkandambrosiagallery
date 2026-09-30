@@ -6,6 +6,10 @@ from django.views.static import serve
 
 from beetlesgallery.beetles_app import views as beetles_views
 from beetlesgallery.beetles_app import game_views
+from beetlesgallery.beetles_app import interaction_views
+from beetlesgallery.beetles_app import interaction_proposals_views
+from beetlesgallery.beetles_app import interaction_upload_views
+from beetlesgallery.beetles_app import access_views
 from beetlesgallery.beetles_app.views import LoginViewWithRedirectMessage, PostOnlyLogoutView
 
 urlpatterns = [
@@ -17,6 +21,9 @@ urlpatterns = [
     path("accounts/login/", LoginViewWithRedirectMessage.as_view(template_name="accounts/signin.html"), name="login"),
     path("accounts/logout/", PostOnlyLogoutView.as_view(), name="logout"),
     path("accounts/signup/", beetles_views.signup, name="signup"),
+    path("accounts/request-access/", access_views.request_access, name="request_access"),
+    path("accounts/request-access/sent/", access_views.request_access_sent, name="request_access_sent"),
+    path("accounts/set-password/<uidb64>/<token>/", access_views.SetPasswordView.as_view(), name="password_set"),
     path("accounts/me/", beetles_views.my_account, name="my_account"),
 
     # --- Pages ---
@@ -34,6 +41,11 @@ urlpatterns = [
 
     # 4. /interactions/ -> Ecological Interactions (Pathogen & Parasite Database Preview)
     path('interactions/', beetles_views.interactions_preview, name='interactions_preview'),
+    path('interactions/additions.json', interaction_views.interactions_additions, name='interactions_additions'),
+    path('interactions/review/', interaction_views.interaction_review, name='interaction_review'),
+    path('interactions/proposals/', interaction_proposals_views.upload_interaction_proposals, name='upload_interaction_proposals'),
+    path('interactions/upload/', interaction_upload_views.upload_interactions, name='upload_interactions'),
+    path('interactions/export.csv', interaction_upload_views.interactions_export, name='interactions_export'),
 
     path('beetles/<uuid:beetle_id>/', beetles_views.beetle_detail, name='beetle_detail'),
     path('beetles/<uuid:beetle_id>/toggle-validation/', beetles_views.toggle_beetle_validation, name='toggle_beetle_validation'),
@@ -53,6 +65,7 @@ urlpatterns = [
     path('tools/classify/', beetles_views.tool_classify, name='tool_classify'),
     path('tools/annotate/', beetles_views.tool_annotate, name='tool_annotate'),
     path('tools/predictions/', beetles_views.upload_predictions, name='upload_predictions'),
+    path('tools/access-requests/', access_views.access_requests, name='access_requests'),
 
     # --- Beetle ID game ---
     path('game/', game_views.game_home, name='game_home'),

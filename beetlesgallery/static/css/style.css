@@ -1447,6 +1447,10 @@ video {
   resize: both;
 }
 
+.list-disc {
+  list-style-type: disc;
+}
+
 .list-none {
   list-style-type: none;
 }
@@ -1782,6 +1786,10 @@ video {
 
 .border-l-2 {
   border-left-width: 2px;
+}
+
+.border-l-4 {
+  border-left-width: 4px;
 }
 
 .border-r {
@@ -2330,6 +2338,10 @@ video {
   padding-left: 1rem;
 }
 
+.pl-5 {
+  padding-left: 1.25rem;
+}
+
 .pl-6 {
   padding-left: 1.5rem;
 }
@@ -2507,6 +2519,10 @@ video {
   text-transform: capitalize;
 }
 
+.normal-case {
+  text-transform: none;
+}
+
 .italic {
   font-style: italic;
 }
@@ -2647,6 +2663,11 @@ video {
   color: rgb(22 101 52 / var(--tw-text-opacity, 1));
 }
 
+.text-green-900 {
+  --tw-text-opacity: 1;
+  color: rgb(20 83 45 / var(--tw-text-opacity, 1));
+}
+
 .text-orange-700 {
   --tw-text-opacity: 1;
   color: rgb(194 65 12 / var(--tw-text-opacity, 1));
@@ -2675,6 +2696,11 @@ video {
 .text-red-800 {
   --tw-text-opacity: 1;
   color: rgb(153 27 27 / var(--tw-text-opacity, 1));
+}
+
+.text-red-900 {
+  --tw-text-opacity: 1;
+  color: rgb(127 29 29 / var(--tw-text-opacity, 1));
 }
 
 .text-sky-700 {
@@ -2966,6 +2992,10 @@ video {
   border-radius: 9999px;
 }
 
+.file\:rounded-lg::file-selector-button {
+  border-radius: 0.5rem;
+}
+
 .file\:border::file-selector-button {
   border-width: 1px;
 }
@@ -2984,9 +3014,19 @@ video {
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
 }
 
+.file\:px-4::file-selector-button {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
 .file\:px-5::file-selector-button {
   padding-left: 1.25rem;
   padding-right: 1.25rem;
+}
+
+.file\:py-2::file-selector-button {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .file\:py-2\.5::file-selector-button {
@@ -3798,4 +3838,26 @@ video {
     --tw-border-opacity: 1;
     border-color: rgb(255 255 255 / var(--tw-border-opacity, 1));
   }
+}
+
+.\[\&_mark\]\:rounded mark {
+  border-radius: 0.25rem;
+}
+
+.\[\&_mark\]\:bg-yellow-100 mark {
+  --tw-bg-opacity: 1;
+  background-color: rgb(254 249 195 / var(--tw-bg-opacity, 1));
+}
+
+.\[\&_mark\]\:px-0\.5 mark {
+  padding-left: 0.125rem;
+  padding-right: 0.125rem;
+}
+
+.\[\&_ul\]\:list-disc ul {
+  list-style-type: disc;
+}
+
+.\[\&_ul\]\:pl-5 ul {
+  padding-left: 1.25rem;
 }

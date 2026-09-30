@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Access requests | Bark & Ambrosia Beetle Gallery{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl">
+  <a href="{% url 'data_management' %}" class="text-sm text-gray-500 hover:text-gray-800">&larr; Data Management</a>
+  <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Access requests</h1>
+  <p class="text-gray-600 mb-8">
+    People ask for access on the
+    <a href="{% url 'request_access' %}" class="underline hover:text-black">request access</a> page.
+    <strong>Member</strong> is a normal account (gallery, downloads, taxonomy, AI classifier, game).
+    <strong>Curator</strong> also annotates, validates, and uploads and updates data. You can change anyone's role later under My Account.
+    Approving emails the person; a new account gets a link to set their own password.
+  </p>
+
+  <h2 class="text-xl font-semibold text-gray-900 mb-3">Waiting <span class="text-gray-400 font-normal">({{ pending|length }})</span></h2>
+  {% for r in pending %}
+  <form method="post" class="mb-4 bg-gray-50 rounded-xl p-5 border border-gray-200 shadow-sm">
+    {% csrf_token %}
+    <input type="hidden" name="request_id" value="{{ r.id }}">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="text-lg font-semibold text-gray-900">{{ r.name }}</h3>
+      <span class="text-xs text-gray-500">{{ r.created_at|date:"j M Y H:i" }} UTC</span>
+    </div>
+    <p class="text-sm text-gray-700"><a href="mailto:{{ r.email }}" class="underline hover:text-black">{{ r.email }}</a> &middot; {{ r.affiliation|default:"no affiliation given" }}</p>
+    {% if r.existing_users %}
+    <p class="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+      This email already has an account:
+      {% for u in r.existing_users %}<strong>{{ u.username }}</strong> ({% if u.is_superuser %}superuser{% elif u.is_staff %}curator{% else %}member{% endif %}){% if not forloop.last %}, {% endif %}{% endfor %}.
+      Approving raises that account; it never lowers it.
+    </p>
+    {% endif %}
+    <p class="mt-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Wants to use</p>
+    <ul class="text-sm text-gray-800 list-disc pl-5">{% for label in r.area_labels %}<li>{{ label }}</li>{% endfor %}</ul>
+    <p class="mt-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Why</p>
+    <p class="text-sm text-gray-800 whitespace-pre-line">{{ r.reason }}</p>
+    {% if r.notify_error %}
+    <p class="mt-3 text-xs text-red-700">The approvers' email could not be sent ({{ r.notify_error }}), so this request only shows here.</p>
+    {% endif %}
+
+    <label for="note-{{ r.id }}" class="block mt-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Note to them <span class="font-normal normal-case">(optional, included in the email)</span></label>
+    <textarea id="note-{{ r.id }}" name="note" rows="2" maxlength="1000"
+      class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400"></textarea>
+
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="submit" name="decision" value="member"
+        class="px-4 py-2 text-sm font-semibold rounded-lg border {% if r.suggested_role == 'member' %}bg-gray-800 border-gray-800 text-white hover:bg-gray-900{% else %}bg-white border-gray-300 text-gray-700 hover:bg-gray-100{% endif %}">
+        Approve as Member</button>
+      <button type="submit" name="decision" value="curator"
+        class="px-4 py-2 text-sm font-semibold rounded-lg border {% if r.suggested_role == 'curator' %}bg-gray-800 border-gray-800 text-white hover:bg-gray-900{% else %}bg-white border-gray-300 text-gray-700 hover:bg-gray-100{% endif %}">
+        Approve as Curator</button>
+      <button type="submit" name="decision" value="deny"
+        class="px-4 py-2 text-sm font-semibold rounded-lg border bg-white border-gray-300 text-red-700 hover:bg-red-50">
+        Deny</button>
+    </div>
+  </form>
+  {% empty %}
+  <p class="mb-6 text-sm text-gray-500">Nothing is waiting.</p>
+  {% endfor %}
+
+  {% if decided %}
+  <h2 class="text-xl font-semibold text-gray-900 mt-10 mb-3">Recently decided</h2>
+  <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+        <tr><th class="px-4 py-2">Person</th><th class="px-4 py-2">Decision</th><th class="px-4 py-2">By</th><th class="px-4 py-2">When</th></tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for r in decided %}
+        <tr>
+          <td class="px-4 py-2"><span class="font-semibold text-gray-900">{{ r.name }}</span><br><span class="text-xs text-gray-500">{{ r.email }}</span></td>
+          <td class="px-4 py-2">{% if r.status == "approved" %}Approved as {{ r.granted_role|title }}{% if r.user %} ({{ r.user.username }}){% endif %}{% else %}Denied{% endif %}</td>
+          <td class="px-4 py-2 text-gray-600">{{ r.decided_by.username|default:"-" }}</td>
+          <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{{ r.decided_at|date:"j M Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -28,7 +28,7 @@
     <div class="flex justify-between items-start mb-6">
       <h2 class="text-2xl font-bold text-gray-800">Data Actions</h2>
       
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
       <button onclick="openModal('modal-field-definitions')" 
               class="group flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-gray-600 transition">
         <i class="fi fi-rr-info text-base"></i>
@@ -40,7 +40,7 @@
     <div class="flex flex-wrap gap-4">
 
       {# Staff Only: Upload & Update Buttons #}
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
       <button onclick="openModal('modal-upload-new')"
         class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
         <i class="fi fi-rr-upload"></i>
@@ -63,8 +63,52 @@
     </div>
   </div>
 
+  {# --- SECTION: INTERACTION REVIEW (Staff) --- #}
+  {% if areas.interactions %}
+  <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
+    <h2 class="text-2xl font-bold mb-2 text-gray-800">Ecological Interactions</h2>
+    <p class="text-sm text-gray-600 mb-4 max-w-2xl">
+      Interactions between beetles and fungi, nematodes, host trees and more, proposed from the literature with links to their sources.
+      Read the evidence, then accept or reject.
+    </p>
+    <div class="flex flex-wrap gap-4">
+    <a href="{% url 'interaction_review' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-microscope"></i>
+      <span>Review Proposed Interactions</span>
+      {% if waiting_interaction_proposals %}<span class="ml-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-xs text-amber-900" data-testid="waiting-interaction-count">{{ waiting_interaction_proposals }} waiting</span>{% endif %}
+    </a>
+    <a href="{% url 'upload_interactions' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Upload or Update Interactions</span>
+    </a>
+    {% if user.is_superuser %}
+    <a href="{% url 'upload_interaction_proposals' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Submit Proposed Interactions</span>
+    </a>
+    {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {# --- SECTION: TAXONOMY REFERENCE MANAGEMENT (Admin/Superusers Only) --- #}
   {% if user.is_superuser %}
+  <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
+    <h2 class="text-2xl font-bold mb-2 text-gray-800">Access Requests</h2>
+    <p class="text-sm text-gray-600 mb-4 max-w-2xl">
+      People ask for accounts on the request access page. Approve them as a Member or a Curator, or deny them.
+    </p>
+    <a href="{% url 'access_requests' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-user-add"></i>
+      <span>Review Access Requests</span>
+      {% if pending_access_requests %}<span class="ml-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-xs text-amber-900" data-testid="pending-access-count">{{ pending_access_requests }} waiting</span>{% endif %}
+    </a>
+  </div>
+
   <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
     <h2 class="text-2xl font-bold mb-2 text-gray-800">Model Predictions</h2>
     <p class="text-sm text-gray-600 mb-4 max-w-2xl">
@@ -348,7 +392,7 @@
       </div>
 
       {# --- STAFF TABLES (Uploads & Updates) --- #}
-      {% if request.user.is_staff %}
+      {% if areas.upload %}
 
       {# TABLE 2: MY UPLOADS #}
       <div>

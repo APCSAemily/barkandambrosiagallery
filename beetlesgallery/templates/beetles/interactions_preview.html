@@ -1583,6 +1583,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
 
   // Data URLs
   var MASTER_DATA_URL = "{% static 'data/bark_beetle_pathogens_master.json' %}";
+  var ADDITIONS_URL   = "{% url 'interactions_additions' %}";
   var HOSTS_DATA_URL  = "{% static 'data/beetle_hosts_summary.json' %}";
   var REFS_DATA_URL   = "{% static 'data/references.json' %}";
 
@@ -1912,11 +1913,18 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
     });
   }
 
-  // Load Master JSON Data
+  // Load Master JSON Data, then add what experts have accepted since (a missing or failing additions
+  // request must never stop the published dataset from showing).
   fetch(MASTER_DATA_URL)
     .then(function(res) {
       if (!res.ok) throw new Error("HTTP error " + res.status);
       return res.json();
+    })
+    .then(function(data) {
+      return fetch(ADDITIONS_URL)
+        .then(function(res) { return res.ok ? res.json() : []; })
+        .catch(function() { return []; })
+        .then(function(additions) { return Array.isArray(additions) ? data.concat(additions) : data; });
     })
     .then(function(data) {
       masterRecords = data;

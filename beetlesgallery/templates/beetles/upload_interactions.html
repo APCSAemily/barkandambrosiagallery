@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Upload interactions | Bark & Ambrosia Beetle Gallery{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl">
+  <a href="{% url 'data_management' %}" class="text-sm text-gray-500 hover:text-gray-800">&larr; Data Management</a>
+  <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Upload or update interactions</h1>
+  <p class="text-gray-600 mb-6">
+    Add interactions, or correct ones you added, with a CSV, the way image metadata is uploaded and updated.
+    Download the current interactions, edit or add rows, and upload the file.
+    Interactions proposed from the literature are reviewed on the
+    <a href="{% url 'interaction_review' %}" class="underline hover:text-black">review page</a> instead.
+  </p>
+
+  <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+    In the database: <strong>{{ counts.dataset }}</strong> from the published dataset,
+    <strong>{{ counts.proposal }}</strong> accepted from proposals, <strong>{{ counts.upload }}</strong> uploaded.
+    {% if not counts.dataset %}
+    <p class="mt-2 text-amber-800">The published dataset is not loaded into the database, so the download has none of it and the review page cannot tell you when a proposal is already in it.
+      A superuser can load it once with <span class="font-mono">manage.py import_pathogen_interactions</span>; it is safe to run again.</p>
+    {% endif %}
+  </div>
+
+  {% if error %}
+  <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+  <div class="mb-8 rounded-xl border p-5 {% if result.ok %}border-green-200 bg-green-50{% else %}border-red-200 bg-red-50{% endif %}" role="status">
+    {% if result.ok %}
+      <h2 class="text-lg font-semibold text-green-900 mb-1">{% if result.dry_run %}{{ filename }} is valid{% else %}Saved {{ filename }}{% endif %}</h2>
+      <p class="text-sm text-green-900">
+        {{ result.rows }} row{{ result.rows|pluralize }}: {{ result.created }} added, {{ result.updated }} updated, {{ result.unchanged }} unchanged.
+        {% if result.dry_run %}This was a check only, so nothing was saved.{% endif %}
+      </p>
+    {% else %}
+      <h2 class="text-lg font-semibold text-red-900 mb-1">{{ filename }} was not saved</h2>
+      <p class="text-sm text-red-900 mb-3">{{ result.error_count }} problem{{ result.error_count|pluralize }} found, so nothing was saved. Fix them and upload the file again.</p>
+      <ul class="text-sm text-red-900 list-disc pl-5 space-y-1">{% for message in result.errors %}<li>{{ message }}</li>{% endfor %}</ul>
+      {% if result.hidden_errors %}<p class="text-sm text-red-900 mt-2">&hellip;and {{ result.hidden_errors }} more.</p>{% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="mb-6">
+    <a href="{% url 'interactions_export' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-download"></i><span>Download current interactions (CSV)</span>
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm space-y-5">
+    {% csrf_token %}
+    <div>
+      <label for="csv_file" class="block text-sm font-semibold text-gray-700 mb-2">Interactions file (.csv, up to {{ max_mb }} MB)</label>
+      <input id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required
+        class="block w-full text-sm text-gray-700 file:mr-4 file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-4 file:py-2 file:font-semibold hover:file:bg-gray-50">
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" name="dry_run" class="rounded border-gray-300"> Check the file only, don't save anything
+    </label>
+    <button type="submit"
+      class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i><span>Upload</span>
+    </button>
+  </form>
+
+  <h2 class="text-xl font-semibold text-gray-900 mb-3">How rows are read</h2>
+  <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">record_id</td><td class="px-4 py-2 text-gray-600"><strong>Blank or NEW</strong> adds an interaction. <strong>An existing record_id</strong> updates it. Required column.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">beetle_host / beetle_host_id</td><td class="px-4 py-2 text-gray-600">The beetle, by any name in the species list (a synonym is matched to its valid name) or its valid_species_id. Needed for a new row.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">pathogen, category</td><td class="px-4 py-2 text-gray-600">The other organism, and Fungi, Nematode, Host plant, Mite ... Needed for a new row.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">ecological_relationship, source, year, title, doi_or_full_text, country_or_region ...</td><td class="px-4 py-2 text-gray-600">Optional. <span class="font-mono">doi_or_full_text</span> is a DOI or a web link. The year is four digits.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">origin</td><td class="px-4 py-2 text-gray-600">In the download for information; ignored on upload.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul class="text-sm text-gray-500 mt-3 list-disc pl-5 space-y-1">
+    <li>On an update, only the columns in your file change, and a blank cell empties an optional field.</li>
+    <li>The whole file is checked first. If any row is wrong nothing is saved and every problem is listed with its row number.</li>
+    <li>Interactions from the <strong>published v1.0 dataset</strong> cannot be changed here (the interactions page shows that dataset from fixed, versioned files). Ones you add, and ones accepted from proposals, can.</li>
+    <li>Adding the same beetle, organism and source twice is refused.</li>
+  </ul>
+</section>
+{% endblock %}

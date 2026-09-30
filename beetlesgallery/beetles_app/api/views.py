@@ -3,6 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from ..areas import ANNOTATE, has_area
 from django.http import FileResponse
 from django.db import transaction
 from django.utils import timezone
@@ -25,12 +26,12 @@ class _RollBack(Exception):
 
 class IsStaffUser(IsAuthenticated):
     """
-    Permission class that checks if user is authenticated and is staff OR superuser.
+    Permission class: the user has the annotate area (staff and superusers always do; others by grant).
     """
     def has_permission(self, request, view):
         is_authenticated = super().has_permission(request, view)
         # Authorize if the user is staff OR an administrative superuser
-        return bool(is_authenticated and (request.user.is_staff or request.user.is_superuser))
+        return bool(is_authenticated and has_area(request.user, ANNOTATE))
 
 
 class ImageAssetViewSet(viewsets.ModelViewSet):
