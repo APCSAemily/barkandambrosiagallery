@@ -90,6 +90,7 @@
 
               {# Actions Cell #}
               <td class="px-4 py-3 text-right">
+                {% if request.user.is_superuser %}
                 <button type="button" 
                    onclick="openEditUserModal(
                      '{{ u.id }}', 
@@ -102,6 +103,7 @@
                    title="Edit User">
                    <i class="fi fi-rr-edit"></i>
                 </button>
+                {% endif %}
               </td>
             </tr>
             {% empty %}

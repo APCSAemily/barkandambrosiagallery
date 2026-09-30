@@ -123,3 +123,35 @@ class AccountPageTests(AreaCase):
         self.grant(self.user, "upload", "annotate")
         self.client.force_login(self.superuser)
         self.assertContains(self.client.get(reverse("my_account")), "'annotate,upload'")
+
+
+class EditingUsersIsForSuperusersTests(AreaCase):
+    def edit(self, actor, **fields):
+        self.client.force_login(actor)
+        data = {"action_edit_user": "1", "user_id": self.user.id, "username": self.user.username, "role": "standard", "is_active": "on", **fields}
+        return self.client.post(reverse("my_account"), data)
+
+    def test_staff_cannot_change_anyones_role_status_name_or_password(self):
+        for fields in ({"role": "superuser"}, {"role": "staff"}, {"is_active": ""}, {"username": "renamed"}, {"new_password": "Changed-pw-99"}):
+            with self.subTest(fields=fields):
+                self.edit(self.staff, **fields)
+                self.user.refresh_from_db()
+                self.assertEqual((self.user.username, self.user.is_staff, self.user.is_superuser, self.user.is_active), ("user", False, False, True))
+                self.assertTrue(self.user.check_password("pw"))
+
+    def test_staff_cannot_promote_themselves(self):
+        self.client.force_login(self.staff)
+        self.client.post(reverse("my_account"), {"action_edit_user": "1", "user_id": self.staff.id, "username": "staff", "role": "superuser", "is_active": "on"})
+        self.staff.refresh_from_db()
+        self.assertFalse(self.staff.is_superuser)
+
+    def test_a_superuser_still_can(self):
+        self.edit(self.superuser, role="staff", username="renamed")
+        self.user.refresh_from_db()
+        self.assertEqual((self.user.username, self.user.is_staff, self.user.is_superuser), ("renamed", True, False))
+
+    def test_the_edit_button_is_only_shown_to_superusers(self):
+        self.client.force_login(self.staff)
+        self.assertNotContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")
+        self.client.force_login(self.superuser)
+        self.assertContains(self.client.get(reverse("my_account")), "onclick=\"openEditUserModal(")

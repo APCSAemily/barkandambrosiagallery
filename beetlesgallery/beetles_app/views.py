@@ -93,9 +93,9 @@ def my_account(request):
                 active_modal = "modal-create-user"
                 messages.error(request, "Please correct the errors in the user creation form.")
 
-        # --- CASE 3: Edit User (Staff Only) ---
+        # --- CASE 3: Edit User (Superusers Only: role, status, username, password, extra access) ---
         elif "action_edit_user" in request.POST:
-            if not user.is_staff:
+            if not user.is_superuser:
                 messages.error(request, "Permission denied.")
                 return redirect("my_account")
             
