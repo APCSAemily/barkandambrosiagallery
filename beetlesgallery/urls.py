@@ -7,6 +7,7 @@ from django.views.static import serve
 from beetlesgallery.beetles_app import views as beetles_views
 from beetlesgallery.beetles_app import game_views
 from beetlesgallery.beetles_app import interaction_views
+from beetlesgallery.beetles_app import interaction_proposals_views
 from beetlesgallery.beetles_app import interaction_upload_views
 from beetlesgallery.beetles_app import access_views
 from beetlesgallery.beetles_app.views import LoginViewWithRedirectMessage, PostOnlyLogoutView
@@ -42,6 +43,7 @@ urlpatterns = [
     path('interactions/', beetles_views.interactions_preview, name='interactions_preview'),
     path('interactions/additions.json', interaction_views.interactions_additions, name='interactions_additions'),
     path('interactions/review/', interaction_views.interaction_review, name='interaction_review'),
+    path('interactions/proposals/', interaction_proposals_views.upload_interaction_proposals, name='upload_interaction_proposals'),
     path('interactions/upload/', interaction_upload_views.upload_interactions, name='upload_interactions'),
     path('interactions/export.csv', interaction_upload_views.interactions_export, name='interactions_export'),
 

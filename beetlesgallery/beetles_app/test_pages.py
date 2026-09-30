@@ -58,6 +58,7 @@ SUPERUSER_PAGES = [
     "admin_described_names",
     "upload_predictions",
     "access_requests",
+    "upload_interaction_proposals",
 ]
 
 

@@ -83,6 +83,13 @@
       <i class="fi fi-rr-upload"></i>
       <span>Upload or Update Interactions</span>
     </a>
+    {% if user.is_superuser %}
+    <a href="{% url 'upload_interaction_proposals' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-4 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i>
+      <span>Submit Proposed Interactions</span>
+    </a>
+    {% endif %}
     </div>
   </div>
   {% endif %}

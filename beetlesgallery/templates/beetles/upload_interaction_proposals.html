@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Proposed interactions | Bark & Ambrosia Beetle Gallery{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl">
+  <a href="{% url 'data_management' %}" class="text-sm text-gray-500 hover:text-gray-800">&larr; Data Management</a>
+  <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Proposed interactions</h1>
+  <p class="text-gray-600 mb-8">
+    Load interactions proposed from the literature. Each row is one claim from one paper, with a link to the paper and the sentence that states it.
+    {% url 'interaction_review' as review_url %}They wait in the {% if review_url %}<a href="{{ review_url }}" class="underline hover:text-black">review queue</a>{% else %}review queue{% endif %}; nothing is published until an expert accepts it.
+  </p>
+
+  {% if error %}
+  <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+  <div class="mb-8 rounded-xl border p-5 {% if result.ok %}border-green-200 bg-green-50{% else %}border-red-200 bg-red-50{% endif %}" role="status">
+    {% if result.ok %}
+      <h2 class="text-lg font-semibold text-green-900 mb-1">
+        {% if result.dry_run %}{{ filename }} is valid{% else %}Loaded {{ filename }}{% endif %}
+      </h2>
+      <p class="text-sm text-green-900">
+        {{ result.rows }} row{{ result.rows|pluralize }}:
+        {{ result.created }} new, {{ result.refreshed }} already waiting (refreshed), {{ result.kept }} already decided by an expert (left as they are).
+        {% if result.dry_run %}This was a check only, so nothing was saved.{% endif %}
+      </p>
+    {% else %}
+      <h2 class="text-lg font-semibold text-red-900 mb-1">{{ filename }} was not loaded</h2>
+      <p class="text-sm text-red-900 mb-3">
+        {{ result.error_count }} problem{{ result.error_count|pluralize }} found, so nothing was saved.
+        Fix them and upload the file again.
+      </p>
+      <ul class="text-sm text-red-900 list-disc pl-5 space-y-1">
+        {% for message in result.errors %}<li>{{ message }}</li>{% endfor %}
+      </ul>
+      {% if result.hidden_errors %}
+      <p class="text-sm text-red-900 mt-2">&hellip;and {{ result.hidden_errors }} more.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm space-y-5">
+    {% csrf_token %}
+    <div>
+      <label for="csv_file" class="block text-sm font-semibold text-gray-700 mb-2">Proposals file (.csv, up to {{ max_mb }} MB)</label>
+      <input id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required
+        class="block w-full text-sm text-gray-700 file:mr-4 file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-4 file:py-2 file:font-semibold hover:file:bg-gray-50">
+    </div>
+    <div>
+      <label for="collector" class="block text-sm font-semibold text-gray-700 mb-2">Source pipeline name <span class="font-normal text-gray-500">(for rows that have none)</span></label>
+      <input id="collector" name="collector" type="text" maxlength="100" placeholder="my-pipeline v1"
+        class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400">
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" name="dry_run" class="rounded border-gray-300"> Check the file only, don't save anything
+    </label>
+    <button type="submit"
+      class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-upload"></i><span>Load proposals</span>
+    </button>
+  </form>
+
+  <h2 class="text-xl font-semibold text-gray-900 mb-3">Columns</h2>
+  <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">beetle_name</td><td class="px-4 py-2 text-gray-600">The beetle, by any name in the species list (a synonym is matched to its valid name). Required, or give <span class="font-mono">beetle_valid_species_id</span>.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">partner_name</td><td class="px-4 py-2 text-gray-600">The other organism. Required.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">category, relationship</td><td class="px-4 py-2 text-gray-600">Fungi, Nematode, Host plant, Mite ...; pathogen, parasite, symbiont, host plant ...</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">source_doi, source_url, source_id</td><td class="px-4 py-2 text-gray-600">At least one, so a reviewer can read the source. A URL must start with http:// or https://.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">source_title, source_authors, source_journal, source_year, source_db, open_access</td><td class="px-4 py-2 text-gray-600">About the source. Used for the citation when a claim is accepted.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">evidence, evidence_location</td><td class="px-4 py-2 text-gray-600">The sentence that states it, and whether it was in the title or abstract.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">score, collector</td><td class="px-4 py-2 text-gray-600">0 to 1, and what proposed it.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-gray-500 mt-3">
+    The whole file is checked before anything is saved. If any row is wrong, nothing is saved and every problem is listed with its row number.
+    A claim that is already there is refreshed while it waits for review and left alone once an expert has decided it.
+    Your own pipeline produces the CSV; for very large files use
+    <span class="font-mono">manage.py import_interaction_proposals</span> on the server.
+  </p>
+</section>
+{% endblock %}
