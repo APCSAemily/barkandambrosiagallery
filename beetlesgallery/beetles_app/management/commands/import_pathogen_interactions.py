@@ -17,7 +17,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--file",
             type=str,
-            help="Path to bark_beetle_pathogens_master.json (defaults to static/data/bark_beetle_pathogens_master.json)",
+            help="Path to bark_beetle_pathogens_master.json (defaults to beetlesgallery/data/interactions/v1.0/bark_beetle_pathogens_master.json)",
             default=None,
         )
         parser.add_argument(
@@ -34,7 +34,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         file_path = options["file"]
         if not file_path:
-            file_path = settings.BASE_DIR / "beetlesgallery" / "static" / "data" / "bark_beetle_pathogens_master.json"
+            file_path = settings.BASE_DIR / "beetlesgallery" / "data" / "interactions" / "v1.0" / "bark_beetle_pathogens_master.json"
             if not os.path.exists(file_path):
                 file_path = Path("F:/notion_data/bark_beetle_pathogens_master.json")
 
@@ -54,8 +54,10 @@ class Command(BaseCommand):
             deleted_count, _ = dataset_rows.delete()
             self.stdout.write(self.style.WARNING(f"Cleared {deleted_count} published-dataset records."))
 
+        # A record counts as already there whichever way it got in: loaded before, or uploaded from the
+        # initial file with its Records ID (see make_interactions_upload_file).
         existing = {}
-        for row in dataset_rows:
+        for row in PathogenInteraction.objects.exclude(record_number__isnull=True).exclude(record_number=""):
             existing.setdefault(row.record_number, []).append(row)
 
         to_create, to_update, unchanged, seen = [], [], 0, set()

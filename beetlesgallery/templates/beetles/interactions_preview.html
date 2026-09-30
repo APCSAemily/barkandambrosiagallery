@@ -1054,14 +1054,7 @@
             class="h-9 px-3 bg-gray-900 text-white rounded-md text-xs font-medium hover:bg-gray-800 transition whitespace-nowrap shadow-sm">
             Browse {{ stats.validated|intcomma }} Validated Records &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_with_validation.csv' %}" download="pathogens_with_validation.csv"
-            class="btn-download"
-            title="Download validated records as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download CSV</span>
-          </a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="validated" ext="csv" label="Download CSV" title="Download validated records as CSV" %}
         </div>
       </div>
 
@@ -1172,21 +1165,20 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <!-- Divider -->
           <div class="h-5 w-px bg-gray-200 hidden sm:block mx-0.5"></div>
 
-          <!-- Download buttons temporarily commented out for public release during final dataset review/QC
+          {% if user.is_authenticated %}
           <button id="download-active-csv-btn" type="button"
             class="btn-download"
-            title="Download active records as CSV">
+            title="Download the records currently shown as CSV">
             <i class="fi fi-rr-download text-gray-500"></i>
             <span>Download CSV</span>
           </button>
-
-          <a href="{% static 'data/bark_beetle_pathogen_database.xlsx' %}" download="bark_beetle_pathogen_dataset.xlsx"
-            class="btn-download"
-            title="Download full multi-sheet Excel workbook">
-            <i class="fi fi-rr-document text-emerald-600"></i>
-            <span>Download Excel</span>
+          {% else %}
+          <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="btn-download" title="Sign in to download">
+            <i class="fi fi-rr-lock text-gray-500"></i><span>Download CSV (sign in)</span>
           </a>
-          -->
+          {% endif %}
+
+          {% include "beetles/includes/interaction_download.html" with name="workbook" ext="xlsx" label="Download Excel" title="Download everything as an Excel workbook" %}
 
         </div>
 
@@ -1223,16 +1215,9 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <input id="hosts-search" type="text" placeholder="Search beetle species (e.g., Ips typographus, Dendroctonus)…"
             class="w-full h-9 pl-3 pr-3 border border-gray-300 rounded-md text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 transition" />
         </div>
-        <!-- Temporarily commented out for public release during final dataset review/QC
         <div class="flex items-center gap-2">
-          <a href="{% static 'data/beetle_hosts_summary.csv' %}" download="beetle_hosts_summary.csv"
-            class="btn-download"
-            title="Download beetle hosts summary as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download Hosts CSV</span>
-          </a>
+          {% include "beetles/includes/interaction_download.html" with name="hosts" ext="csv" label="Download Hosts CSV" title="Download beetle hosts summary as CSV" %}
         </div>
-        -->
       </div>
     </div>
 
@@ -1279,10 +1264,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-amber-700 hover:text-amber-900 hover:underline">
             View 408 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_fungi.csv' %}" download="pathogens_fungi.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="fungi" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1311,10 +1293,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline">
             View 221 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_nematodes.csv' %}" download="pathogens_nematodes.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="nematodes" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1343,10 +1322,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-purple-700 hover:text-purple-900 hover:underline">
             View 142 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_microsporidia.csv' %}" download="pathogens_microsporidia.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="microsporidia" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1375,10 +1351,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-orange-700 hover:text-orange-900 hover:underline">
             View 146 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_protists.csv' %}" download="pathogens_protists.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="protists" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1407,10 +1380,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-emerald-700 hover:text-emerald-900 hover:underline">
             View 49 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_bacteria.csv' %}" download="pathogens_bacteria.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="bacteria" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1439,10 +1409,7 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
             class="text-xs font-medium text-red-700 hover:text-red-900 hover:underline">
             View 47 Records in Dataset &rarr;
           </button>
-          <!-- Temporarily commented out for public release during final dataset review/QC
-          <a href="{% static 'data/pathogens_viruses.csv' %}" download="pathogens_viruses.csv"
-            class="text-[11px] text-gray-500 hover:text-gray-800 underline">CSV</a>
-          -->
+          {% include "beetles/includes/interaction_download.html" with name="viruses" ext="csv" label="CSV" css="text-[11px] text-gray-500 hover:text-gray-800 underline" %}
         </div>
       </div>
 
@@ -1459,16 +1426,9 @@ Dong Y. 2026. A global dataset of reported pathogens and parasites associated wi
           <input id="refs-search" type="text" placeholder="Search publications by author, title, or year (1914–2026)…"
             class="w-full h-9 pl-3 pr-3 border border-gray-300 rounded-md text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 transition" />
         </div>
-        <!-- Temporarily commented out for public release during final dataset review/QC
         <div class="flex items-center gap-2">
-          <a href="{% static 'data/references.csv' %}" download="references.csv"
-            class="btn-download"
-            title="Download references bibliography as CSV">
-            <i class="fi fi-rr-download text-gray-500"></i>
-            <span>Download References CSV</span>
-          </a>
+          {% include "beetles/includes/interaction_download.html" with name="references" ext="csv" label="Download References CSV" title="Download references bibliography as CSV" %}
         </div>
-        -->
       </div>
     </div>
 

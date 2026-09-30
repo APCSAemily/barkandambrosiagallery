@@ -6,8 +6,8 @@ time the page loads (`beetles_app/interaction_data.py`). Nothing on the page is 
 
 ## How the published dataset (v1.0) gets in
 
-`manage.py import_pathogen_interactions` reads `static/data/bark_beetle_pathogens_master.json` (the published v1.0 file, kept
-in git as the baseline) and adds every record that is missing. **The deploy runs it after the migrations**
+`manage.py import_pathogen_interactions` reads `beetlesgallery/data/interactions/v1.0/bark_beetle_pathogens_master.json` (the published v1.0 file, kept
+in git as the baseline; it is deliberately not under `static/`, so it is not served as a public file) and adds every record that is missing. **The deploy runs it after the migrations**
 (`pixi run import-interactions`), so a fresh server fills itself and nothing has to be done by hand.
 
 It never changes a row that is already in the database, so **corrections made through the upload page survive every deploy**.
@@ -41,9 +41,35 @@ is a second copy of the original dataset.
 
 To restore, load the `.sql` dump into an empty Postgres (`psql -U beetles_user beetles_db < db_full_backup.sql`).
 
+## Who can do what
+
+| | |
+|---|---|
+| **View** the Ecological Interactions page, its tables and filters | anyone, no account |
+| **Download** (CSV of the dataset, validated records, each pathogen group, beetle hosts, references, and the Excel workbook) | any signed-in account (anyone else is sent to sign in first) |
+| **Review proposals, upload and update** interactions | staff and superusers (plus anyone given the interactions area) |
+| Submit proposals (CSV), reload the dataset with `--refresh`/`--clear` | superusers / a person at a terminal |
+
+The same as the images: free to look at, an account to download, staff to change. Two honest limits: the page's table reads
+the same records from `/interactions/data/records.json`, which is public because viewing is free, and the repository itself
+is where the original v1.0 file lives. The published files are no longer under `static/`, so they are not served as
+ready-made downloads.
+
+## Starting an empty database by hand (the files)
+
+The deploy fills an empty database by itself. If you would rather do it through the site, or want to edit the data first:
+
+* `beetlesgallery/data/interactions/v1.0/interactions_v1.0_upload.csv`: all 1,015 published records with their Records IDs,
+  in the upload format. Staff can also download it from **Upload or Update Interactions → Initial file (published v1.0)**.
+  Upload it once into an empty database (tick "Check the file only" first). Every beetle must be in the species list, so
+  load the taxonomy first (the page lists any that are not). The published set has 104 records that share a beetle,
+  organism and source with another; the file's `records_id` column marks each as its own numbered record, so they are accepted.
+* `static/downloads/interactions_upload_template.csv` (also **Blank template** on that page): the columns with one example row.
+* After either way the deploy's loader finds the records already there and adds nothing, so nothing is doubled.
+* If the published JSON ever changes, regenerate the file with `manage.py make_interactions_upload_file` (a test fails when they differ).
+
 ## Not changed
 
-The download buttons on the page (CSV and Excel of the published dataset) are still switched off, as they were ("temporarily
-commented out for public release during final dataset review/QC"). The "About" text that describes v1.0 (1,015 records,
+The "About" text that describes v1.0 (1,015 records,
 281 publications, the per-group results) is still the published description of v1.0; the numbers in the tiles, tabs and filters
 are live.

@@ -11,7 +11,7 @@ from django.urls import reverse
 from beetlesgallery.beetles_app import interaction_data as data
 from beetlesgallery.beetles_app.models import PathogenInteraction
 
-STATIC = Path(settings.BASE_DIR) / "beetlesgallery" / "static" / "data"
+STATIC = Path(settings.BASE_DIR) / "beetlesgallery" / "data" / "interactions" / "v1.0"
 
 
 def published(name):

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Upload interactions | Bark & Ambrosia Beetle Gallery{% endblock %}
 
@@ -43,10 +44,19 @@
   </div>
   {% endif %}
 
-  <div class="mb-6">
+  <div class="mb-6 flex flex-wrap gap-3">
     <a href="{% url 'interactions_export' %}"
       class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
       <i class="fi fi-rr-download"></i><span>Download current interactions (CSV)</span>
+    </a>
+    <a href="{% static 'downloads/interactions_upload_template.csv' %}" download
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition">
+      <i class="fi fi-rr-document"></i><span>Blank template</span>
+    </a>
+    <a href="{% url 'interactions_initial_file' %}"
+      class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-6 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-black transition"
+      title="The published v1.0 dataset as an upload file, to start an empty database by hand">
+      <i class="fi fi-rr-database"></i><span>Initial file (published v1.0)</span>
     </a>
   </div>
 
@@ -71,6 +81,7 @@
     <table class="w-full text-sm">
       <tbody class="divide-y divide-gray-100">
         <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">record_id</td><td class="px-4 py-2 text-gray-600"><strong>Blank or NEW</strong> adds an interaction. <strong>An existing record_id</strong> updates it. Required column.</td></tr>
+        <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">records_id</td><td class="px-4 py-2 text-gray-600">Optional, new rows only: the dataset's own number for a record (1&ndash;1015 in the published v1.0). Leave it blank for your own rows. It cannot be changed afterwards.</td></tr>
         <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">beetle_host / beetle_host_id</td><td class="px-4 py-2 text-gray-600">The beetle, by any name in the species list (a synonym is matched to its valid name) or its valid_species_id. Needed for a new row.</td></tr>
         <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">pathogen, category</td><td class="px-4 py-2 text-gray-600">The other organism, and Fungi, Nematode, Host plant, Mite ... Needed for a new row.</td></tr>
         <tr><td class="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">ecological_relationship, source, year, title, doi_or_full_text, country_or_region ...</td><td class="px-4 py-2 text-gray-600">Optional. <span class="font-mono">doi_or_full_text</span> is a DOI or a web link. The year is four digits.</td></tr>
