@@ -1,0 +1,24 @@
+# Loaded automatically by a plain `docker compose up` on your own computer (local development).
+# The server always names its files (`-f docker-compose.yml -f docker-compose.prod.yml`), so it never loads this one.
+#
+# It adds Mailpit, a pretend mail server: every email the site sends (confirm your email, access request,
+# approval, password reset) is caught here instead of going to the internet. Read them at http://localhost:8025
+# No email account is needed on your computer.
+services:
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"   # the inbox you open in a browser
+      # 1025 (SMTP) is only reachable from the other containers, which is all the site needs
+    restart: unless-stopped
+
+  web:
+    environment:
+      # A real SMTP server in your local .env wins over these (set EMAIL_HOST there to test real delivery).
+      EMAIL_HOST: ${EMAIL_HOST:-mailpit}
+      EMAIL_PORT: ${EMAIL_PORT:-1025}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+    depends_on:
+      - db
+      - redis
+      - mailpit

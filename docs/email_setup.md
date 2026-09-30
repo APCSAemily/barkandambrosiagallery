@@ -9,14 +9,31 @@ The site sends email in four places, and **nothing in the account flow works wit
 | You approve or deny | the applicant | the decision (approved: username and sign-in link) |
 | "Forgot your password?" | the account's owner | reset link (valid a week, once) |
 
-## 1. Why nothing arrived when you tried it locally
+## 1. Testing on your own computer: no email account needed
 
-With no `EMAIL_HOST` the site does **not** send anything. It prints each email in the web container's log instead. So:
+The site does not need an email account to run locally. `docker-compose.override.yml` adds **Mailpit**, a pretend mail
+server that catches every email the site sends and shows it in a web page. Docker Compose loads that file by itself, so:
 
-* Locally, read the mail in the terminal: `docker compose logs -f web` (the confirmation link is in the message; copy it into your browser).
-* To receive real mail locally, set the variables in section 2 in your local `.env` and restart: `docker compose up -d web`.
+```
+docker compose up -d --build        # first time, or after pulling (this starts the mailpit container too)
+```
 
-## 2. The settings (server: `.env.prod`; local: `.env`)
+1. Open the site at http://localhost:8000 and the **mail inbox** at http://localhost:8025 (keep both tabs open).
+2. On the site, sign out, go to `/accounts/request-access/`, fill it in and submit.
+3. In the inbox you will see "Confirm your email...". Click the link in it.
+4. A second email appears, "Access request: <name>", to the approvers (`gmarais@ufl.edu` and every superuser with an email).
+   Click its link, sign in as a superuser, and approve. The applicant's "Your access..." email appears in the inbox too.
+5. On the sign-in page, **Forgot your password?** sends a reset email the same way.
+
+Nothing leaves your computer, so you can test as much as you like with made-up addresses. You need **a superuser account
+with an email address** to approve (My Account → edit the user, or `docker compose run --rm web pixi run python manage.py createsuperuser`).
+
+If the inbox page does not open, `docker compose ps` should list `mailpit` as running; if not, run `docker compose up -d`.
+Without the override (for example if you run the site outside Docker) emails are printed in the terminal instead.
+
+The server is different: there the site needs a real SMTP account, see the next sections.
+
+## 2. The settings on the server (`.env.prod`); to test real delivery locally, put them in `.env` (they replace Mailpit)
 
 ```
 EMAIL_HOST=smtp.example.org          # your SMTP server
