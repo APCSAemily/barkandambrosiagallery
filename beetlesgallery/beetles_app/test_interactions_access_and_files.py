@@ -88,6 +88,22 @@ class AccessTests(PageBehaviourCase):
         self.assertIn('id="download-active-csv-btn"', member)
         self.assertNotIn("(sign in)", member)
 
+    def test_the_interaction_pages_go_back_to_the_interactions_page(self):
+        self.client.force_login(self.superuser if hasattr(self, "superuser") else self.staff)
+        back = f'href="{reverse("interactions_preview")}" class="inline-block py-2'
+        for name in ("upload_interactions", "interaction_review", "upload_interaction_proposals"):
+            response = self.client.get(reverse(name))
+            if response.status_code != 200:
+                continue   # the proposals upload is for superusers; checked below
+            page = response.content.decode()
+            self.assertIn(back, page, name)
+            self.assertNotIn("&larr; Data Management", page, name)
+        from django.conf import settings
+        for template in ("interaction_review", "upload_interaction_proposals", "upload_interactions"):
+            source = (settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles" / f"{template}.html").read_text()
+            self.assertIn("{% url 'interactions_preview' %}", source, template)
+            self.assertNotIn("&larr; Data Management", source, template)
+
     def test_changing_the_data_needs_staff(self):
         for name in ("upload_interactions", "interactions_initial_file", "interaction_review"):
             self.assertRedirectsToLogin(self.client.get(reverse(name)))
