@@ -29,3 +29,22 @@ def species_ref_status(request):
         "app_version": settings.APP_VERSION,
         "debug": settings.DEBUG,
     }
+
+def game_player(request):
+    """
+    The signed-in user's game level and score for the sidebar and the home page, so the game is always one tap
+    away. Read from the stored totals only (no recomputing), so it costs one small query per page.
+    """
+    user = getattr(request, "user", None)
+    if user is None or not user.is_authenticated:
+        return {}
+    try:
+        from beetlesgallery.beetles_app.game_levels import describe
+        from beetlesgallery.beetles_app.models import PlayerScore
+
+        row = PlayerScore.objects.filter(player=user).values_list("score", "rating").first()
+        score, rating = row if row else (0.0, 0.0)
+        level = describe(score, rating)
+    except Exception:
+        return {}
+    return {"game_player": {"level": level["level"], "name": level["name"], "score": round(score)}}

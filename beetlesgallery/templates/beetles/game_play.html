@@ -103,6 +103,7 @@
   <div id="loading" class="flex-1 flex flex-col items-center justify-center text-gray-400">
     <i class="fi fi-rr-spinner animate-spin inline-block text-3xl"></i>
     <p class="mt-2 text-sm">Finding a beetle&hellip;</p>
+    <p class="mt-3">{% include "beetles/includes/game_beta.html" %}</p>
   </div>
 
   <!-- The feed -->
@@ -229,6 +230,13 @@
   const PAGE_MODE = root.dataset.mode;          // "mixed" (both games in one feed) or one game
   let MODE = PAGE_MODE === "mixed" ? "classify" : PAGE_MODE;   // the game of the beetle on screen
   const GAME_NAMES = { classify: "Name That Beetle", pair: "Family Ties" };
+  // badge accents, the same as on the profile (includes/game_badge.html)
+  const BADGE_INK = {
+    first: "text-lime-600", ten: "text-lime-600", hundred: "text-sky-600", thousand: "text-sky-600",
+    streak3: "text-orange-600", streak7: "text-orange-600", streak30: "text-orange-600", goal: "text-teal-600",
+    both: "text-teal-600", species1: "text-violet-600", species25: "text-violet-600", expert: "text-green-700",
+    discovery: "text-amber-600",
+  };
   const RANKS = ["subfamily", "tribe", "genus", "species"];
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const $ = (id) => document.getElementById(id);
@@ -660,7 +668,8 @@
     r.badges.forEach((b) => {
       const row = document.createElement("div");
       row.className = "flex items-center gap-3 p-3 border border-gray-300 rounded-2xl text-left";
-      row.innerHTML = '<i class="fi ' + b.icon + ' text-2xl text-gray-700"></i><div><div class="text-sm font-semibold text-gray-900"></div><div class="text-xs text-gray-500"></div></div>';
+      const ink = BADGE_INK[b.key] || "text-gray-700";
+      row.innerHTML = '<i class="fi ' + b.icon + ' text-2xl ' + ink + '"></i><div><div class="text-sm font-semibold text-gray-900"></div><div class="text-xs text-gray-500"></div></div>';
       row.querySelector(".text-sm").textContent = "New badge: " + b.name;
       row.querySelector(".text-xs").textContent = b.how;
       holder.appendChild(row);

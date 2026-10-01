@@ -1,4 +1,4 @@
-{# A player's level as a little badge: darker as the level rises; the top level is gold with a crown. Needs ``level`` (1-10) and optional ``name``. #}
+{# A player's level as a little badge, coloured by tier: lime 1-3, sky 4-6, violet 7-9, gold with a crown at 10. Needs ``level`` and optional ``name``. #}
 <span class="inline-flex items-center justify-center gap-0.5 shrink-0 h-5 min-w-[1.25rem] px-1 rounded-md text-[10px] font-bold leading-none tabular-nums align-middle
-  {% if level >= 10 %}bg-amber-100 text-amber-800 ring-1 ring-amber-400{% elif level >= 7 %}bg-gray-800 text-white{% elif level >= 4 %}bg-gray-500 text-white{% else %}bg-gray-200 text-gray-700{% endif %}"
+  {% if level >= 10 %}bg-amber-100 text-amber-800 ring-1 ring-amber-400{% elif level >= 7 %}bg-violet-600 text-white{% elif level >= 4 %}bg-sky-600 text-white{% else %}bg-lime-200 text-lime-900{% endif %}"
   title="Level {{ level }}{% if name %}: {{ name }}{% endif %}" data-testid="level-badge">{% if level >= 10 %}<i class="fi fi-rr-crown text-[10px]"></i>{% endif %}{{ level }}</span>

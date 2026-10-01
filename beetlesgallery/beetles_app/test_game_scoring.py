@@ -61,9 +61,20 @@ class TruthPointsTests(ScoringCase):
     def test_how_wrong_matters(self):
         near = self.points(self.answer(self.user, self.roi(self.t_affinis), FERR)).points      # right genus, wrong species
         far = self.points(self.answer(self.staff, self.roi(self.t_affinis), PLAT)).points      # everything wrong
-        self.assertEqual(near, 1.0)       # 1 + 2 + 4 - 6
+        self.assertEqual(near, 4.2)       # 1 + 2 + 4 - 8 * 0.35: partial credit, a small penalty for the species
         self.assertEqual(far, -11.25)     # -(1 + 2 + 4 + 8) * 0.75
         self.assertGreater(near, far)
+
+    def test_partial_credit_is_less_than_being_right_and_less_than_stopping(self):
+        right_tribe = dict(AFFINIS, genus="Ambrosiodmus", species="")
+        tribe_wrong_genus = self.points(self.answer(self.user, self.roi(self.t_affinis), right_tribe)).points
+        self.assertEqual(tribe_wrong_genus, 1.6)    # 1 + 2 - 4 * 0.35
+        tribe_only = dict(AFFINIS, genus="", species="")
+        stopped = self.points(self.answer(self.staff, self.roi(self.t_affinis), tribe_only)).points
+        self.assertEqual(stopped, 3.0)
+        self.assertLess(tribe_wrong_genus, stopped)         # guessing past what you know costs a little
+        self.assertGreater(tribe_wrong_genus, 0)            # but the right tribe still earns something
+        self.assertLess(4.2, 7.0)                           # right genus + wrong species < right genus alone < species
 
     def test_not_sure_costs_a_little(self):
         p = self.points(self.answer(self.user, self.roi(self.t_affinis), skipped=True))
@@ -90,7 +101,13 @@ class PairPointsTests(ScoringCase):
     def test_how_far_off_matters(self):
         one_step = self.pair(self.user, self.t_affinis, self.t_ferr, "species")       # same genus, said same species
         three_steps = self.pair(self.user, self.t_affinis, self.t_ferr, "different")  # same genus, said different subfamilies
-        self.assertEqual((one_step, three_steps), (-1.0, -3.0))
+        self.assertEqual(one_step, 3.25)       # same genus is right (5), one rung too far costs 5 * 0.35
+        self.assertEqual(three_steps, -3.0)    # calling relatives strangers is plain wrong
+
+    def test_a_cautious_true_answer_earns_its_rung(self):
+        cautious = self.pair(self.user, self.t_affinis, self.t_ferr, "tribe")    # true, but they share the genus
+        exact = self.pair(self.user, self.t_affinis, self.t_ferr, "genus")
+        self.assertEqual((cautious, exact), (3.0, 5.0))
 
     def test_alike_photos_earn_a_bonus(self):
         plain = self.pair(self.user, self.t_affinis, self.t_ferr, "genus")

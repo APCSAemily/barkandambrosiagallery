@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_board, game_discoveries, game_feedback, game_queue, game_levels, game_rewards, game_scoring, game_tips, game_trust
+from . import game, game_board, game_checked, game_discoveries, game_feedback, game_queue, game_levels, game_rewards, game_scoring, game_tips, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -59,13 +59,21 @@ def discussions_url():
 def game_home(request):
     game.close_idle_rounds(request.user)   # anything they left open counts now
     game_discoveries.find([request.user.id])
+    checked, checked_new = game_checked.pop_unseen(request.user)
     return render(request, "beetles/game_home.html", {
+        "checked": checked, "checked_new": checked_new,
         "discoveries": game_discoveries.pop_unseen(request.user),
         "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
         "board": game_board.board(limit=5),
         "discussions": discussions_url(),
     })
+
+
+@login_required
+def game_checked_page(request):
+    """Every beetle a curator validated after the player answered it, newest first."""
+    return render(request, "beetles/game_checked.html", {"checked": game_checked.items(request.user, limit=200)})
 
 
 @login_required
@@ -151,6 +159,7 @@ def game_how(request):
         "rank_points": game_scoring.RANK_POINTS, "pair_points": [
             (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
         "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
+        "overreach": game.game_setting("GAME_POINTS_OVERREACH", 0.35),
         "cap": int(game.game_setting("GAME_POINTS_CONSENSUS_CAP", 0.6) * 100),
         "unsure": game.game_setting("GAME_POINTS_UNSURE", 0.25),
         "retry_days": game.game_setting("GAME_RETRY_AFTER_DAYS", 2),

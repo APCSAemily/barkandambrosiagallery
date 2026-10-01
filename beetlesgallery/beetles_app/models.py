@@ -1356,6 +1356,11 @@ class GameAnswer(models.Model):
         help_text="A validated beetle shown again so the player can learn it. Earns points, but is left out of "
                   "accuracy and expertise, which only count the first time a beetle is seen.",
     )
+    validated_later = models.BooleanField(
+        default=False, db_index=True,
+        help_text="The beetle was not validated when answered but has been since. Its correct_* and ref_* fields are "
+                  "then filled from the validated name, so the answer counts towards accuracy and expertise too.",
+    )
     new_species = models.BooleanField(
         null=True, blank=True,
         help_text="The species the player named had no validated images when they named it. If the beetle is later "
@@ -1446,6 +1451,31 @@ class GamePreference(models.Model):
 
     class Meta:
         db_table = "game_preference"
+
+
+class RetroCredit(models.Model):
+    """
+    An answer re-scored because the beetle was validated after the player answered it: what they said, what the
+    beetle turned out to be, and the points before and after. Shown to the player once as a recap
+    (``seen_at``), so they learn from it. Only validations make one, never agreement points.
+    """
+
+    answer = models.OneToOneField("GameAnswer", on_delete=models.CASCADE, related_name="retro_credit")
+    player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="retro_credits")
+    points_before = models.FloatField(default=0.0)
+    points_after = models.FloatField(default=0.0)
+    validated_name = models.CharField(max_length=200, blank=True)
+    validated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "game_retro_credit"
+        ordering = ["-created_at"]
+
+    @property
+    def change(self):
+        return round(self.points_after - self.points_before, 2)
 
 
 class SpeciesDiscovery(models.Model):

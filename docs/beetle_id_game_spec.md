@@ -365,3 +365,32 @@ at level 10) and a sparkle for players who found a new species.
 **Less text.** The game home is a Play button, the level card, streak and today, four links and the top five
 players. The unlocks page is the ladder and the focus form, with the expert rules behind a "How experts are
 proven" toggle. The help page keeps the detail for those who want it.
+
+## Update: partial credit, late validations, difficulty by skill, beta
+
+**Partial credit** (`game_scoring.classify_truth`, `pair_truth`). Name That Beetle: every right rank earns its
+weight (1/2/4/8); only the first wrong rank costs anything, `GAME_POINTS_OVERREACH` (35%) of its weight when a rank
+above it was right (right genus, wrong species = 7 - 2.8 = 4.2, less than stopping at the genus, 7), or
+`GAME_POINTS_WRONG_FACTOR` (75%) of everything claimed when even the subfamily is wrong. Family Ties: a cautious
+answer that is true as far as it goes earns its rung's points; too close a tie earns the true rung's points minus
+35% of the next rung's per rung too far; calling relatives strangers (or the reverse) loses 1 per step. Agreement
+points on unvalidated pairs are partial per rung too, so they scale with the judges' strength the same way.
+
+**Validated later** (`game_scoring.sync_late_truth`, `GameAnswer.validated_later`, `RetroCredit`). When a beetle
+is validated after players answered it, their answers get `correct_*`/`ref_*` filled from the validated name and
+count towards accuracy (`ratings`) and expertise (`skill_counts`) like any validated beetle; undone if the
+validation is withdrawn. The first time such an answer is scored on the truth, a `RetroCredit` stores the points
+before and after, the validated name and `bbox_validated_at`. The game home shows new ones once as "Checked since
+you played" (photo crop, what you said, what it is, points, date); `/game/checked/` lists them all. Agreement
+points never make a recap. Finishing a round now re-scores everyone who answered the same unvalidated beetles, so
+agreement from a later expert reaches earlier players straight away, not only overnight.
+
+**Difficulty by skill.** `target_difficulty` follows the player's rating (`GAME_DIFFICULTY_SKILL_WEIGHT` 0.7, start
+0.15, +0.005 per round). Beetle difficulty still comes from how often other players get it right. Family Ties pairs
+lean towards relations near the target (`RELATION_DIFFICULTY`: different subfamilies 0.1 ... same species 0.85),
+so experts get close relatives and novices distant ones.
+
+**Beta, sidebar, invitation, colour.** A Beta label on the game pages and in the sidebar. Signed-in users see their
+username, level badge and score in the sidebar, linking to the game, and the home page invites everyone to play
+(dismissible). The game has its own palette: level badges by tier (lime 1-3, sky 4-6, violet 7-9, gold 10), badge
+accents, green/red points in recaps. The rest of the site keeps colour for meaning only.
