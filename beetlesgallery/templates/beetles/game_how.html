@@ -77,8 +77,9 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-2">Where your labels go</h2>
       <ul class="text-sm text-gray-600 list-disc pl-5 space-y-1">
         <li>From level {{ proposal_level }}, your names for beetles nobody has checked yet go to the curators as <strong>suggestions</strong>. Curators decide.</li>
-        <li>Only real <strong>experts</strong> have their labels written to the database without review: when {{ min_experts }} or more experts agree on a beetle with no name yet. It is still marked unvalidated until a curator checks it.</li>
-        <li>You become an expert one part of the tree at a time: one subfamily, tribe or genus, after many answers there and only if you are among the most accurate players. You can be an expert on one genus and not on another, so some of your labels may skip review and others not. Your <a href="{% url 'game_expertise' %}" class="underline">expertise tree</a> shows where you stand.</li>
+        <li>Only real <strong>experts</strong> have their labels written to the database without review. You become one by proving yourself on <strong>beetles experts have already checked</strong>, in that exact group: at least {{ trust_min_judged }} answers there, and so accurate that we are 95% sure you are right at least {% widthratio trust_bound 1 100 %}% of the time. You must also be among the most reliable players overall.</li>
+        <li>Then, when {{ min_experts }} or more such experts give the same species for a beetle with no name yet, and no proven player disagrees, it is written to the database. It stays marked unvalidated until a curator checks it.</li>
+        <li>Expertise is earned one group at a time (a subfamily, a tribe, a genus, the species within a genus). You can be an expert on one genus and not on another, so some of your labels may skip review and others not. Being good in neighbouring groups only makes your labels suggestions. Your <a href="{% url 'game_expertise' %}" class="underline">expertise tree</a> shows where you stand.</li>
         <li>Expertise is checked again all the time, so it can be lost as well as earned.</li>
       </ul>
     </section>

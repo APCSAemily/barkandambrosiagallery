@@ -146,6 +146,8 @@ def game_how(request):
         "discussions": discussions_url(), "levels": game_levels.table(),
         "proposal_level": game_levels.proposal_level(),
         "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
+        "trust_min_judged": game.game_setting("GAME_TRUST_MIN_JUDGED", 15),
+        "trust_bound": game.game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
         "rank_points": game_scoring.RANK_POINTS, "pair_points": [
             (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
         "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
