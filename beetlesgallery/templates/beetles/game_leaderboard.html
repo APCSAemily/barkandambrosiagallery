@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Beetle ID Game</a>
+  <h1 class="page-title">Leaderboard</h1>
+
+  <form method="get" class="flex flex-wrap items-center gap-2 mb-4" role="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search players&hellip;" aria-label="Search players"
+      class="h-10 px-3 flex-1 min-w-[10rem] border border-gray-300 rounded-lg">
+    <select name="sort" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Sort by">
+      {% for key, label in sorts.items %}<option value="{{ key }}" {% if sort == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="period" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Period">
+      <option value="all" {% if period == 'all' %}selected{% endif %}>All time</option>
+      <option value="week" {% if period == 'week' %}selected{% endif %}>This week</option>
+    </select>
+    <button type="submit" class="btn-primary h-10">Show</button>
+  </form>
+  {% if period == 'week' %}<p class="text-xs text-gray-500 mb-2">This week: points and beetles since Monday. Accuracy is all time.</p>{% endif %}
+  {% include "beetles/includes/game_board_table.html" with rows=rows %}
+
+  <!-- Specialists -->
+  <h2 class="text-lg font-semibold text-gray-900 mt-10 mb-1">Specialists</h2>
+  <p class="text-sm text-gray-600 mb-3">The best players inside one part of the tree: for a genus, how well they name its species; for a tribe, its genera; for a subfamily, its tribes.</p>
+  <form method="get" class="flex flex-wrap items-center gap-2 mb-4" id="branch-form" data-taxa-url="{% url 'game_taxa' %}">
+    <select name="rank" id="branch-rank" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Part of the tree">
+      <option value="">Choose&hellip;</option>
+      <option value="subfamily" {% if branch_rank == 'subfamily' %}selected{% endif %}>Subfamily</option>
+      <option value="tribe" {% if branch_rank == 'tribe' %}selected{% endif %}>Tribe</option>
+      <option value="genus" {% if branch_rank == 'genus' %}selected{% endif %}>Genus</option>
+    </select>
+    <select name="branch" id="branch-value" class="h-10 px-3 flex-1 min-w-[10rem] border border-gray-300 rounded-lg bg-white" data-current="{{ branch_value }}" aria-label="Which one">{% if branch_value %}<option value="{{ branch_value }}" selected>{{ branch_value }}</option>{% endif %}</select>
+    <button type="submit" class="btn-primary h-10">Show</button>
+  </form>
+  {% if branch_rows is not None %}
+  <div class="border border-gray-200 rounded-lg overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+        <tr><th class="py-2 pl-4 pr-2 text-left w-10">#</th><th class="py-2 px-2 text-left">Player</th><th class="py-2 px-2 text-right">Right</th><th class="py-2 pl-2 pr-4 text-right">Accuracy</th></tr>
+      </thead>
+      <tbody>
+        {% for row in branch_rows %}
+        <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-gray-100 font-semibold{% endif %}">
+          <td class="py-2.5 pl-4 pr-2 text-gray-400">{{ row.position }}</td>
+          <td class="py-2.5 px-2"><a href="{% url 'game_profile' row.player_id %}" class="underline decoration-gray-300 hover:decoration-gray-900">{{ row.username }}</a>{% if row.is_expert %} <span class="text-xs font-semibold text-green-700">expert</span>{% endif %}</td>
+          <td class="py-2.5 px-2 text-right tabular-nums">{{ row.correct }}/{{ row.judged }}</td>
+          <td class="py-2.5 pl-2 pr-4 text-right tabular-nums">{% widthratio row.accuracy 1 100 %}%</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="p-4 text-gray-500">Nobody has played enough of {{ branch_value }} yet. Be the first specialist.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const rank = document.getElementById("branch-rank");
+  const value = document.getElementById("branch-value");
+  const url = document.getElementById("branch-form").dataset.taxaUrl;
+  async function load() {
+    value.innerHTML = "";
+    if (!rank.value) return;
+    const data = await (await fetch(url + "?rank=" + encodeURIComponent(rank.value))).json();
+    (data.options || []).forEach((o) => { const el = document.createElement("option"); el.value = el.textContent = o.value; value.appendChild(el); });
+    const current = value.dataset.current;
+    if (current && ![...value.options].some((o) => o.value === current)) {
+      const el = document.createElement("option"); el.value = el.textContent = current; value.prepend(el);
+    }
+    if (current) value.value = current;
+  }
+  rank.addEventListener("change", () => { value.dataset.current = ""; load(); });
+  load();
+})();
+</script>
+{% endblock %}

@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_feedback, game_levels, game_rewards, game_scoring, game_trust
+from . import game, game_board, game_feedback, game_levels, game_rewards, game_scoring, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -50,19 +50,39 @@ MAX_RESPONSE_MS = 60 * 60 * 1000
 # ---------------------------------------------------------------------------
 @login_required
 def game_home(request):
-    sort = "accuracy" if request.GET.get("sort") == "accuracy" else "labelled"
     game.close_idle_rounds(request.user)   # anything they left open counts now
-    period = "week" if request.GET.get("period") == "week" else "all"
     return render(request, "beetles/game_home.html", {
         "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
         "badges": game_rewards.badge_cards(request.user),
-        "period": period,
-        "week_leaderboard": period == "week",
         "games": [{"mode": m, "name": GAME_NAMES[m], "tagline": GAME_TAGLINES[m]} for m in MODES],
         "summary": game.player_summary(request.user),
-        "leaderboard": game.leaderboard(limit=25, sort=sort, since=game.week_start() if period == "week" else None),
-        "sort": sort,
+        "board": game_board.board(limit=10),
+    })
+
+
+@login_required
+def game_leaderboard(request):
+    """The full leaderboard: by score, accuracy or beetles seen, all time or this week, searchable, and per branch."""
+    sort = request.GET.get("sort") if request.GET.get("sort") in game_board.SORTS else "score"
+    period = "week" if request.GET.get("period") == "week" else "all"
+    q = (request.GET.get("q") or "").strip()[:50]
+    branch_rank = request.GET.get("rank") if request.GET.get("rank") in game_board.BRANCH_SKILL else ""
+    branch_value = (request.GET.get("branch") or "").strip()[:100]
+    return render(request, "beetles/game_leaderboard.html", {
+        "rows": game_board.board(sort=sort, period=period, q=q, limit=100),
+        "branch_rows": game_board.branch_board(branch_rank, branch_value) if branch_rank and branch_value else None,
+        "sort": sort, "period": period, "q": q, "sorts": game_board.SORTS,
+        "branch_rank": branch_rank, "branch_value": branch_value,
+    })
+
+
+@login_required
+def game_profile(request, user_id):
+    """A player's public game profile."""
+    player = get_object_or_404(get_user_model(), id=user_id)
+    return render(request, "beetles/game_profile.html", {
+        "player": player, "is_self": player == request.user, "p": game_board.profile(player),
     })
 
 
