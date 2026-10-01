@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block extra_css %}
+<style>
+  /* The tables scroll sideways on narrow screens instead of being cut off */
+  .wide-table { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+  .wide-table.wide-table-both { overflow-y: auto; }
+  .wide-table > table { min-width: 36rem; }
+  /* "No downloads yet" and the like: start at the left on a phone so the message is not half off screen */
+  @media (max-width: 639px) { .wide-table td[colspan] { text-align: left; } }
+</style>
+{% endblock %}
+
 {% block content %}
 <script>
   // Configuration: The direct subdomain that bypasses Cloudflare
@@ -120,7 +131,7 @@
       <h3 class="text-lg font-semibold mb-3 text-gray-800">Version History</h3>
 
       <div id="table-history" data-restriction="max-h-28"
-        class="rounded-lg border border-gray-200 bg-white overflow-hidden max-h-28 transition-all duration-500 ease-in-out relative">
+        class="rounded-lg border border-gray-200 bg-white wide-table max-h-28 transition-all duration-500 ease-in-out relative">
         <table class="w-full text-sm text-left">
           <thead
             class="bg-gray-100 text-xs uppercase text-gray-500 font-semibold border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -212,7 +223,7 @@
         </p>
 
         <div id="table-downloads" data-restriction="max-h-80"
-          class="rounded-lg border border-gray-200 bg-white overflow-hidden max-h-80 transition-all duration-500 ease-in-out relative">
+          class="rounded-lg border border-gray-200 bg-white wide-table max-h-80 transition-all duration-500 ease-in-out relative">
           <table class="w-full text-sm text-left">
             <thead
               class="bg-gray-100 text-xs uppercase text-gray-500 font-semibold border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -357,7 +368,7 @@
         <h3 class="text-xl font-semibold mb-3 text-gray-800">My Uploads</h3>
 
         <div id="table-uploads" data-restriction="max-h-80"
-          class="rounded-lg border border-gray-200 bg-white overflow-hidden max-h-80 transition-all duration-500 ease-in-out relative">
+          class="rounded-lg border border-gray-200 bg-white wide-table max-h-80 transition-all duration-500 ease-in-out relative">
           <table class="w-full text-sm text-left">
             <thead
               class="bg-gray-100 text-xs uppercase text-gray-500 font-semibold border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -437,7 +448,7 @@
         <h3 class="text-xl font-semibold mb-3 text-gray-800">My Updates</h3>
 
         <div id="table-updates" data-restriction="max-h-80"
-          class="rounded-lg border border-gray-200 bg-white overflow-hidden max-h-80 transition-all duration-500 ease-in-out relative">
+          class="rounded-lg border border-gray-200 bg-white wide-table max-h-80 transition-all duration-500 ease-in-out relative">
           <table class="w-full text-sm text-left">
             <thead
               class="bg-gray-100 text-xs uppercase text-gray-500 font-semibold border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -762,7 +773,7 @@
       </div>
 
       {# Modal Content (Scrollable) #}
-      <div class="overflow-y-auto p-0">
+      <div class="wide-table wide-table-both p-0">
         <table class="w-full text-sm text-left border-collapse">
           <thead class="bg-gray-100 text-xs uppercase text-gray-500 font-bold sticky top-0 shadow-sm z-10">
             <tr>
