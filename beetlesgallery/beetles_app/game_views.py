@@ -8,6 +8,7 @@ label, or whether the item is a check, so the player cannot tell which answers a
 import csv
 import json
 from datetime import datetime, timedelta, timezone as dt_timezone
+from urllib.parse import urlencode
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
@@ -87,7 +88,9 @@ def game_staff_unlocks(request):
         pref, _ = GamePreference.objects.get_or_create(player=player)
         pref.granted_perks = perks
         pref.save(update_fields=["granted_perks", "updated_at"])
-        return redirect(f"{reverse('game_staff_unlocks')}?q={request.POST.get('q', '')}#p{player.id}")
+        q = (request.POST.get("q") or "").strip()[:50]
+        query = urlencode({"q": q})
+        return redirect(f"{reverse('game_staff_unlocks')}?{query}#p{player.id}")
     q = (request.GET.get("q") or "").strip()[:50]
     if q:
         users = users.filter(username__icontains=q)
