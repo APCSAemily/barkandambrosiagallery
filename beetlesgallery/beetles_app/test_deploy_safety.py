@@ -143,7 +143,7 @@ class LocalOnlyComposeTests(SimpleTestCase):
     """docker-compose.override.yml (the local mail catcher) must never reach production."""
 
     def test_the_server_names_its_compose_files_so_the_local_override_is_never_loaded(self):
-        for workflow in (".github/workflows/deploy.yml", ".github/workflows/backup.yaml"):
+        for workflow in (".github/workflows/deploy.yml", ".github/workflows/backup.yaml", ".github/workflows/access-reminders.yml"):
             text = (settings.BASE_DIR / workflow).read_text()
             for line in text.splitlines():
                 if "docker compose" in line and not line.strip().startswith("#"):

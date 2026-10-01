@@ -6,6 +6,7 @@ The site sends email in four places, and **nothing in the account flow works wit
 |---|---|---|
 | Someone asks for access | the applicant | "Confirm your email address" link (valid a week) |
 | They confirm it | you and every other approver | "Access request: <name>" with a link to the approval page |
+| Every day while a confirmed request is still undecided (after 24 hours) | you and every other approver | "Reminder: N access requests waiting", one email listing them all (`remind_access_requests`, run daily by the "Access request reminders" workflow) |
 | You approve or deny | the applicant | the decision (approved: username and sign-in link) |
 | "Forgot your password?" | the account's owner | reset link (valid a week, once) |
 
@@ -44,6 +45,7 @@ EMAIL_HOST_PASSWORD=its-password-or-app-password
 DEFAULT_FROM_EMAIL=noreply@barkandambrosiagallery.org   # must be an address your SMTP account is allowed to send as
 ACCESS_REQUEST_RECIPIENTS=gmarais@ufl.edu                # who is told about new requests (comma separated)
 ALLOWED_HOSTS=barkandambrosiagallery.org                 # links in the emails use the address people visited
+SITE_URL=https://barkandambrosiagallery.org              # the link in the daily reminder (no one is visiting the site when it is sent)
 ```
 
 Where to get an SMTP account: your university's outgoing mail (ask UF IT for an SMTP relay or service account),
@@ -79,3 +81,38 @@ It shows how email is configured (never the password), sends one message, and ei
 
 If step 2 or 3 never arrives: run `send_test_email`, then check the server log (`docker compose -f docker-compose.yml -f docker-compose.prod.yml logs web | grep -i mail`).
 A request is never lost when mail fails: it is kept, and the approval page shows a warning for any request whose approvers could not be emailed.
+
+## 6. Setting it up on the server, step by step
+
+1. **Get an SMTP account** (pick one):
+   * *UF / university mail*: ask UF IT for an SMTP relay or a service account for a web application. They give you a host, port,
+     username and password, and tell you which "from" addresses are allowed.
+   * *Gmail or Google Workspace*: turn on 2-step verification, then create an **app password** (Google Account -> Security -> App
+     passwords). Host `smtp.gmail.com`, port `587`, TLS on, user = the Gmail address, password = the 16-character app password.
+     `DEFAULT_FROM_EMAIL` must be that address (Gmail rewrites any other).
+   * *A sending service* (SendGrid, Mailgun, Amazon SES): create an account, verify the sender address or domain, and use the
+     SMTP host, port, username and key it shows you.
+2. **Put the settings in `/opt/barkandambrosiagallery/.env.prod`** on the server (the variables in section 2). Or run
+   `bash scripts/post_deploy_setup.sh`, which asks for the four it needs.
+3. **Restart the website** so it reads them: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d web`.
+4. **Test**: `docker compose -f docker-compose.yml -f docker-compose.prod.yml exec web pixi run python manage.py send_test_email gmarais@ufl.edu`.
+   It must say "Sent". Look in the inbox and the spam folder.
+5. **Stop it going to spam** (matters most for the confirm-your-email and password-reset mails): in the DNS settings of
+   `barkandambrosiagallery.org` add the **SPF** and **DKIM** records your mail provider gives you. Without them many inboxes
+   (Gmail, Outlook) put the mail in spam or reject it.
+6. **Make sure approvers exist**: `ACCESS_REQUEST_RECIPIENTS` plus every superuser with an email address are told about requests.
+7. **Turn on the daily reminder**: nothing to install. The "Access request reminders" workflow runs every day at 14:17 UTC
+   (it needs the same `SERVER_IP`, `SERVER_USER` and `SSH_PRIVATE_KEY` repository secrets as the deploy). Test it with
+   Actions -> Access request reminders -> Run workflow, or on the server with `pixi run remind-access` (add `--dry-run` through
+   `python manage.py remind_access_requests --dry-run` to only list them).
+8. **Try the whole flow once** (section 5) with a real address before you announce it.
+
+### What each person gets, and when
+
+* **Someone asking for an account**: a confirmation email straight away. They cannot be approved until they click it.
+* **Approvers** (you, plus any superuser with an email): an email the moment an applicant confirms, with a link to My Account ->
+  Access Requests; then a daily reminder while anyone is still waiting.
+* **The applicant again**: an approval or denial email after you decide.
+* **Everyone with an account (members, staff, superusers)**: "Forgot your password?" on the sign-in page emails a reset link
+  to the address on the account (valid a week, usable once). Accounts made before email was required need an email address
+  added first (My Account -> edit user), otherwise the reset has nowhere to go.
