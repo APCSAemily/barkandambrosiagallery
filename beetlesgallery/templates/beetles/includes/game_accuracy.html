@@ -1,0 +1,29 @@
+{# Accuracy among all players: a histogram, the average, you, your percentile and tier (rarity colours). Needs ``standing`` from game_board.accuracy_standing. #}
+{% with me=standing.me %}
+<div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl" data-testid="accuracy-standing">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="font-semibold text-gray-900">Accuracy</span>
+    {% if me %}
+    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide
+      {% if me.tier == 'mythic' %}bg-yellow-400 text-yellow-950{% elif me.tier == 'legendary' %}bg-orange-500 text-white{% elif me.tier == 'epic' %}bg-purple-600 text-white{% elif me.tier == 'rare' %}bg-blue-600 text-white{% elif me.tier == 'uncommon' %}bg-green-600 text-white{% else %}bg-gray-300 text-gray-800{% endif %}">{{ me.tier_name }}</span>
+    <span class="ml-auto text-sm font-semibold text-gray-900 tabular-nums">{% widthratio me.accuracy 1 100 %}%</span>
+    {% endif %}
+  </div>
+  {% if standing.players %}
+  <div class="relative h-16 flex items-end gap-0.5" aria-hidden="true">
+    {% for b in standing.bins %}
+    <div class="flex-1 rounded-t {% if me and forloop.counter0 == me.bin %}{% if me.tier == 'mythic' %}bg-yellow-400{% elif me.tier == 'legendary' %}bg-orange-500{% elif me.tier == 'epic' %}bg-purple-600{% elif me.tier == 'rare' %}bg-blue-600{% elif me.tier == 'uncommon' %}bg-green-600{% else %}bg-gray-500{% endif %}{% else %}bg-gray-300{% endif %}"
+      style="height: {{ b.height }}%; min-height: {% if b.count %}3px{% else %}1px{% endif %}"></div>
+    {% endfor %}
+    {% if standing.average is not None %}<div class="absolute bottom-0 top-0 border-l border-dashed border-gray-500" style="left: {% widthratio standing.average 1 100 %}%" title="Average"></div>{% endif %}
+    {% if me %}<div class="absolute -bottom-1 top-0 w-0.5 bg-gray-900" style="left: {% widthratio me.accuracy 1 100 %}%" title="You"></div>{% endif %}
+  </div>
+  <div class="flex justify-between text-[10px] text-gray-400 mt-1"><span>0%</span><span>50%</span><span>100%</span></div>
+  {% endif %}
+  <p class="mt-2 text-xs text-gray-500">
+    {% if me and me.percentile is not None %}Better than {{ me.percentile }}% of players{% if standing.average is not None %} &middot; average {% widthratio standing.average 1 100 %}%{% endif %}
+    {% elif me %}Not enough players yet to compare.
+    {% else %}{{ standing.needed }} more answers on checked beetles to see where you stand.{% endif %}
+  </p>
+</div>
+{% endwith %}

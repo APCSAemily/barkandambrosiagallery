@@ -132,7 +132,7 @@ class PlayEventsTests(RewardsCase):
         kinds = [e["kind"] for e in events]
         self.assertIn("level", kinds)
         self.assertIn("milestone", kinds)
-        self.assertIn("choose your game", next(e for e in events if e["kind"] == "level")["text"])
+        self.assertIn("identification game", next(e for e in events if e["kind"] == "level")["text"])
 
     def test_reaching_the_suggestions_level_says_so(self):
         self.set_score(1490, 0.75)
@@ -184,7 +184,9 @@ class FeedAndHomeTests(RewardsCase):
             self.roi(self.t_affinis, validated=False)
         rnd, item = self.play("classify")
         res = self.post("game_answer", dict(AFFINIS, index=item["index"]), rnd.id).json()
-        self.assertEqual(res["chip"], {"today": 1, "goal": 20, "goal_met": False, "streak": 1})
+        self.assertEqual({k: res["chip"][k] for k in ("today", "goal", "goal_met", "streak")},
+                         {"today": 1, "goal": 20, "goal_met": False, "streak": 1})
+        self.assertEqual((res["chip"]["level"], res["chip"]["next_at"]), (1, 50))   # the level bar in the top bar
         self.assertEqual([e["kind"] for e in res["events"]], ["streak"])
         self.assertNotIn("accuracy", json.dumps(res))
 

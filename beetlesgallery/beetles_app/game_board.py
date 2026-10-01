@@ -94,3 +94,39 @@ def profile(player):
         "discoveries": list(player.species_discoveries.order_by("genus", "species")),
         "modes": dict(GameAnswer.objects.filter(player=player, skipped=False).values_list("mode").annotate(n=Count("id"))),
     }
+
+
+# Accuracy tiers by percentile among rated players, in RPG rarity colours (see includes/game_accuracy.html)
+ACCURACY_TIERS = [   # (lowest percentile, key, name)
+    (0, "common", "Common"), (25, "uncommon", "Uncommon"), (50, "rare", "Rare"),
+    (75, "epic", "Epic"), (90, "legendary", "Legendary"), (98, "mythic", "Mythic"),
+]
+
+
+def accuracy_standing(player, bins=10):
+    """
+    Where a player's accuracy sits among everyone's: a histogram of players' accuracy (players with enough judged
+    answers only), the average, the player's percentile and their tier. ``me`` is None until they have enough.
+    """
+    min_judged = game.game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10)
+    rows = list(PlayerScore.objects.filter(judged__gte=min_judged, accuracy__isnull=False).values_list("player_id", "accuracy"))
+    counts = [0] * bins
+    for _, acc in rows:
+        counts[min(bins - 1, int(acc * bins))] += 1
+    top = max(counts) or 1
+    mine = next((acc for pid, acc in rows if pid == player.id), None)
+    out = {
+        "players": len(rows), "bins": [{"from": i / bins, "count": c, "height": round(100 * c / top)} for i, c in enumerate(counts)],
+        "average": (sum(a for _, a in rows) / len(rows)) if rows else None, "me": None,
+    }
+    if mine is not None and len(rows) >= 2:
+        below = sum(1 for _, a in rows if a < mine) + 0.5 * (sum(1 for _, a in rows if a == mine) - 1)
+        pct = round(100 * below / (len(rows) - 1))
+        key, name = next((k, n) for lo, k, n in reversed(ACCURACY_TIERS) if pct >= lo)
+        out["me"] = {"accuracy": mine, "percentile": pct, "tier": key, "tier_name": name, "bin": min(bins - 1, int(mine * bins))}
+    elif mine is not None:
+        out["me"] = {"accuracy": mine, "percentile": None, "tier": "common", "tier_name": "Common", "bin": min(bins - 1, int(mine * bins))}
+    else:
+        judged = PlayerScore.objects.filter(player=player).values_list("judged", flat=True).first() or 0
+        out["needed"] = max(0, min_judged - judged)
+    return out

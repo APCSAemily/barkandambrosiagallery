@@ -1,5 +1,9 @@
 {# One badge card with its own accent colour when earned (grey while locked). Needs ``b`` from game_rewards.badge_cards. #}
 {% if not b.earned %}{% with ring="border-gray-100 bg-gray-50" ink="text-gray-300" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.key == "king" or b.key == "streak365" or b.key == "tenthousand" or b.key == "genera50" %}{% with ring="border-yellow-400 bg-yellow-50" ink="text-yellow-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.key == "flawless" or b.key == "streak100" or b.key == "expert5" or b.key == "discovery3" or b.key == "marathon" %}{% with ring="border-orange-300 bg-orange-50" ink="text-orange-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.key == "species100" or b.key == "platypod" or b.key == "similar50" or b.key == "twins" or b.key == "ahead" or b.key == "curator" %}{% with ring="border-purple-300 bg-purple-50" ink="text-purple-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.key == "genera10" or b.key == "fivehundred" or b.key == "goal7" or b.key == "comeback" or b.key == "nightowl" or b.key == "earlybird" %}{% with ring="border-blue-300 bg-blue-50" ink="text-blue-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
 {% elif b.key == "first" or b.key == "ten" %}{% with ring="border-lime-300 bg-lime-50" ink="text-lime-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
 {% elif b.key == "hundred" or b.key == "thousand" %}{% with ring="border-sky-300 bg-sky-50" ink="text-sky-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
 {% elif b.key == "streak3" or b.key == "streak7" or b.key == "streak30" %}{% with ring="border-orange-300 bg-orange-50" ink="text-orange-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}

@@ -12,3 +12,9 @@ def process_update_task(batch_id):
 @shared_task
 def build_downloads_task(job_id):
     call_command('build_downloads', job=job_id, limit=1)
+
+@shared_task
+def recompute_game_players_task(player_ids):
+    """Re-score these players in the background (see game.finish_round)."""
+    from beetlesgallery.beetles_app.game_scoring import recompute
+    recompute(player_ids)

@@ -8,9 +8,9 @@ levels are kept only while the answers stay good.
 
     level  name                         points  reliability  unlocks
     1      Egg                               0       -
-    2      Larva                            50       -       choose your game (Name That Beetle, Family Ties or both)
+    2      Larva                            50       -       the identification game, and choosing your game
     3      Pupa                            150      35%      focus on one subfamily
-    4      Young adult                     400      50%      focus on one tribe
+    4      Teneral                     400      50%      focus on one tribe
     5      Beetle scout                    800      60%      focus on one genus
     6      Field entomologist             1500      70%      your labels go to curators as suggestions
     7      Taxonomist                     3000      75%
@@ -30,7 +30,7 @@ from .game import game_setting
 PROPOSALS = "proposals"
 CHOOSE_GAME = "choose_game"
 PERKS = {
-    CHOOSE_GAME: ("Choose your game", "Play Name That Beetle, Family Ties, or both."),
+    CHOOSE_GAME: ("Identification game", "Name beetles too, and choose Identification, Similarity or both."),
     "focus_subfamily": ("Focus on a subfamily", "Choose one subfamily and the game shows you only its beetles."),
     "focus_tribe": ("Focus on a tribe", "Narrow your focus to a single tribe."),
     "focus_genus": ("Focus on a genus", "Narrow your focus to a single genus."),
@@ -46,7 +46,7 @@ LEVELS = [
     (0, 0.0, "Egg", []),
     (50, 0.0, "Larva", [CHOOSE_GAME]),
     (150, 0.35, "Pupa", ["focus_subfamily"]),
-    (400, 0.5, "Young adult", ["focus_tribe"]),
+    (400, 0.5, "Teneral", ["focus_tribe"]),
     (800, 0.6, "Beetle scout", ["focus_genus"]),
     (1500, 0.7, "Field entomologist", [PROPOSALS]),
     (3000, 0.75, "Taxonomist", []),
@@ -106,7 +106,7 @@ def describe(score, rating):
         need_points, need_rating, next_name, next_perks = nxt
         span = max(1.0, need_points - points)
         info["next"] = {
-            "level": index + 2, "name": next_name,
+            "level": index + 2, "name": next_name, "points": need_points,
             "points_needed": max(0, round(need_points - score)),
             "rating_needed": need_rating, "rating_short": rating < need_rating,
             "perks": [PERKS[p][0] for p in next_perks],

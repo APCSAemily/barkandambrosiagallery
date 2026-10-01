@@ -2,16 +2,16 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
-  <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Beetle ID Game</a>
+  <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; {{ game_name }}</a>
   <h1 class="page-title">Leaderboard</h1>
 
   <form method="get" class="flex flex-wrap items-center gap-2 mb-4" role="search">
     <input type="search" name="q" value="{{ q }}" placeholder="Search players&hellip;" aria-label="Search players"
       class="h-10 px-3 flex-1 min-w-[10rem] border border-gray-300 rounded-lg">
-    <select name="sort" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Sort by">
+    <select name="sort" class="select-chevron h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Sort by">
       {% for key, label in sorts.items %}<option value="{{ key }}" {% if sort == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
-    <select name="period" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Period">
+    <select name="period" class="select-chevron h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Period">
       <option value="all" {% if period == 'all' %}selected{% endif %}>All time</option>
       <option value="week" {% if period == 'week' %}selected{% endif %}>This week</option>
     </select>
@@ -24,13 +24,13 @@
   <h2 class="text-lg font-semibold text-gray-900 mt-10 mb-1">Specialists</h2>
   <p class="text-sm text-gray-600 mb-3">The best players inside one part of the tree: for a genus, how well they name its species; for a tribe, its genera; for a subfamily, its tribes.</p>
   <form method="get" class="flex flex-wrap items-center gap-2 mb-4" id="branch-form" data-taxa-url="{% url 'game_taxa' %}">
-    <select name="rank" id="branch-rank" class="h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Part of the tree">
+    <select name="rank" id="branch-rank" class="select-chevron h-10 px-3 border border-gray-300 rounded-lg bg-white" aria-label="Part of the tree">
       <option value="">Choose&hellip;</option>
       <option value="subfamily" {% if branch_rank == 'subfamily' %}selected{% endif %}>Subfamily</option>
       <option value="tribe" {% if branch_rank == 'tribe' %}selected{% endif %}>Tribe</option>
       <option value="genus" {% if branch_rank == 'genus' %}selected{% endif %}>Genus</option>
     </select>
-    <select name="branch" id="branch-value" class="h-10 px-3 flex-1 min-w-[10rem] border border-gray-300 rounded-lg bg-white" data-current="{{ branch_value }}" aria-label="Which one">{% if branch_value %}<option value="{{ branch_value }}" selected>{{ branch_value }}</option>{% endif %}</select>
+    <select name="branch" id="branch-value" class="select-chevron h-10 px-3 flex-1 min-w-[10rem] border border-gray-300 rounded-lg bg-white" data-current="{{ branch_value }}" aria-label="Which one">{% if branch_value %}<option value="{{ branch_value }}" selected>{{ branch_value }}</option>{% endif %}</select>
     <button type="submit" class="btn-primary h-10">Show</button>
   </form>
   {% if branch_rows is not None %}

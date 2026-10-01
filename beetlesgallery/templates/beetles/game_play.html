@@ -80,17 +80,20 @@
     <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
       <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
     </span>
+    <span id="level-chip" class="hidden items-center gap-1 px-2 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 tabular-nums" title="Points to the next level" data-testid="level-chip"></span>
     <button type="button" id="open-search" class="icon-btn hidden" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
     <button type="button" id="open-help" class="icon-btn hidden" aria-label="How it works"><i class="fi fi-rr-interrogation text-lg"></i></button>
   </header>
+  <!-- progress to the next level, right under the top bar -->
+  <div class="h-1 bg-gray-100"><div id="level-bar" class="h-full bg-green-600 transition-all duration-500" style="width:0%"></div></div>
 
   {% if mode == 'mixed' %}
   <!-- Your unlocks, right where you play: which game, and a focus. Locked ones say the level that opens them. -->
   <div id="toolbar" class="hidden items-center gap-2 px-2 py-1.5 border-b border-gray-200 bg-white">
     <div class="flex flex-1 min-w-0 p-0.5 bg-gray-100 rounded-lg text-xs font-semibold" role="radiogroup" aria-label="Which game">
       <button type="button" data-play="both" class="play-opt flex-1 h-8 rounded-md">Both</button>
-      <button type="button" data-play="classify" class="play-opt flex-1 h-8 rounded-md">Name</button>
-      <button type="button" data-play="pair" class="play-opt flex-1 h-8 rounded-md">Ties</button>
+      <button type="button" data-play="classify" class="play-opt flex-1 h-8 rounded-md">Identification</button>
+      <button type="button" data-play="pair" class="play-opt flex-1 h-8 rounded-md">Similarity</button>
     </div>
     <button type="button" id="focus-btn" class="inline-flex items-center gap-1 h-9 px-3 max-w-[45%] rounded-lg border border-gray-300 text-xs font-semibold text-gray-700">
       <i class="fi fi-rr-bullseye" id="focus-icon"></i><span id="focus-label" class="truncate">Focus</span>
@@ -180,7 +183,7 @@
     </div>
     <div class="p-4 space-y-3">
       <div id="focus-ranks" class="grid grid-cols-3 gap-2"></div>
-      <select id="focus-value" class="w-full h-11 px-3 text-base border border-gray-300 rounded-xl bg-white" aria-label="Which one"></select>
+      <select id="focus-value" class="select-chevron w-full h-11 px-3 text-base border border-gray-300 rounded-xl bg-white" aria-label="Which one"></select>
       <div class="flex gap-2">
         <button type="button" id="focus-clear" class="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 font-medium">Show everything</button>
         <button type="button" id="focus-save" class="flex-1 h-11 rounded-xl bg-gray-600 text-white font-semibold disabled:bg-gray-300" disabled>Focus</button>
@@ -223,8 +226,8 @@
   </div>
   <!-- Barely there on purpose: report a photo that looks wrong -->
   <button type="button" id="report-cog" class="absolute bottom-3 left-3 p-2 text-white/30 hover:text-white/70 text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i></button>
-  <div id="report-menu" class="hidden absolute bottom-12 left-3 w-64 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800" role="menu" aria-label="Report this image">
-    <div class="px-2 py-1 text-xs font-semibold text-gray-500">Something wrong with this image?</div>
+  <div id="report-menu" class="hidden absolute bottom-12 left-3 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800 whitespace-nowrap" role="menu" aria-label="Report this image">
+    <div class="px-2 py-1 text-xs font-semibold text-gray-500">Report this image</div>
     {% for value, label in report_reasons %}
     <button type="button" class="report-reason block w-full text-left px-2 py-2 rounded-lg hover:bg-gray-100" data-reason="{{ value }}" role="menuitem">{{ label }}</button>
     {% endfor %}
@@ -238,13 +241,19 @@
   const root = document.getElementById("game");
   const PAGE_MODE = root.dataset.mode;          // "mixed" (both games in one feed) or one game
   let MODE = PAGE_MODE === "mixed" ? "classify" : PAGE_MODE;   // the game of the beetle on screen
-  const GAME_NAMES = { classify: "Name That Beetle", pair: "Family Ties" };
+  const GAME_NAMES = { classify: "Name That Beetle", pair: "Similarity" };
   // badge accents, the same as on the profile (includes/game_badge.html)
   const BADGE_INK = {
     first: "text-lime-600", ten: "text-lime-600", hundred: "text-sky-600", thousand: "text-sky-600",
     streak3: "text-orange-600", streak7: "text-orange-600", streak30: "text-orange-600", goal: "text-teal-600",
     both: "text-teal-600", species1: "text-violet-600", species25: "text-violet-600", expert: "text-green-700",
     discovery: "text-amber-600",
+    king: "text-yellow-600", streak365: "text-yellow-600", tenthousand: "text-yellow-600", genera50: "text-yellow-600",
+    flawless: "text-orange-600", streak100: "text-orange-600", expert5: "text-orange-600", discovery3: "text-orange-600",
+    marathon: "text-orange-600", species100: "text-purple-600", platypod: "text-purple-600", similar50: "text-purple-600",
+    twins: "text-purple-600", ahead: "text-purple-600", curator: "text-purple-600", genera10: "text-blue-600",
+    fivehundred: "text-blue-600", goal7: "text-blue-600", comeback: "text-blue-600", nightowl: "text-blue-600",
+    earlybird: "text-blue-600",
   };
   const RANKS = ["subfamily", "tribe", "genus", "species"];
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -392,9 +401,19 @@
     el.classList.remove("hidden");
     el.classList.add("inline-flex");
     $("chip-text").textContent = chip.today + "/" + chip.goal;
-    // amber only means something: the daily goal is done and the streak is alive
-    $("chip-flame").classList.toggle("text-amber-600", !!chip.goal_met);
+    // the flame takes the streak's rarity colour (the same as on the game home)
+    const s = chip.streak || 0;
+    $("chip-flame").className = "fi fi-rr-flame " + (s >= 100 ? "text-yellow-600" : s >= 30 ? "text-orange-600" : s >= 14 ? "text-purple-600"
+      : s >= 7 ? "text-blue-600" : s >= 3 ? "text-green-600" : "text-gray-400");
     el.title = chip.streak + "-day streak. " + chip.today + " of " + chip.goal + " beetles today.";
+    if (chip.level) {
+      const lc = $("level-chip");
+      lc.classList.remove("hidden");
+      lc.classList.add("inline-flex");
+      lc.textContent = chip.next_at ? "L" + chip.level + " · " + chip.score + "/" + chip.next_at : "L" + chip.level + " · " + chip.score;
+      lc.title = chip.next_at ? (chip.next_at - chip.score) + " points to level " + (chip.level + 1) : "Top level";
+      $("level-bar").style.width = Math.round((chip.next_at ? chip.level_progress : 1) * 100) + "%";
+    }
   }
 
   function toast(event) {
@@ -467,9 +486,9 @@
     $("toolbar").classList.add("flex");
     document.querySelectorAll(".play-opt").forEach((b) => {
       const on = b.dataset.play === p.play_mode;
-      const locked = !p.choose_game && b.dataset.play !== "both";
+      const locked = !p.choose_game && b.dataset.play !== "pair";
       b.className = "play-opt flex-1 h-8 rounded-md " + (on ? "bg-white text-gray-900 shadow-sm" : locked ? "text-gray-400" : "text-gray-600");
-      b.innerHTML = (locked ? '<i class="fi fi-rr-lock text-[10px]"></i> ' : "") + { both: "Both", classify: "Name", pair: "Ties" }[b.dataset.play];
+      b.innerHTML = (locked ? '<i class="fi fi-rr-lock text-[10px]"></i> ' : "") + { both: "Both", classify: "Identification", pair: "Similarity" }[b.dataset.play];
       b.setAttribute("aria-checked", on ? "true" : "false");
     });
     const anyFocus = p.focus_ranks.some((r) => r.unlocked);
@@ -489,8 +508,8 @@
   }
   document.querySelectorAll(".play-opt").forEach((b) => b.addEventListener("click", () => {
     if (!prefs || b.dataset.play === prefs.play_mode) return;
-    if (!prefs.choose_game && b.dataset.play !== "both") {
-      toast({ kind: "lock", title: "Locked", text: "Choosing your game unlocks at level " + prefs.choose_game_level + "." });
+    if (!prefs.choose_game && b.dataset.play !== "pair") {
+      toast({ kind: "lock", title: "Locked", text: "Identification unlocks at level " + prefs.choose_game_level + "." });
       return;
     }
     savePrefs({ play_mode: b.dataset.play });

@@ -206,9 +206,10 @@ class PlayPageTests(GameCase):
         self.assertIn('mode === "pair" ? "Not sure" : "Skip"', page)   # the fixed button reads "Not sure" in Family Ties
 
     def test_the_game_keeps_its_colours_to_a_small_palette(self):
-        # The game may be more colourful than the rest of the site, but from one palette: levels, badges, beta.
+        # The game may be more colourful than the rest of the site, but from one palette: RPG rarity colours
+        # (grey, green, blue, purple, orange, gold) for levels and streaks, plus badge accents and beta.
         from django.conf import settings
         root = settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles"
         source = "".join((root / n).read_text() for n in ("game_play.html", "game_home.html"))
-        for colour in ("blue", "indigo", "purple", "emerald", "yellow", "pink", "fuchsia", "rose", "cyan"):
+        for colour in ("indigo", "emerald", "pink", "fuchsia", "rose", "cyan"):
             self.assertNotIn(colour + "-", source)

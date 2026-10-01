@@ -35,9 +35,10 @@ def game_player(request):
     The signed-in user's game level and score for the sidebar and the home page, so the game is always one tap
     away. Read from the stored totals only (no recomputing), so it costs one small query per page.
     """
+    name = {"game_name": getattr(settings, "GAME_DISPLAY_NAME", "Beetle ID Game")}
     user = getattr(request, "user", None)
     if user is None or not user.is_authenticated:
-        return {}
+        return name
     try:
         from beetlesgallery.beetles_app.game_levels import describe
         from beetlesgallery.beetles_app.models import PlayerScore
@@ -46,5 +47,5 @@ def game_player(request):
         score, rating = row if row else (0.0, 0.0)
         level = describe(score, rating)
     except Exception:
-        return {}
-    return {"game_player": {"level": level["level"], "name": level["name"], "score": round(score)}}
+        return name
+    return dict(name, game_player={"level": level["level"], "name": level["name"], "score": round(score)})

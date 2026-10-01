@@ -551,14 +551,17 @@ def start_round(player, mode, size=None, fresh_only=False):
 
 
 def play_mode(player):
-    """Which game the player plays: "both", or "classify" / "pair" once they have unlocked choosing."""
+    """
+    Which game the player plays. New players start with Similarity only (the easier game); level 2 unlocks
+    Identification and the choice, and from then on the default is both.
+    """
     from .game_levels import CHOOSE_GAME, for_player
     from .models import GamePreference
 
+    if CHOOSE_GAME not in for_player(player)["perks"]:
+        return "pair"
     pref = GamePreference.objects.filter(player=player).values_list("play_mode", flat=True).first()
-    if not pref or pref == "both" or CHOOSE_GAME not in for_player(player)["perks"]:
-        return "both"
-    return pref
+    return pref or "both"
 
 
 def build_mixed_items(player, size, fresh_only=False):
@@ -589,6 +592,22 @@ def build_mixed_items(player, size, fresh_only=False):
     return pairs + names
 
 
+def _in_background(player_ids):
+    """Queue a recompute for these players on the Celery worker; do it here if the queue can't be reached."""
+    from django.db import transaction
+
+    from .game_scoring import recompute
+    from .tasks import recompute_game_players_task
+
+    def queue():
+        try:
+            recompute_game_players_task.apply_async(args=[list(player_ids)], retry=False)
+        except Exception:
+            recompute(list(player_ids))
+
+    transaction.on_commit(queue)
+
+
 def close_idle_rounds(player, idle_minutes=10):
     """
     Finish the player's feed batches that were left open (they closed the tab, or their phone went to sleep),
@@ -615,9 +634,15 @@ def finish_round(rnd):
     sync_late_truth([rnd.player_id])
     recompute_skills(rnd.player)
     update_difficulty(rnd.answers.values_list("roi_id", flat=True))
-    # the player, and everyone who answered the same unvalidated beetles: their agreement points move with this
+    # the player now; everyone who answered the same unvalidated beetles too, since their agreement points move with
+    # this (in the background in production, so finishing stays quick however many players there are)
     open_ids = rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)
-    recompute([rnd.player_id, *players_sharing_beetles(rnd.player_id, open_ids)])
+    others = players_sharing_beetles(rnd.player_id, open_ids)
+    if others and game_setting("GAME_RECOMPUTE_IN_BACKGROUND", False):
+        recompute([rnd.player_id])
+        _in_background(others)
+    else:
+        recompute([rnd.player_id, *others])
     from .game_trust import auto_apply_expert_labels
     auto_apply_expert_labels(list(rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)))
     from .game_discoveries import find

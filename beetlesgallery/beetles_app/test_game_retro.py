@@ -98,7 +98,8 @@ class SiteTests(ScoringCase):
         self.assertIn('data-testid="sidebar-player"', page)
         self.assertIn(self.user.username, page)
         self.assertIn("420 pts", page)
-        self.assertIn('data-testid="game-invite"', page)
+        self.assertNotIn('data-testid="game-invite"', page)    # no coloured pop-up on the home page
+        self.assertIn('data-testid="beta"', page)              # the game's panel carries the beta pill
 
     def test_signed_out_visitors_are_invited_to_sign_in_and_play(self):
         page = self.client.get("/").content.decode()

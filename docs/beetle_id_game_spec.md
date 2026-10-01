@@ -214,7 +214,7 @@ All derived from the player's answers (`game_rewards.py`), nothing new is stored
 - **Daily goal** (`GAME_DAILY_GOAL`, default 20 beetles) and a **day streak** (consecutive days with an answer; still alive
   until the day after the last one ends). The feed's header shows a small `today/goal` chip; its flame turns amber only when
   the goal is met, because that is what the colour means.
-- **Levels** from the number of beetles labelled: Egg, Larva, Pupa, Young adult, Beetle scout, Field entomologist,
+- **Levels** from the number of beetles labelled: Egg, Larva, Pupa, Teneral, Beetle scout, Field entomologist,
   Taxonomist, Beetle master, Coleopterist.
 - **Badges**: first steps, 10 / 100 / 1,000 beetles, 3 / 7 / 30-day streaks, daily goal, both games, first species right,
   25 species right, trusted expert.
@@ -251,7 +251,7 @@ Full rules for players are on the "How scoring works" page (`/game/how-it-works/
 ## Update: levels, perks, focus, expertise tree (game_levels.py)
 
 - **Levels need points and reliability** (reliability = the rating). Egg (0), Larva (50: focus a subfamily),
-  Pupa (150, 35%: focus a tribe), Young adult (400, 50%: focus a genus), Beetle scout (800, 60%: **labels go to
+  Pupa (150, 35%: focus a tribe), Teneral (400, 50%: focus a genus), Beetle scout (800, 60%: **labels go to
   curators as suggestions**), Field entomologist (1500, 70%), Taxonomist (3000, 75%), Beetle master (6000, 80%),
   Coleopterist (10000, 85%). Levels can drop if reliability drops; perks follow the current level.
 - **Suggestions to curators** (annotation page proposals) only count answers from players at the suggestions level
@@ -351,7 +351,7 @@ the level drops.
 | 1 | Egg | 0 | - | |
 | 2 | Larva | 50 | - | choose your game |
 | 3 | Pupa | 150 | 35% | focus on a subfamily |
-| 4 | Young adult | 400 | 50% | focus on a tribe |
+| 4 | Teneral | 400 | 50% | focus on a tribe |
 | 5 | Beetle scout | 800 | 60% | focus on a genus |
 | 6 | Field entomologist | 1500 | 70% | labels go to curators |
 | 7 | Taxonomist | 3000 | 75% | |
@@ -407,3 +407,34 @@ out of the game (`game.reported()` in both pools). The player moves on to the ne
 **Superusers can grant unlocks** (`/game/staff/unlocks/`, `GamePreference.granted_perks`): any unlock, or all of
 them, for any player, whatever their level. `game_levels.for_player` adds them to the earned ones, and a granted
 "labels go to curators" also counts for `suggestion_voters`. The level itself is unchanged.
+
+## Update: similarity first, rarity colours, standing, sharing, safe concurrency
+
+**Game types.** The two games are called **Identification** (shown as "Name That Beetle" while playing) and
+**Similarity**. New players start with Similarity only, the easier game; level 2 unlocks Identification and the
+choice, and the default from then on is both. The game's name on the site comes from `GAME_DISPLAY_NAME`.
+
+**Levels and streaks in RPG rarity colours:** grey 1-2, green 3-4, blue 5-6, purple 7-8, orange 9, gold 10 (King of
+Bark and Ambrosia). Level 4 is now "Teneral". The streak flame goes grey, green (3+ days), blue (7+), purple (14+),
+orange (30+), gold (100+). The play screen's top bar shows "L3 · 120/150" and a thin progress bar.
+
+**Accuracy standing** (`game_board.accuracy_standing`): a histogram of every rated player's accuracy, the
+average, a marker for you, your percentile and a tier by percentile: Common, Uncommon (25+), Rare (50+), Epic (75+),
+Legendary (90+), Mythic (98+).
+
+**Badges:** 21 new ones, including hard and specific ones (Year of the beetle: a 365-day streak; Flawless: 20 checked
+beetles in a row all right; Taxonomic tourist: right species in 50 genera; Pinhole borer: 25 Platypodinae right;
+Royalty: the top level), with accents by rarity.
+
+**Sharing:** a large QR code on the game home pointing at the game home (`SITE_URL` in production), so anyone can
+show the screen to a friend; scanning leads to sign-in or sign-up, then the game. The QR library (qrcodejs, MIT) is
+served from `static/js/vendor`.
+
+**Game review page:** a back link to the game, a button to Image Annotation, collapsible sections, and ROI links
+that open Image Annotation on that image with the ROI selected (`?image=<id>&roi=<id>`).
+
+**Many players at once.** A new answer adds to the player's total with a single UPDATE (`F()` + `Greatest`), so
+simultaneous answers can't overwrite each other. Recomputes take a Postgres advisory lock for their writes, so two
+players finishing at the same moment can't collide. Re-scoring the other players on the same beetles runs on the
+Celery worker in production (`GAME_RECOMPUTE_IN_BACKGROUND`, on unless `DEBUG`), so finishing stays quick; if the
+queue can't be reached it runs in the request instead.
