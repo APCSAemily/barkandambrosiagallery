@@ -5,15 +5,19 @@ Every answer is worth some points (AnswerPoints) and a player's score is the run
 (PlayerScore). The rules, all adjustable with GAME_POINTS_* settings:
 
 Beetles we know the answer to (validated) are scored against the truth. These earn the most.
-  Name That Beetle   each rank you give earns its weight when right and loses 3/4 of it when wrong:
-                     subfamily 1, tribe 2, genus 4, species 8. So naming the exact species is worth the most,
-                     and going one rank further than you are sure of costs you if you get it wrong. A wrong
-                     subfamily (everything wrong) costs much more than a wrong species in the right genus.
+  Name That Beetle   partial credit: each rank you get right earns its weight (subfamily 1, tribe 2, genus 4,
+                     species 8), so naming the exact species is worth the most. Where you go wrong, only the first
+                     wrong rank costs anything: a small penalty (GAME_POINTS_OVERREACH, 35% of its weight) when the
+                     ranks above it were right, e.g. right genus but wrong species = 7 - 2.8 = 4.2, less than
+                     stopping at the genus (7). A wrong subfamily, with nothing right, costs 3/4 of everything you
+                     claimed (GAME_POINTS_WRONG_FACTOR).
   Family Ties        the right answer earns more the finer the line you had to draw: different subfamilies 1,
                      same subfamily 2, same tribe 3, same genus 5, same species 5, plus up to a quarter more when
-                     the two photos are alike (same photographer, place, magnification...). A wrong answer loses
-                     1 point per step it is off, so "different subfamily" for two beetles of one genus (3 steps
-                     off) costs three times as much as "same species" (1 step off).
+                     the two photos are alike (same photographer, place, magnification...). Partial credit too:
+                     a cautious answer that is true as far as it goes ("same tribe" for two beetles of one genus)
+                     earns that rung's points; claiming too close a tie ("same genus" for two of one tribe) earns
+                     the true rung's points minus the small penalty for every rung too far. Calling related beetles
+                     "different subfamilies", or unrelated ones related, loses 1 point per step it is off.
   Seen again         a beetle shown again so you can learn it (a retry) earns half.
 
 Beetles nobody has validated yet are scored by agreement, never more than GAME_POINTS_CONSENSUS_CAP (60%)
@@ -37,11 +41,12 @@ from collections import defaultdict
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from . import game
 from .game import PAIR_DEPTH, RANKS, game_setting
-from .models import AnswerPoints, Beetles, GameAnswer, PlayerScore
+from .models import AnswerPoints, Beetles, GameAnswer, PlayerScore, RetroCredit
 
 RANK_POINTS = {"subfamily": 1.0, "tribe": 2.0, "genus": 4.0, "species": 8.0}
 # Family Ties: points for the right answer, by how related the two beetles really are (-1 = different subfamilies)
@@ -102,16 +107,29 @@ def photo_similarity(roi_a, roi_b):
 
 
 def classify_truth(answer, taxon):
-    """(points, detail) for a Name That Beetle answer on a validated beetle."""
-    wrong = setting("GAME_POINTS_WRONG_FACTOR", 0.75)
+    """
+    (points, detail) for a Name That Beetle answer on a validated beetle, with partial credit: every right rank
+    earns its weight, and only the first wrong rank costs anything (the ranks below it are wrong because of it).
+    That costs a small GAME_POINTS_OVERREACH share of its weight after a right rank, or GAME_POINTS_WRONG_FACTOR of
+    everything claimed when even the subfamily is wrong.
+    """
     given = {r: getattr(answer, r) for r in RANKS}
     results = game.score_classification(given, taxon)
-    points, ranks = 0.0, {}
+    points, ranks, any_right = 0.0, {}, False
     for r in RANKS:
         ok = results[r]
         if ok is None:
             continue
-        p = RANK_POINTS[r] if ok else -RANK_POINTS[r] * wrong
+        if ok:
+            p = RANK_POINTS[r]
+            any_right = True
+        elif any(v.get("right") is False for v in ranks.values()):
+            p = 0.0   # already wrong above: this rank couldn't be right
+        elif any_right:
+            p = -RANK_POINTS[r] * setting("GAME_POINTS_OVERREACH", 0.35)
+        else:
+            claimed = sum(RANK_POINTS[x] for x in RANKS if results[x] is not None)
+            p = -claimed * setting("GAME_POINTS_WRONG_FACTOR", 0.75)
         ranks[r] = {"right": ok, "points": round(p, 2)}
         points += p
     return points, {"ranks": ranks}
@@ -123,11 +141,20 @@ def pair_truth(answer, roi_a, roi_b):
     given = PAIR_DEPTH.get(answer.pair_answer)
     if truth is None or given is None:
         return None
+    sim = photo_similarity(roi_a, roi_b)
+    bonus = 1 + setting("GAME_POINTS_SIMILARITY_BONUS", 0.25) * sim
     if given == truth:
-        sim = photo_similarity(roi_a, roi_b)
-        points = PAIR_POINTS[truth] * (1 + setting("GAME_POINTS_SIMILARITY_BONUS", 0.25) * sim)
-        return points, {"right": True, "truth": DEPTH_NAME[truth], "similarity": sim}
+        return PAIR_POINTS[truth] * bonus, {"right": True, "truth": DEPTH_NAME[truth], "similarity": sim}
     steps = abs(given - truth)
+    if given >= 0 and truth >= 0:
+        if given < truth:
+            # cautious but true as far as it goes: that rung's points
+            return PAIR_POINTS[given] * bonus, {"right": "partial", "truth": DEPTH_NAME[truth], "similarity": sim,
+                                               "steps": steps}
+        # too close a tie: the true rung's points, less a small penalty per rung too far
+        penalty = setting("GAME_POINTS_OVERREACH", 0.35) * PAIR_POINTS[truth + 1] * steps
+        return PAIR_POINTS[truth] * bonus - penalty, {"right": "partial", "truth": DEPTH_NAME[truth],
+                                                      "similarity": sim, "steps": steps}
     return -setting("GAME_POINTS_PAIR_STEP", 1.0) * steps, {"right": False, "truth": DEPTH_NAME[truth], "steps": steps}
 
 
@@ -157,14 +184,16 @@ def cached_ratings():
 
 def ratings():
     """
-    {player_id: (rating, accuracy, judged)} from the first time each player saw each validated beetle.
+    {player_id: (rating, accuracy, judged)} from the first time each player saw each validated beetle, including
+    beetles validated after they answered (validated_later).
     The rating is a cautious estimate of their accuracy (the lower end of a Wilson interval), so a few lucky
     answers don't make anyone an authority.
     """
     tallies = defaultdict(lambda: [0, 0])
     first = set()
     rows = (
-        GameAnswer.objects.filter(is_check=True, is_retry=False, skipped=False, score_hold=False)
+        GameAnswer.objects.filter(Q(is_check=True) | Q(validated_later=True), is_retry=False, skipped=False,
+                                  score_hold=False)
         .order_by("answered_at")
         .values_list("player_id", "mode", "roi_id", "roi_b_id", *[f"correct_{r}" for r in RANKS])
     )
@@ -237,9 +266,13 @@ def consensus_points(answer, votes, judges):
     if answer.mode == "classify":
         points = sum(cap * RANK_POINTS[r] * max(0.0, c[r]) for r in claims)
     else:
+        # partial credit per rung: agreement on "same tribe" earns the tribe rung even if the genus is disputed
         depth = PAIR_DEPTH[answer.pair_answer]
-        deepest = RANKS[depth]
-        points = cap * PAIR_POINTS[depth] * max(0.0, c.get(deepest, 0.0))
+        points, below = 0.0, 0.0
+        for d in range(depth + 1):
+            step = PAIR_POINTS[d] - below
+            below = PAIR_POINTS[d]
+            points += cap * step * max(0.0, c.get(RANKS[d], 0.0))
     return points, {"agreement": {r: round(v, 3) for r, v in c.items()}}
 
 
@@ -303,6 +336,63 @@ def votes_on(roi_ids):
 
 
 # ---------------------------------------------------------------------------
+# Beetles validated after they were answered
+# ---------------------------------------------------------------------------
+def species_name(taxon):
+    if taxon is None:
+        return ""
+    return taxon.scientific_name or " ".join(x for x in (taxon.genus, taxon.species) if x)
+
+
+def sync_late_truth(player_ids=None):
+    """
+    Answers given on beetles nobody had validated, where the beetle has been validated since: fill in what was
+    right and wrong (correct_*, ref_*) and mark them ``validated_later``, so they count towards accuracy and
+    expertise like any other validated beetle. Undone if the beetle loses its validation. Returns how many changed.
+    """
+    answers = (
+        GameAnswer.objects.filter(is_check=False, skipped=False)
+        .filter(Q(roi__bbox_is_validated=True) | Q(validated_later=True))
+        .select_related("roi__taxon", "roi_b__taxon")
+    )
+    if player_ids is not None:
+        answers = answers.filter(player_id__in=list(player_ids))
+    fields = ["validated_later", "ref_subfamily", "ref_tribe", "ref_genus", "ref_species", *[f"correct_{r}" for r in RANKS]]
+    changed = []
+    for ans in answers:
+        before = [getattr(ans, f) for f in fields]
+        results = None
+        if is_truth(ans.roi):
+            if ans.mode == "classify":
+                results = game.score_classification({r: getattr(ans, r) for r in RANKS}, ans.roi.taxon)
+            elif ans.roi_b is not None and is_truth(ans.roi_b) and ans.pair_answer in PAIR_DEPTH:
+                results = game.score_pair(ans.pair_answer, ans.roi.taxon, ans.roi_b.taxon)
+        if results is not None:
+            t = ans.roi.taxon
+            ans.validated_later = True
+            ans.ref_subfamily, ans.ref_tribe, ans.ref_genus, ans.ref_species = t.subfamily or "", t.tribe or "", t.genus or "", t.species or ""
+            for r in RANKS:
+                setattr(ans, f"correct_{r}", results.get(r))
+        elif ans.validated_later:
+            ans.validated_later = False
+            ans.ref_subfamily = ans.ref_tribe = ans.ref_genus = ans.ref_species = ""
+            for r in RANKS:
+                setattr(ans, f"correct_{r}", None)
+        if [getattr(ans, f) for f in fields] != before:
+            changed.append(ans)
+    GameAnswer.objects.bulk_update(changed, fields, batch_size=500)
+    return len(changed)
+
+
+def players_sharing_beetles(player_id, roi_ids, limit=200):
+    """Other players who answered these (unvalidated) beetles: their agreement points move with a new answer."""
+    return list(
+        GameAnswer.objects.filter(roi_id__in=list(roi_ids)).exclude(player_id=player_id)
+        .values_list("player_id", flat=True).distinct()[:limit]
+    )
+
+
+# ---------------------------------------------------------------------------
 # Recomputing
 # ---------------------------------------------------------------------------
 def recompute(player_ids=None):
@@ -312,6 +402,7 @@ def recompute(player_ids=None):
     Returns the number of players updated.
     """
     from django.core.cache import cache
+    sync_late_truth(player_ids)
     table = ratings()
     cache.set(RATINGS_CACHE, table, setting("GAME_RATINGS_CACHE_SECONDS", 300))
     judges = Judges(table)
@@ -324,17 +415,30 @@ def recompute(player_ids=None):
     open_rois = {a.roi_id for a in answers if not is_truth(a.roi)}
     votes = votes_on(open_rois)
 
-    rows, by_player = [], defaultdict(list)
+    old = {
+        aid: (p, b) for aid, p, b in AnswerPoints.objects.filter(answer__in=[a.id for a in answers if a.validated_later])
+        .values_list("answer_id", "points", "basis")
+    }
+    credited = set(RetroCredit.objects.filter(answer__in=list(old)).values_list("answer_id", flat=True))
+    rows, by_player, credits = [], defaultdict(list), []
     for ans in answers:
         points, basis, detail = score(ans, lambda rid: votes.get(rid, []), judges)
         rows.append(AnswerPoints(answer=ans, points=round(points, 3), basis=basis, detail=detail))
         by_player[ans.player_id].append((ans, points))
+        if ans.validated_later and basis == AnswerPoints.Basis.TRUTH and ans.id not in credited:
+            before, old_basis = old.get(ans.id, (0.0, None))
+            if old_basis != AnswerPoints.Basis.TRUTH:
+                credits.append(RetroCredit(
+                    answer=ans, player_id=ans.player_id, points_before=round(before, 3), points_after=round(points, 3),
+                    validated_name=species_name(ans.roi.taxon), validated_at=ans.roi.bbox_validated_at,
+                ))
 
     players = list(by_player) if player_ids is None else list(player_ids)
     existing = set(get_user_model().objects.filter(id__in=players).values_list("id", flat=True))
     with transaction.atomic():
         AnswerPoints.objects.filter(answer__player_id__in=players).delete()
         AnswerPoints.objects.bulk_create(rows, batch_size=1000)
+        RetroCredit.objects.bulk_create(credits, ignore_conflicts=True)
         for pid in players:
             total = 0.0
             for _, p in by_player.get(pid, []):

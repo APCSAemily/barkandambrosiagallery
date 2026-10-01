@@ -46,6 +46,8 @@ class ThemeTests(SimpleTestCase):
         for path in sorted(TEMPLATES.rglob("*.html")):
             if "admin" in path.parts or path.name in self.DATA_COLOUR_PAGES or path.name == "landing.html":
                 continue
+            if path.name.startswith("game_"):
+                continue   # the game may be more colourful than the rest of the site
             yield path
 
     def test_no_decorative_colour_on_the_pages(self):

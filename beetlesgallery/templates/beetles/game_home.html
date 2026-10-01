@@ -4,7 +4,7 @@
 <div class="max-w-xl mx-auto">
 
   <div class="flex items-center justify-between gap-3 mb-5">
-    <h1 class="page-title">Beetle ID Game</h1>
+    <h1 class="page-title">Beetle ID Game {% include "beetles/includes/game_beta.html" %}</h1>
     <a href="{% url 'game_how' %}" class="text-sm text-gray-500 underline hover:text-gray-900">How it works</a>
   </div>
 
@@ -39,6 +39,17 @@
       <span class="text-sm font-semibold text-gray-900">{{ rewards.today }}/{{ rewards.goal }} today</span>
     </div>
   </div>
+
+  {% if checked %}
+  <!-- Beetles checked by a curator since last time: what you said, what it is -->
+  <section class="mb-5" data-testid="checked-recap">
+    <div class="flex items-baseline justify-between mb-2">
+      <h2 class="text-lg font-semibold text-gray-900">Checked since you played{% if checked_new > checked|length %} <span class="text-sm font-normal text-gray-400">({{ checked_new }})</span>{% endif %}</h2>
+      <a href="{% url 'game_checked' %}" class="text-sm underline text-gray-600 hover:text-gray-900">All</a>
+    </div>
+    {% include "beetles/includes/game_checked_list.html" %}
+  </section>
+  {% endif %}
 
   {% if rewards.proposals %}
   <p class="mb-5 px-4 py-3 text-sm text-gray-700 bg-green-50 border border-green-200 rounded-2xl" data-testid="proposals-banner">

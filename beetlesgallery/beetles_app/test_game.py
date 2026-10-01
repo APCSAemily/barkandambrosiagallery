@@ -533,6 +533,20 @@ class DifficultyTests(GameCase):
             GameRound.objects.create(player=self.user, mode="classify", items=[], finished_at=timezone.now())
         self.assertGreater(game.target_difficulty(self.user), start)
 
+    def test_experts_get_harder_beetles_than_novices(self):
+        from beetlesgallery.beetles_app.models import PlayerScore
+        novice = game.target_difficulty(self.user)
+        PlayerScore.objects.create(player=self.staff, rating=0.85)
+        self.assertGreater(game.target_difficulty(self.staff), novice + 0.4)
+
+    def test_experts_get_closer_relatives_in_family_ties(self):
+        import random
+        random.seed(1)
+        hard = [game._relation_order(0.85)[0] for _ in range(200)]
+        easy = [game._relation_order(0.1)[0] for _ in range(200)]
+        self.assertGreater(hard.count("species") + hard.count("genus"), 120)
+        self.assertGreater(easy.count("different") + easy.count("subfamily"), 120)
+
     def test_pick_near_prefers_matching_difficulty(self):
         easy = [self.roi(self.t_affinis) for _ in range(5)]
         hard = [self.roi(self.t_affinis) for _ in range(5)]

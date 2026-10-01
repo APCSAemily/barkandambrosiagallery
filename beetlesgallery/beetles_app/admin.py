@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, SpeciesDiscovery, AnswerPoints, PlayerScore, GamePreference, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
+    PlayerSkill, SpeciesDiscovery, RetroCredit, AnswerPoints, PlayerScore, GamePreference, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -816,6 +816,15 @@ class PlayerSkillAdmin(admin.ModelAdmin):
     search_fields = ("player__username", "branch")
     readonly_fields = ("player", "rank", "branch", "correct", "judged", "lower_bound", "required", "covered",
                        "species_total", "species_done", "proven", "proven_at", "updated_at")
+
+
+@admin.register(RetroCredit)
+class RetroCreditAdmin(admin.ModelAdmin):
+    """Read-only: made when a beetle is validated after a player answered it (game_scoring.recompute)."""
+    list_display = ("player", "validated_name", "points_before", "points_after", "validated_at", "created_at", "seen_at")
+    search_fields = ("player__username", "validated_name")
+    readonly_fields = ("answer", "player", "points_before", "points_after", "validated_name", "validated_at",
+                       "created_at", "seen_at")
 
 
 @admin.register(SpeciesDiscovery)

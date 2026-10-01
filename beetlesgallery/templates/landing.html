@@ -27,6 +27,31 @@
             </a>
           </span>
         </p>
+  {# Invite people to the game: their level and score when signed in, otherwise a sign-in to play #}
+  <a id="game-invite" href="{% if user.is_authenticated %}{% url 'game_home' %}{% else %}{% url 'login' %}?next={% url 'game_home' %}{% endif %}" data-testid="game-invite"
+    class="hidden w-full max-w-3xl mx-auto mt-6 text-left items-center gap-3 px-4 py-3 rounded-2xl border border-violet-200 bg-violet-50 hover:bg-violet-100 transition">
+    <i class="fi fi-rr-gamepad text-2xl text-violet-700"></i>
+    <span class="flex-1 min-w-0 text-sm text-gray-800">
+      {% if game_player %}<strong>{{ user.username }}</strong>, you're {{ game_player.name }} with {{ game_player.score }} pts. Keep naming beetles in the <strong>Beetle ID Game</strong>.
+      {% else %}Can you tell your <em>Xyleborus</em> from your <em>Euwallacea</em>? Try the <strong>Beetle ID Game</strong>.{% endif %}
+      {% include "beetles/includes/game_beta.html" %}
+    </span>
+    <span class="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-violet-700 rounded-lg">Play</span>
+    <button type="button" id="game-invite-close" class="shrink-0 p-1 text-gray-400 hover:text-gray-700" aria-label="Hide">&times;</button>
+  </a>
+  <script>
+  (function () {
+    const box = document.getElementById("game-invite");
+    let hidden = false;
+    try { hidden = localStorage.getItem("gameInviteHidden") === "1"; } catch (e) {}
+    if (!hidden) { box.classList.remove("hidden"); box.classList.add("flex"); }
+    document.getElementById("game-invite-close").addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      box.classList.add("hidden"); box.classList.remove("flex");
+      try { localStorage.setItem("gameInviteHidden", "1"); } catch (err) {}
+    });
+  })();
+  </script>
       </header>
 
       <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-16 items-center px-4 pb-12">

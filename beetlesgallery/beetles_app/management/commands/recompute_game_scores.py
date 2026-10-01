@@ -34,6 +34,7 @@ class Command(BaseCommand):
         players = get_user_model().objects.filter(game_answers__isnull=False).distinct()
         if ids:
             players = players.filter(id__in=ids)
+        game_scoring.sync_late_truth(ids)   # beetles validated since they were answered count for accuracy too
         for player in players:   # expertise first: it decides which judges count as experts
             recompute_skills(player)
         n = game_scoring.recompute(ids)

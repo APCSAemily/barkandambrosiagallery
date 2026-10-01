@@ -94,6 +94,7 @@ TEMPLATES = [
                 # Internal App Context Processor
                 "beetlesgallery.beetles_app.context_processors.species_ref_status",
                 "beetlesgallery.beetles_app.areas.areas_for_templates",
+                "beetlesgallery.beetles_app.context_processors.game_player",
             ],
         },
     },
@@ -226,9 +227,9 @@ GAME_REPORT_MIN_JUDGED = 5            # scored answers before a group shows on a
 GAME_RESUME_HOURS = 12                # an unfinished round is picked up again within this time
 
 # Item difficulty (0 easy .. 1 hard): the target starts low and rises with every round
-GAME_DIFFICULTY_START = 0.2
-GAME_DIFFICULTY_PER_ROUND = 0.02
-GAME_DIFFICULTY_SKILL_WEIGHT = 0.3    # accurate players get harder items sooner
+GAME_DIFFICULTY_START = 0.15
+GAME_DIFFICULTY_PER_ROUND = 0.005
+GAME_DIFFICULTY_SKILL_WEIGHT = 0.7    # reliable players get harder items: the target follows their rating
 GAME_DIFFICULTY_MAX = 0.9
 GAME_CANDIDATE_OVERSAMPLE = 6         # candidates drawn per slot before matching difficulty
 

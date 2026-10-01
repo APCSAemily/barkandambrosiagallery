@@ -129,12 +129,15 @@ def target_difficulty(player):
     """
     The difficulty this player's next items should sit around, from 0 (easy) to 1.
 
-    Starts easy, rises with every finished round, and rises faster for accurate
-    players, so the game always gets harder over time. GAME_DIFFICULTY_* settings.
+    Mostly their reliability (PlayerScore.rating, a cautious estimate of how often they are right), so experts get
+    hard beetles and novices easy ones, plus a little for every finished round so it keeps creeping up.
+    How hard a beetle is comes from how often other players get it right (update_difficulty); how hard a
+    Family Ties pair is also depends on how close the two beetles are (RELATION_DIFFICULTY). GAME_DIFFICULTY_*.
     """
+    from .models import PlayerScore
+
     rounds = GameRound.objects.filter(player=player, finished_at__isnull=False).count()
-    summary = player_summary(player)
-    skill = max(0.0, (summary["accuracy"] or 0.5) - 0.5) * 2  # 0 at coin-flip, 1 at perfect
+    skill = PlayerScore.objects.filter(player=player).values_list("rating", flat=True).first() or 0.0
     target = (
         game_setting("GAME_DIFFICULTY_START", 0.2)
         + game_setting("GAME_DIFFICULTY_PER_ROUND", 0.02) * rounds
@@ -373,11 +376,28 @@ def retry_ids(player, room):
     return usable[:want]
 
 
+# How hard a Family Ties pair is by how closely related the two beetles are: telling apart two species of one genus
+# is much harder than two subfamilies.
+RELATION_DIFFICULTY = {"different": 0.1, "subfamily": 0.35, "tribe": 0.55, "genus": 0.75, "species": 0.85}
+
+
+def _relation_order(target):
+    """The relations to try, the ones nearest the player's target difficulty most likely first."""
+    order, pool = [], dict(RELATION_DIFFICULTY)
+    while pool:
+        names = list(pool)
+        weights = [math.exp(-((pool[n] - target) / 0.25) ** 2) + 0.05 for n in names]
+        pick = random.choices(names, weights=weights)[0]
+        order.append(pick)
+        del pool[pick]
+    return order
+
+
 def _partner_for(anchor, target, exclude=()):
     """
-    A validated ROI to pair with ``anchor``, at a randomly chosen relation
-    (same species / genus / tribe / subfamily / different), so answers are spread
-    across ranks rather than being mostly "different subfamily".
+    A validated ROI to pair with ``anchor``, at a relation (same species / genus / tribe / subfamily / different)
+    chosen at random but leaning towards the player's difficulty: close relatives for experts, distant ones for
+    novices (RELATION_DIFFICULTY).
 
     For an unvalidated anchor its current (unchecked) label is only used to aim the
     pairing; the answer is what we record.
@@ -404,9 +424,7 @@ def _partner_for(anchor, target, exclude=()):
                       bool(taxon.subfamily and taxon.tribe)),
         "different": (~Q(taxon__subfamily=taxon.subfamily), bool(taxon.subfamily)),
     }
-    order = list(relations)
-    random.shuffle(order)
-    for rel in order:
+    for rel in _relation_order(target):
         condition, usable = relations[rel]
         if usable:
             partner = one(pool.filter(condition))
@@ -577,12 +595,17 @@ def finish_round(rnd):
 
     from .game_scoring import recompute
 
+    from .game_scoring import players_sharing_beetles, sync_late_truth
+
     if rnd.finished_at is None:
         rnd.finished_at = timezone.now()
         rnd.save(update_fields=["finished_at"])
+    sync_late_truth([rnd.player_id])
     recompute_skills(rnd.player)
     update_difficulty(rnd.answers.values_list("roi_id", flat=True))
-    recompute([rnd.player_id])
+    # the player, and everyone who answered the same unvalidated beetles: their agreement points move with this
+    open_ids = rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)
+    recompute([rnd.player_id, *players_sharing_beetles(rnd.player_id, open_ids)])
     from .game_trust import auto_apply_expert_labels
     auto_apply_expert_labels(list(rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)))
     from .game_discoveries import find

@@ -46,14 +46,12 @@
   </ul>
   {% endif %}
 
+  {% if is_self %}<a href="{% url 'game_checked' %}" class="inline-block mb-6 text-sm underline text-gray-600 hover:text-gray-900">Beetles checked after you answered them</a>{% endif %}
+
   <h2 class="text-lg font-semibold text-gray-900 mb-3">Badges</h2>
   <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-    {% for b in p.badges %}{% if b.earned %}
-    <div class="p-3 rounded-2xl border bg-white border-gray-300 text-center" title="{{ b.how }}">
-      <i class="fi {{ b.icon }} text-2xl text-gray-700"></i>
-      <div class="mt-1 text-xs font-semibold text-gray-900">{{ b.name }}</div>
-    </div>
-    {% endif %}{% empty %}{% endfor %}
+    {% for b in p.badges %}{% if b.earned %}{% include "beetles/includes/game_badge.html" %}{% endif %}{% endfor %}
+    {% if is_self %}{% for b in p.badges %}{% if not b.earned %}{% include "beetles/includes/game_badge.html" %}{% endif %}{% endfor %}{% endif %}
   </div>
 </div>
 {% endblock %}

@@ -3,7 +3,8 @@
 {% block content %}
 <div class="max-w-3xl mx-auto">
   <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Beetle ID Game</a>
-  <h1 class="page-title">How the game works</h1>
+  <h1 class="page-title">How the game works {% include "beetles/includes/game_beta.html" %}</h1>
+  <p class="text-sm text-gray-500 mb-2">The game is in beta: scores and rules may still change as we learn what works.</p>
 
   <section class="mt-4 mb-8 p-5 bg-white border border-gray-200 rounded-2xl" data-testid="quick-start">
     <h2 class="text-lg font-semibold text-gray-900 mb-3">In 30 seconds</h2>
@@ -21,17 +22,17 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-2">1. Beetles we already know</h2>
       <p class="text-sm text-gray-600 mb-3">Some beetles in the feed have an expert-checked name. You never know which ones, so treat every beetle as if it counts.</p>
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Name That Beetle</h3>
-      <p class="text-sm text-gray-600 mb-2">Each rank you fill in earns its points when right, and loses {% widthratio wrong 1 100 %}% of them when wrong:</p>
+      <p class="text-sm text-gray-600 mb-2">You get partial credit: each rank you get right earns its points.</p>
       <table class="text-sm mb-3"><tbody>
         {% for rank, pts in rank_points.items %}<tr><td class="pr-6 py-0.5 capitalize text-gray-700">{{ rank }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|floatformat:0 }}</td></tr>{% endfor %}
       </tbody></table>
-      <p class="text-sm text-gray-600 mb-4">The exact species is worth the most because it is the hardest. Not sure about the species? Stop at the genus: a right genus still earns 7, a wrong species would take 6 back. A wrong subfamily is the most costly mistake of all.</p>
+      <p class="text-sm text-gray-600 mb-4">Going one rank too far costs a little ({% widthratio overreach 1 100 %}% of that rank): right genus but wrong species earns 4.2, stopping at the genus 7, the exact species 15. A wrong subfamily costs {% widthratio wrong 1 100 %}% of everything you claimed.</p>
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Family Ties</h3>
       <p class="text-sm text-gray-600 mb-2">The right answer earns more the finer the difference you had to spot:</p>
       <table class="text-sm mb-3"><tbody>
         {% for name, pts in pair_points %}<tr><td class="pr-6 py-0.5 text-gray-700">{{ name|capfirst }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|floatformat:0 }}</td></tr>{% endfor %}
       </tbody></table>
-      <p class="text-sm text-gray-600">Two photos that look alike (same photographer, place or magnification) earn up to a quarter more. A wrong answer loses 1 point for every step it is off: calling two beetles of one genus &ldquo;different subfamilies&rdquo; is three steps off, &ldquo;same species&rdquo; only one.</p>
+      <p class="text-sm text-gray-600">Two photos that look alike (same photographer, place or magnification) earn up to a quarter more. Partial credit here too: &ldquo;same tribe&rdquo; for two beetles of one genus is true, so it earns the tribe&rsquo;s points; &ldquo;same species&rdquo; earns the genus&rsquo;s points minus a little. Calling relatives strangers (or strangers relatives) loses 1 point per step.</p>
     </section>
 
     <section class="p-5 bg-gray-50 border border-gray-200 rounded-2xl">
@@ -47,7 +48,7 @@
 
     <section class="p-5 bg-gray-50 border border-gray-200 rounded-2xl">
       <h2 class="text-lg font-semibold text-gray-900 mb-2">3. Scores keep up with the truth</h2>
-      <p class="text-sm text-gray-600">When an expert later checks a beetle you answered, your answer is scored again against the real name, up or down. Points from agreement move as more people answer. This is all recalculated when you leave the game and every night.</p>
+      <p class="text-sm text-gray-600">When a curator later checks a beetle you answered, your answer is scored again against the real name, up or down, and it counts towards your accuracy and expertise. You'll see it on the game home under <strong>Checked since you played</strong>, with the photo and the real name. Points from agreement move as more people answer, whenever anyone finishes playing and every night.</p>
     </section>
 
     <section class="p-5 bg-gray-50 border border-gray-200 rounded-2xl">

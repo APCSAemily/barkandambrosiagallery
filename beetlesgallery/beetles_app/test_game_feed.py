@@ -205,9 +205,10 @@ class PlayPageTests(GameCase):
         self.assertNotIn('data-choice="unsure"', page)        # "Not sure" is the fixed button next to Next
         self.assertIn('mode === "pair" ? "Not sure" : "Skip"', page)   # the fixed button reads "Not sure" in Family Ties
 
-    def test_the_game_uses_no_colours_except_for_errors_and_the_one_success_piece(self):
+    def test_the_game_keeps_its_colours_to_a_small_palette(self):
+        # The game may be more colourful than the rest of the site, but from one palette: levels, badges, beta.
         from django.conf import settings
-        source = (settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles" / "game_play.html").read_text()
-        home = (settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles" / "game_home.html").read_text()
-        for colour in ("blue", "indigo", "purple", "emerald", "orange", "yellow", "teal", "sky", "pink", "violet"):   # amber is the live-streak flame
-            self.assertNotIn(colour, source + home)
+        root = settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles"
+        source = "".join((root / n).read_text() for n in ("game_play.html", "game_home.html"))
+        for colour in ("blue", "indigo", "purple", "emerald", "yellow", "pink", "fuchsia", "rose", "cyan"):
+            self.assertNotIn(colour + "-", source)
