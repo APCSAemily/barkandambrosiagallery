@@ -14,7 +14,7 @@
       <i class="fi fi-rr-angle-left text-lg"></i>
     </a>
     <div class="flex-1">
-      <h1 class="text-2xl font-semibold text-gray-900 tracking-tight">Your answers</h1>
+      <h1 class="page-title">Your answers</h1>
       <p class="text-sm text-gray-500">{% if round.mode == 'classify' %}Name That Beetle{% else %}Family Ties{% endif %} · {{ round.finished_at|date:"M j, Y H:i" }}</p>
     </div>
   </div>
@@ -35,7 +35,7 @@
 
   <div class="flex flex-col sm:flex-row gap-3 mt-6">
     {% if is_self %}
-    <a href="{% url 'game_play' round.mode %}" class="px-6 py-3.5 text-center text-base font-semibold text-white bg-gray-900 rounded-xl">Keep playing</a>
+    <a href="{% url 'game_play' round.mode %}" class="px-6 py-3.5 text-center text-base font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-xl">Keep playing</a>
     {% endif %}
     <a href="{% url 'game_report' %}" class="px-6 py-3.5 text-center text-base font-medium text-gray-700 border border-gray-200 rounded-xl">My performance</a>
   </div>
@@ -48,7 +48,7 @@
     <p class="text-sm text-gray-500">A curator will take a look. Your answer on it won't count while they check.</p>
     <div class="space-y-2">
       {% for value, label in reasons %}
-      <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl has-[:checked]:border-gray-900">
+      <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl has-[:checked]:border-gray-600">
         <input type="radio" name="reason" value="{{ value }}" class="h-4 w-4" required>
         <span class="text-sm text-gray-800">{{ label }}</span>
       </label>
@@ -61,7 +61,7 @@
     <p id="sheet-error" class="hidden text-sm text-red-700"></p>
     <div class="flex gap-3 pt-1">
       <button type="button" id="sheet-cancel" class="px-4 py-3 text-base text-gray-600 border border-gray-200 rounded-xl">Cancel</button>
-      <button type="submit" class="flex-1 px-4 py-3 text-base font-semibold text-white bg-gray-900 rounded-xl">Send report</button>
+      <button type="submit" class="flex-1 px-4 py-3 text-base font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-xl">Send report</button>
     </div>
   </form>
 </div>

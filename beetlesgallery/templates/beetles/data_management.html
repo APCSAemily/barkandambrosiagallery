@@ -19,7 +19,7 @@
 <section class="relative z-0">
 
   {# --- Page Header --- #}
-  <h1 class="text-3xl sm:text-4xl font-semibold mb-8 text-gray-900">Data Management</h1>
+  <h1 class="page-title">Data Management</h1>
 
   {# --- SECTION 1: DATA ACTIONS --- #}
   <div class="mb-10 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -272,7 +272,7 @@
                   </span>
                   {% elif job.status == 'building' or job.status == 'pending' %}
                   <span
-                    class="inline-flex items-center justify-center w-28 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 animate-pulse">
+                    class="inline-flex items-center justify-center w-28 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 animate-pulse">
                     {{ job.get_status_display }}
                   </span>
                   {% else %}
@@ -391,7 +391,7 @@
                         class="ml-2 text-xs text-red-600 underline hover:no-underline">Details</button>
                     {% endif %}
                   {% else %}
-                    <span class="inline-flex items-center justify-center w-28 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 animate-pulse">
+                    <span class="inline-flex items-center justify-center w-28 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 animate-pulse">
                       {{ b.get_status_display }}
                     </span>
                   {% endif %}
@@ -473,7 +473,7 @@
                         class="ml-2 text-xs text-red-600 underline hover:no-underline">Details</button>
                     {% endif %}
                   {% else %}
-                    <span class="inline-flex items-center justify-center w-28 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 animate-pulse">
+                    <span class="inline-flex items-center justify-center w-28 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 animate-pulse">
                       {{ u.get_status_display }}
                     </span>
                   {% endif %}
@@ -1318,7 +1318,7 @@
     if (['imported', 'validated', 'applied', 'ready'].includes(s)) {
       badgeClass = "bg-green-100 text-green-800";
     } else if (['validating', 'building', 'staging', 'pending'].includes(s)) {
-      badgeClass = "bg-blue-100 text-blue-800 animate-pulse";
+      badgeClass = "bg-gray-200 text-gray-700 animate-pulse";
     } else if (['rejected', 'failed', 'import_failed', 'apply_failed'].includes(s)) {
       badgeClass = "bg-red-100 text-red-800";
       linkClass = "text-red-600";

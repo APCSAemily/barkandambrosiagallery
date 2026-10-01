@@ -5,7 +5,7 @@
 {% block content %}
 <section class="max-w-3xl">
   <a href="{% url 'data_management' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Data Management</a>
-  <h1 class="text-3xl sm:text-4xl font-semibold mt-2 mb-2 text-gray-900">Proposed interactions</h1>
+  <h1 class="page-title">Proposed interactions</h1>
   <p class="text-gray-600 mb-8">
     Load interactions proposed from the literature. Each row is one claim from one paper, with a link to the paper and the sentence that states it.
     {% url 'interaction_review' as review_url %}They wait in the {% if review_url %}<a href="{{ review_url }}" class="underline hover:text-black">review queue</a>{% else %}review queue{% endif %}; nothing is published until an expert accepts it.
