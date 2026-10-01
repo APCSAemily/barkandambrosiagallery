@@ -280,3 +280,26 @@ Full rules for players are on the "How scoring works" page (`/game/how-it-works/
 - **Combo**: answers in a row without skipping show as x3, x4... in the header, with a toast at 10, 25, 50, 100.
 - **Participation**: every real answer earns `GAME_POINTS_PARTICIPATION` (0.5) on top of its accuracy points, so the
   score grows with play. Skips do not.
+
+## Update: leaderboard, profiles, annotation tips, help
+
+**Leaderboard** (`/game/leaderboard/`, `game_board.py`). Ranks players by score, accuracy (shown after
+`GAME_MIN_JUDGED_FOR_ACCURACY` judged answers) or beetles seen, all time or this week, with a name search. The
+**specialists** board ranks players inside one subfamily (by their tribe answers), tribe (genus answers) or genus
+(species answers), proven experts first, then by the cautious (Wilson) estimate. The game home shows the top 10.
+
+**Profiles** (`/game/players/<id>/profile/`). Anyone signed in can open a player from the leaderboard: level, score,
+accuracy, beetles seen, streak, games played, where they are a proven expert, badges, and a link to their tree.
+
+**Tips on the Image Annotation page** (`game_tips.py`, served with `/game/api/proposals/` as `tips`). Only answers
+from players whose labels reach curators count (`game_levels.suggestion_voters`).
+
+* *Agreement*: the deepest rank backed by a proven expert, or by at least `GAME_TIP_MIN_VOTES` (3) players with at
+  least `GAME_TIP_MIN_SUPPORT` (75%) of the weighted vote. Marked amber when it differs from the current label.
+* *Not in*: a Family Ties answer against a validated beetle also says what the other beetle is not ("same tribe"
+  means not the partner's genus; "different subfamily" means not its subfamily). Shown when at least
+  `GAME_TIP_MIN_NOT_VOTES` (2) players say so and at least 75% of those who spoke to it agree.
+
+**Help and feedback.** `/game/how-it-works/` opens with a 30-second guide, then scoring, levels, where labels go,
+experts and the leaderboard. A link to the game's GitHub Discussions category (`GAME_DISCUSSIONS_URL`) is on the
+game home, the help page and the end-of-game recap.

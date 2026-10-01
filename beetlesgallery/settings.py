@@ -216,6 +216,8 @@ MODAL_API_URL = os.environ.get("MODAL_API_URL", "https://christophermarais--ibbi
 
 # Beetle ID game (beetles_app/game.py)
 GAME_ROUND_SIZE = 10                  # items per round
+# where players report bugs and suggest ideas for the game
+GAME_DISCUSSIONS_URL = "https://github.com/ChristopherMarais/barkandambrosiagallery/discussions/categories/beetle-id-game"
 GAME_CALIBRATION_CHECKS = 20          # scored answers before a player counts as calibrated
 GAME_CHECK_RATIO_NEW = 0.6            # share of validated (scored) items while calibrating
 GAME_CHECK_RATIO_KNOWN = 0.2          # ... and afterwards

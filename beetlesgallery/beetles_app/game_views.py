@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_board, game_feedback, game_levels, game_rewards, game_scoring, game_trust
+from . import game, game_board, game_feedback, game_levels, game_rewards, game_scoring, game_tips, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -43,6 +43,12 @@ RUNGS = [
 ]
 TAXA_CACHE_SECONDS = 600
 MAX_RESPONSE_MS = 60 * 60 * 1000
+DISCUSSIONS_URL = "https://github.com/ChristopherMarais/barkandambrosiagallery/discussions/categories/beetle-id-game"
+
+
+def discussions_url():
+    """Where players report bugs and suggest ideas (GitHub Discussions)."""
+    return game.game_setting("GAME_DISCUSSIONS_URL", DISCUSSIONS_URL)
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +64,7 @@ def game_home(request):
         "games": [{"mode": m, "name": GAME_NAMES[m], "tagline": GAME_TAGLINES[m]} for m in MODES],
         "summary": game.player_summary(request.user),
         "board": game_board.board(limit=10),
+        "discussions": discussions_url(),
     })
 
 
@@ -131,9 +138,11 @@ def game_expertise(request, user_id=None):
 
 @login_required
 def game_how(request):
-    """How the game is scored, in plain words."""
-    from . import game_scoring
+    """How the game works and how it is scored, in plain words."""
     return render(request, "beetles/game_how.html", {
+        "discussions": discussions_url(), "levels": game_levels.table(),
+        "proposal_level": game_levels.proposal_level(),
+        "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
         "rank_points": game_scoring.RANK_POINTS, "pair_points": [
             (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
         "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
@@ -148,6 +157,7 @@ def game_play(request, mode):
     if mode not in MODES:
         raise Http404("Unknown game mode")
     return render(request, "beetles/game_play.html", {
+        "discussions": discussions_url(),
         "mode": mode,
         "mode_label": GAME_NAMES[mode],
         "ranks": [(r, r.capitalize()) for r in game.RANKS],
@@ -604,7 +614,8 @@ def game_proposals(request):
             "reason": r.get_reason_display(), "note": r.note, "reporter": r.reporter.username,
             "created_at": r.created_at.isoformat(), "was_validated": r.was_validated,
         })
-    return JsonResponse({"proposals": proposals, "reports": reports})
+    tips = {str(roi_id): items for roi_id, items in game_tips.tips(roi_ids).items()}
+    return JsonResponse({"proposals": proposals, "reports": reports, "tips": tips})
 
 
 @area_required(ANNOTATE)

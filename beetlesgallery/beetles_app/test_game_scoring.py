@@ -251,7 +251,7 @@ class PagesTests(ScoringCase):
     def test_the_how_it_works_page_explains_it(self):
         self.client.force_login(self.user)
         page = self.client.get("/game/how-it-works/").content.decode()
-        for text in ("How scoring works", ">species<", "Same genus", "agreeing with strong players", "60%", "never drops below zero"):
+        for text in ("How the game works", ">species<", "Same genus", "agreeing with strong players", "60%", "never drops below zero"):
             self.assertIn(text, page)
 
     def test_the_game_home_shows_the_score_and_links_the_explanation(self):
