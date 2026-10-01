@@ -90,5 +90,6 @@ def profile(player):
             {"what": {"tribe": "tribes of", "genus": "genera of", "species": "species of", "subfamily": "subfamilies"}[k.rank],
              "branch": k.branch} for k in proven
         ],
+        "discoveries": list(player.species_discoveries.order_by("genus", "species")),
         "modes": dict(GameAnswer.objects.filter(player=player, skipped=False).values_list("mode").annotate(n=Count("id"))),
     }

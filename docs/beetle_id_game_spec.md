@@ -308,3 +308,24 @@ from players whose labels reach curators count (`game_levels.suggestion_voters`)
 **Help and feedback.** `/game/how-it-works/` opens with a 30-second guide, then scoring, levels, where labels go,
 experts and the leaderboard. A link to the game's GitHub Discussions category (`GAME_DISCUSSIONS_URL`) is on the
 game home, the help page and the end-of-game recap.
+
+## Update: expertise that scales with the taxon, and new species found
+
+**Expertise scales with the size of a taxon** (`game_trust.coverage`, `is_proven`). Proof is no longer a fixed
+number of answers. For a skill (species within a genus, genus within a tribe, tribe within a subfamily, subfamily
+overall), the player must have answered `GAME_TRUST_IMAGES_PER_SPECIES` (5) validated images of **every species in
+that taxon that has validated images** (all of them for a species with fewer), at least `GAME_TRUST_MIN_JUDGED`
+(10) answers in total, and be right at least `GAME_TRUST_MIN_ACCURACY` (90%) of the time. A genus with two species
+needs about 10 answers, one with forty about 200. Taxa with fewer than `GAME_TRUST_MIN_JUDGED` validated images
+can't be proven directly; there the sibling rule (proof in related taxa) still backs suggestions to curators, but
+never labels written without review. `PlayerSkill` stores `required`, `covered`, `species_total` and
+`species_done`, shown on the expertise tree and the performance page. For the ranks above a label's own, being
+*reliable* (10+ answers, 90% right) is enough. The Wilson lower bound is kept only for ranking players.
+
+Player-facing text says "taxon" rather than "group", which has its own biological meaning.
+
+**New species found** (`game_discoveries.py`, `SpeciesDiscovery`). A Name That Beetle answer on an unvalidated
+beetle is marked `new_species` when the gallery had no validated images of the named species at that moment. If a
+curator later validates the beetle as exactly that species, the player gets a one-time pop-up on the game home and
+a *New species finder* badge, with the species listed on their profile. No extra points. Checked when a player
+leaves the game, when they open the game home, and nightly. Answers given before this release are not marked.

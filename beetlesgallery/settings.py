@@ -232,13 +232,15 @@ GAME_DIFFICULTY_SKILL_WEIGHT = 0.3    # accurate players get harder items sooner
 GAME_DIFFICULTY_MAX = 0.9
 GAME_CANDIDATE_OVERSAMPLE = 6         # candidates drawn per slot before matching difficulty
 
-# Trusted labels (beetles_app/game_trust.py). A player is proven at a rank within a
-# branch (e.g. species within one genus) with at least MIN_JUDGED scored answers there
-# and a Wilson lower bound (Z = 1.96 -> 95%) of at least MIN_LOWER_BOUND. With the
-# defaults a perfect record proves competence after 35 answers.
-GAME_TRUST_MIN_JUDGED = 15
-GAME_TRUST_MIN_LOWER_BOUND = 0.9
-GAME_TRUST_Z = 1.96
+# Trusted labels (beetles_app/game_trust.py).
+# Expertise in a taxon scales with its size: so many validated images of every species in it that has any
+# (all of them for a species with fewer), at least GAME_TRUST_MIN_JUDGED in total, and at least
+# GAME_TRUST_MIN_ACCURACY of the answers right. Taxa with fewer than GAME_TRUST_MIN_JUDGED validated images
+# can't be proven directly.
+GAME_TRUST_IMAGES_PER_SPECIES = 5
+GAME_TRUST_MIN_JUDGED = 10
+GAME_TRUST_MIN_ACCURACY = 0.9
+GAME_TRUST_Z = 1.96                   # only for ranking players (Wilson lower bound), not for proof
 GAME_TRUST_SIBLINGS = 2               # related branches needed where a branch can't be tested
 GAME_TRUST_MIN_VOTES = 1              # trusted players needed to back a label
 

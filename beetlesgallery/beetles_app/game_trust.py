@@ -9,17 +9,18 @@ Expertise is measured per rank *within a branch* of the taxonomy, from a player'
     tribe     within a subfamily
     subfamily overall
 
-A player is *proven* at a rank in a branch once they have answered at least
-GAME_TRUST_MIN_JUDGED distinct validated ROIs there and the Wilson lower bound of their
-accuracy (GAME_TRUST_Z, 1.96 = 95% confidence) is at least GAME_TRUST_MIN_LOWER_BOUND.
+A player is *proven* (an expert) at a rank in a taxon once they have covered it: answered at least
+GAME_TRUST_IMAGES_PER_SPECIES validated images of every species in it that has validated images (all of them for
+a species with fewer), at least GAME_TRUST_MIN_JUDGED answers in total, and at least GAME_TRUST_MIN_ACCURACY of
+those answers are right. So a genus with two species needs far
+fewer answers than one with forty, and nobody is an expert on a taxon whose species they have never seen.
 
-A game label on an unvalidated ROI is *trusted* at a rank when a player proven for it
-supports it and no player proven for it disagrees. Trust is checked for the branch the
-label itself falls in, and every rank above must be trusted too. When the branch can't be
-tested (too few validated ROIs to ever prove competence there), proof in at least
-GAME_TRUST_SIBLINGS related branches counts instead: species in an untested genus needs
-species-level proof in other genera of the same tribe, genus in an untested tribe needs
-genus-level proof in other tribes of the same subfamily, and so on.
+A player is *reliable* in a taxon with at least GAME_TRUST_MIN_JUDGED answers there and the same accuracy, without
+the full coverage. A game label on an unvalidated ROI is *trusted* at a rank when a player proven for the label's
+own taxon at that rank supports it (and is proven or reliable at every rank above), and no trusted player
+disagrees. When the taxon has fewer than GAME_TRUST_MIN_JUDGED validated images, so it can't be tested, proof in at least
+GAME_TRUST_SIBLINGS related taxa counts instead: species in an untested genus needs species-level proof in other
+genera of the same tribe, and so on. Labels written to the database without review never use that route.
 
 Trusted labels are proposals only: staff accept them on the annotation page.
 """
@@ -54,19 +55,49 @@ def wilson_lower_bound(ok, n, z=None):
     return (centre - spread) / (1 + z2 / n)
 
 
-def answers_needed():
-    """Fewest answers with which a perfect record proves competence at current settings."""
-    n = game_setting("GAME_TRUST_MIN_JUDGED", 15)
-    while n < 10000 and wilson_lower_bound(n, n) < game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9):
-        n += 1
-    return n
+def per_species():
+    return game_setting("GAME_TRUST_IMAGES_PER_SPECIES", 5)
 
 
-def is_proven(ok, n):
-    return (
-        n >= game_setting("GAME_TRUST_MIN_JUDGED", 15)
-        and wilson_lower_bound(ok, n) >= game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9)
-    )
+def min_accuracy():
+    return game_setting("GAME_TRUST_MIN_ACCURACY", 0.9)
+
+
+def coverage(available, answered):
+    """
+    What proof of a taxon needs, and how far a player is.
+
+    ``available``: {species: validated images in the taxon}. ``answered``: {species: the player's first answers
+    on those images}. Returns {"required", "covered", "species_total", "species_done", "complete"}, where each
+    species needs min(GAME_TRUST_IMAGES_PER_SPECIES, its validated images), and the total needs at least
+    GAME_TRUST_MIN_JUDGED. A taxon with fewer validated images than that can't be proven directly at all.
+    """
+    k = per_species()
+    need = {sp: min(k, n) for sp, n in available.items() if n > 0}
+    floor = game_setting("GAME_TRUST_MIN_JUDGED", 10)
+    required = max(sum(need.values()), floor)
+    covered_per = {sp: min(answered.get(sp, 0), n) for sp, n in need.items()}
+    done = sum(1 for sp, n in need.items() if covered_per[sp] >= n)
+    total_answers = sum(answered.values())
+    covered = min(required, max(sum(covered_per.values()), min(total_answers, floor)))
+    return {
+        "required": required, "covered": covered, "species_total": len(need), "species_done": done,
+        "complete": bool(need) and done == len(need) and total_answers >= floor,
+    }
+
+
+def is_proven(ok, n, cover):
+    """Covered the taxon (see coverage) and right at least GAME_TRUST_MIN_ACCURACY of the time."""
+    return bool(cover["complete"]) and n > 0 and ok / n >= min_accuracy()
+
+
+def is_reliable(ok, n):
+    """Enough answers in a taxon, accurate enough, without the full coverage an expert needs."""
+    return n >= game_setting("GAME_TRUST_MIN_JUDGED", 10) and ok / n >= min_accuracy()
+
+
+def species_key(genus, species):
+    return f"{genus or ''} {species or ''}".strip().lower()
 
 
 def branch_for(rank, labels):
@@ -79,7 +110,7 @@ def branch_for(rank, labels):
 # ---------------------------------------------------------------------------
 def skill_counts(player):
     """
-    {(rank, branch_lower): [correct, judged, branch_display]} from scored classify answers.
+    {(rank, branch_lower): [correct, judged, branch_display, {species: answers}]} from scored classify answers.
     Each validated ROI counts once per rank (the first answer), so replayed items can't
     pad a record.
     """
@@ -88,7 +119,7 @@ def skill_counts(player):
     answers = (
         GameAnswer.objects.filter(player=player, mode="classify", is_check=True, is_retry=False, skipped=False, score_hold=False)
         .order_by("answered_at")
-        .values("roi_id", "ref_subfamily", "ref_tribe", "ref_genus",
+        .values("roi_id", "ref_subfamily", "ref_tribe", "ref_genus", "ref_species",
                 *[f"correct_{r}" for r in RANKS])
     )
     for a in answers:
@@ -101,32 +132,54 @@ def skill_counts(player):
             branch = branch_for(r, labels)
             if BRANCH_OF[r] and not branch:
                 continue
-            row = stats.setdefault((r, branch.lower()), [0, 0, branch])
+            row = stats.setdefault((r, branch.lower()), [0, 0, branch, defaultdict(int)])
             row[0] += int(ok)
             row[1] += 1
+            row[3][species_key(a["ref_genus"], a["ref_species"])] += 1
     return stats
+
+
+def species_available():
+    """{(rank, branch_lower): {species: validated images}}: what proving each skill has to cover."""
+    out = defaultdict(lambda: defaultdict(int))
+    rows = check_rois().values("taxon__subfamily", "taxon__tribe", "taxon__genus", "taxon__species").annotate(n=Count("id"))
+    for row in rows:
+        sp = species_key(row["taxon__genus"], row["taxon__species"])
+        for rank, field in BRANCH_OF.items():
+            branch = (row[f"taxon__{field}"] or "").lower() if field else ""
+            if field and not branch:
+                continue
+            out[(rank, branch)][sp] += row["n"]
+    return out
 
 
 def recompute_skills(player):
     """Refresh the player's PlayerSkill rows from their answers."""
     now = timezone.now()
     existing = {(s.rank, s.branch.lower()): s for s in PlayerSkill.objects.filter(player=player)}
+    available = species_available()
     create, update = [], []
-    for key, (ok, n, display) in skill_counts(player).items():
+    for key, (ok, n, display, answered) in skill_counts(player).items():
         skill = existing.get(key)
         if skill is None:
             skill = PlayerSkill(player=player, rank=key[0], branch=display)
             create.append(skill)
         else:
             update.append(skill)
-        proven = is_proven(ok, n)
+        cover = coverage(available.get(key, {}), answered)
+        proven = is_proven(ok, n, cover)
         if proven and not skill.proven:
             skill.proven_at = now
         skill.correct, skill.judged, skill.proven = ok, n, proven
+        skill.required, skill.covered = cover["required"], cover["covered"]
+        skill.species_total, skill.species_done = cover["species_total"], cover["species_done"]
         skill.lower_bound = round(wilson_lower_bound(ok, n), 4)
         skill.updated_at = now
     PlayerSkill.objects.bulk_create(create)
-    PlayerSkill.objects.bulk_update(update, ["correct", "judged", "proven", "proven_at", "lower_bound", "updated_at"])
+    PlayerSkill.objects.bulk_update(update, [
+        "correct", "judged", "proven", "proven_at", "lower_bound", "required", "covered", "species_total",
+        "species_done", "updated_at",
+    ])
 
 
 def skills_for(player):
@@ -183,7 +236,8 @@ def branch_parent(rank, branch, index):
 
 
 def is_testable(rank, branch, index):
-    return index["validated"][rank].get(branch, 0) >= answers_needed()
+    """A taxon with at least GAME_TRUST_MIN_JUDGED validated images can be tested; proof there scales with its species."""
+    return index["validated"][rank].get(branch, 0) >= game_setting("GAME_TRUST_MIN_JUDGED", 10)
 
 
 def complete_labels(labels, index):
@@ -220,16 +274,21 @@ class TrustContext:
         self.index = trust_index()
         self.elite = elite_players()
         self.proven = defaultdict(set)
-        for pid, rank, branch in PlayerSkill.objects.filter(
-            player_id__in=list(player_ids), proven=True
-        ).values_list("player_id", "rank", "branch"):
-            self.proven[pid].add((rank, branch.lower()))
+        self.reliable = defaultdict(set)
+        for pid, rank, branch, proven, ok, n in PlayerSkill.objects.filter(
+            player_id__in=list(player_ids)
+        ).values_list("player_id", "rank", "branch", "proven", "correct", "judged"):
+            if proven:
+                self.proven[pid].add((rank, branch.lower()))
+            if proven or is_reliable(ok, n):
+                self.reliable[pid].add((rank, branch.lower()))
 
-    def how_trusted(self, player_id, rank, labels, direct_only=False):
+    def how_trusted(self, player_id, rank, labels, direct_only=False, deepest=True):
         """
-        "direct" if proven in this label's branch, "siblings" if the branch is untestable
-        and the player is proven in enough related branches, else None. ``direct_only`` refuses the
-        sibling route: the player must have proven themselves in this very branch.
+        "direct" if proven in this label's taxon, "siblings" if the taxon is untestable
+        and the player is proven in enough related taxa, else None. ``direct_only`` refuses the
+        sibling route: the player must have proven themselves in this very taxon. For the ranks above the
+        label's own (``deepest`` False), being reliable there is enough.
         """
         branch = branch_for(rank, labels).lower()
         if BRANCH_OF[rank] and not branch:
@@ -237,7 +296,7 @@ class TrustContext:
         if self.elite is not None and player_id not in self.elite:
             return None   # experts also have to be among the most reliable players overall
         proven = self.proven.get(player_id, set())
-        if (rank, branch) in proven:
+        if (rank, branch) in proven or (not deepest and (rank, branch) in self.reliable.get(player_id, set())):
             return "direct"
         if direct_only or is_testable(rank, branch, self.index):
             return None
@@ -254,7 +313,7 @@ class TrustContext:
         """Trusted at ``rank`` and at every rank above it."""
         labels = complete_labels(labels, self.index)
         for r in RANKS[: RANKS.index(rank) + 1]:
-            if not labels.get(r) or not self.how_trusted(player_id, r, labels, direct_only):
+            if not labels.get(r) or not self.how_trusted(player_id, r, labels, direct_only, deepest=r == rank):
                 return False
         return True
 
@@ -310,7 +369,6 @@ def player_report(player):
     """Everything the performance page shows about one player."""
     from . import game
 
-    needed = answers_needed()
     reliability = game.player_reliability([player.id]).get(player.id) or {
         m: game.default_weight() for m in ("classify", "pair", "all")
     }
@@ -319,7 +377,7 @@ def player_report(player):
 
     # Skill branches come from the reference labels of scored items, so listing every
     # one would tell the player what a beetle they got wrong really was (and which
-    # items were scored). Only show progress in groups the player has named themselves,
+    # items were scored). Only show progress in taxa the player has named themselves,
     # once there's enough of it that a single item can't be singled out.
     claimed = {"subfamily": {""}, "tribe": set(), "genus": set(), "species": set()}
     for subfamily, tribe, genus in GameAnswer.objects.filter(
@@ -331,10 +389,10 @@ def player_report(player):
     min_shown = game_setting("GAME_REPORT_MIN_JUDGED", 5)
     progressing = sorted(
         (s for s in skills if not s.proven and s.judged >= min_shown and s.branch.lower() in claimed[s.rank]),
-        key=lambda s: (-min(s.judged / needed, 1) * s.lower_bound, s.rank),
+        key=lambda s: (-(s.covered / s.required if s.required else 0) * s.lower_bound, s.rank),
     )
     for s in skills:
-        s.progress = min(1.0, s.judged / needed)
+        s.progress = min(1.0, s.covered / s.required) if s.required else 0.0
         s.accuracy = s.correct / s.judged if s.judged else None
 
     since = timezone.now() - timedelta(days=183)
@@ -369,8 +427,8 @@ def player_report(player):
             .annotate(labelled=Count("answers", filter=Q(answers__skipped=False)))
             .order_by("-finished_at")[:10]
         ),
-        "needed": needed,
-        "min_lower_bound": game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
+        "per_species": per_species(),
+        "min_accuracy": min_accuracy(),
         "siblings": game_setting("GAME_TRUST_SIBLINGS", 2),
     }
 
@@ -381,11 +439,10 @@ def player_report(player):
 def auto_apply_expert_labels(roi_ids=None):
     """
     Write the species that proven experts agree on onto beetles that have no name yet, without waiting for a
-    curator. This is the strictest rule in the game. Each expert counted must have *proven themselves directly*
-    in every branch the label falls in (its subfamily, tribe within it, genus within that, species within the
-    genus): at least GAME_TRUST_MIN_JUDGED answers on validated beetles there, with the Wilson lower bound of their
-    accuracy at least GAME_TRUST_MIN_LOWER_BOUND (90% by default, at 95% confidence), and be among the most
-    reliable players overall (elite_players). Proof in neighbouring branches, which is enough for a suggestion to
+    curator. This is the strictest rule in the game. Each expert counted must be *proven directly* on the species
+    of the label's genus (enough validated images of every species in it, see coverage, and at least
+    GAME_TRUST_MIN_ACCURACY right), be proven or reliable in its tribe, subfamily and overall, and be among the most
+    reliable players overall (elite_players). Proof in neighbouring genera, which is enough for a suggestion to
     curators, is not enough here. GAME_AUTO_APPLY_MIN_EXPERTS (2) such experts must give the same species, no
     proven player may disagree, the beetle must have no species label, not be validated, and no curator has
     reviewed a game label for it before. The beetle stays unvalidated so a curator still confirms it; a
@@ -473,6 +530,8 @@ def expertise_tree(player):
             "judged": skill.judged if skill else 0, "correct": skill.correct if skill else 0,
             "accuracy": (skill.correct / skill.judged) if skill and skill.judged else None,
             "proven": bool(skill and skill.proven),
+            "required": skill.required if skill else 0, "covered": skill.covered if skill else 0,
+            "species_total": skill.species_total if skill else 0, "species_done": skill.species_done if skill else 0,
         }
 
     layout = defaultdict(lambda: defaultdict(set))
@@ -493,5 +552,6 @@ def expertise_tree(player):
                 sub["hidden"] += 1
         tree.append(sub)
     root = node("subfamily", "")
-    return {"root": root, "subfamilies": tree, "min_shown": min_shown, "needed": answers_needed(),
+    return {"root": root, "subfamilies": tree, "min_shown": min_shown, "per_species": per_species(),
+            "min_accuracy": min_accuracy(),
             "experts": sum(1 for s in skills.values() if s.proven)}

@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_board, game_feedback, game_levels, game_rewards, game_scoring, game_tips, game_trust
+from . import game, game_board, game_discoveries, game_feedback, game_levels, game_rewards, game_scoring, game_tips, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -57,7 +57,9 @@ def discussions_url():
 @login_required
 def game_home(request):
     game.close_idle_rounds(request.user)   # anything they left open counts now
+    game_discoveries.find([request.user.id])
     return render(request, "beetles/game_home.html", {
+        "discoveries": game_discoveries.pop_unseen(request.user),
         "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
         "badges": game_rewards.badge_cards(request.user),
@@ -123,8 +125,8 @@ def game_unlocks(request):
         "focus_ranks": [(r, label, game_levels.FOCUS_PERK[r] in info["perks"]) for r, label in
                         (("subfamily", "Subfamily"), ("tribe", "Tribe"), ("genus", "Genus"))],
         "proposal_level": game_levels.proposal_level(),
-        "trust_min_judged": game.game_setting("GAME_TRUST_MIN_JUDGED", 15),
-        "trust_bound": game.game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
+        "per_species": game_trust.per_species(),
+        "trust_accuracy": game_trust.min_accuracy(),
         "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
     })
 
@@ -146,8 +148,8 @@ def game_how(request):
         "discussions": discussions_url(), "levels": game_levels.table(),
         "proposal_level": game_levels.proposal_level(),
         "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
-        "trust_min_judged": game.game_setting("GAME_TRUST_MIN_JUDGED", 15),
-        "trust_bound": game.game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
+        "per_species": game_trust.per_species(),
+        "trust_accuracy": game_trust.min_accuracy(),
         "rank_points": game_scoring.RANK_POINTS, "pair_points": [
             (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
         "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
@@ -400,6 +402,8 @@ def game_answer(request, round_id):
                 return JsonResponse({"error": "Please choose a name from the lists."}, status=400)
             for r, v in answer.items():
                 setattr(record, r, v)
+            if not record.is_check and record.genus and record.species:
+                record.new_species = game_discoveries.is_new_species(record.genus, record.species)
             if record.is_check:
                 scores = game.score_classification(answer, roi_a.taxon)
         else:
@@ -723,7 +727,7 @@ def game_review(request):
         "only_trusted": only_trusted,
         "rounds": GameRound.objects.count(),
         "answers": GameAnswer.objects.count(),
-        "needed": game_trust.answers_needed(),
+        "per_species": game_trust.per_species(),
     })
 
 

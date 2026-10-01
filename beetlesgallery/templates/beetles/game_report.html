@@ -53,9 +53,9 @@
   <div class="mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-1">Expertise</h2>
     <p class="text-xs text-gray-500 mb-3">
-      You become an expert in a group once you've named at least {{ report.needed }} of its beetles with very high accuracy
-      (we need to be 95% sure your accuracy is at least {% widthratio report.min_lower_bound 1 100 %}%).
-      Experts' labels are flagged to our curators as trusted.
+      You become an expert in a taxon once you have named {{ report.per_species }} validated images of every species in it
+      (all of them, for a species with fewer) and got at least {% widthratio report.min_accuracy 1 100 %}% right.
+      A genus with two species needs far fewer answers than one with forty. Experts' labels are flagged to our curators as trusted.
     </p>
 
     {% if report.proven %}
@@ -82,9 +82,9 @@
       <li>
         <div class="flex items-baseline justify-between text-sm">
           <span class="text-gray-900 truncate">{{ s.rank|capfirst }} ID{% if s.branch %} in <span class="{% if s.rank == 'species' %}italic{% endif %}">{{ s.branch }}</span>{% endif %}</span>
-          <span class="text-xs text-gray-500 tabular-nums ml-2 shrink-0">{{ s.judged }}/{{ report.needed }} · {% widthratio s.accuracy 1 100 %}% right</span>
+          <span class="text-xs text-gray-500 tabular-nums ml-2 shrink-0">{{ s.species_done }}/{{ s.species_total }} species · {% widthratio s.accuracy 1 100 %}% right</span>
         </div>
-        <div class="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title="{{ s.judged }} of {{ report.needed }} answers, {{ s.correct }} correct">
+        <div class="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title="{{ s.covered }} of the {{ s.required }} answers needed, {{ s.correct }} of {{ s.judged }} correct">
           <div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio s.progress 1 100 %}%"></div>
         </div>
       </li>

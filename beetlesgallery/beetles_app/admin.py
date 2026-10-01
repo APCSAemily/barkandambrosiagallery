@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, AnswerPoints, PlayerScore, GamePreference, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
+    PlayerSkill, SpeciesDiscovery, AnswerPoints, PlayerScore, GamePreference, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -810,10 +810,20 @@ class GameAnswerAdmin(admin.ModelAdmin):
 
 @admin.register(PlayerSkill)
 class PlayerSkillAdmin(admin.ModelAdmin):
-    list_display = ("player", "rank", "branch", "correct", "judged", "lower_bound", "proven", "proven_at")
+    list_display = ("player", "rank", "branch", "correct", "judged", "covered", "required", "species_done",
+                    "species_total", "proven", "proven_at")
     list_filter = ("rank", "proven")
     search_fields = ("player__username", "branch")
-    readonly_fields = ("player", "rank", "branch", "correct", "judged", "lower_bound", "proven", "proven_at", "updated_at")
+    readonly_fields = ("player", "rank", "branch", "correct", "judged", "lower_bound", "required", "covered",
+                       "species_total", "species_done", "proven", "proven_at", "updated_at")
+
+
+@admin.register(SpeciesDiscovery)
+class SpeciesDiscoveryAdmin(admin.ModelAdmin):
+    """Read-only: found by the game (game_discoveries.find)."""
+    list_display = ("player", "genus", "species", "roi", "created_at", "seen_at")
+    search_fields = ("player__username", "genus", "species")
+    readonly_fields = ("player", "roi", "answer", "genus", "species", "created_at", "seen_at")
 
 
 @admin.register(PlayerScore)

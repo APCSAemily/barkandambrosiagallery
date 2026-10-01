@@ -527,6 +527,8 @@ def finish_round(rnd):
     recompute([rnd.player_id])
     from .game_trust import auto_apply_expert_labels
     auto_apply_expert_labels(list(rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)))
+    from .game_discoveries import find
+    find([rnd.player_id])
 
 
 # ---------------------------------------------------------------------------
