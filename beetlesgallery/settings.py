@@ -193,6 +193,8 @@ ACCESS_REQUEST_RECIPIENTS = [
     for address in os.environ.get("ACCESS_REQUEST_RECIPIENTS", "gmarais@ufl.edu").split(",")
     if address.strip()
 ]
+# The address people use, for links in emails sent when nobody is making a request (the reminder command)
+SITE_URL = os.environ.get("SITE_URL", "https://barkandambrosiagallery.org")
 PASSWORD_RESET_TIMEOUT = 7 * 24 * 60 * 60  # the "set your password" link in an approval email lasts a week
 
 # Email. Set EMAIL_HOST (and the rest) in the server's .env to send real mail; without EMAIL_HOST,

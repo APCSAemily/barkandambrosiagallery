@@ -1,11 +1,13 @@
 """Asking for an account: choosing a username and password, confirming the email, approval, signing in and password reset."""
 import re
+from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from beetlesgallery.beetles_app import access
 from beetlesgallery.beetles_app.models import AccessRequest
@@ -394,3 +396,85 @@ class EmailSetupTests(PageBehaviourCase):
                         side_effect=ConnectionRefusedError("no server")):
             with self.assertRaisesRegex(CommandError, "ConnectionRefusedError: no server"):
                 call_command("send_test_email", "someone@example.org", stdout=__import__("io").StringIO())
+
+
+class ReminderTests(PageBehaviourCase):
+    """The daily reminder to the approvers about requests nobody has decided."""
+
+    def request(self, email, hours_ago=30, verified=True, status="pending"):
+        r = AccessRequest.objects.create(name=email.split("@")[0].title(), email=email, areas=["browse"], status=status)
+        if verified:
+            AccessRequest.objects.filter(pk=r.pk).update(email_verified_at=timezone.now() - timedelta(hours=hours_ago))
+        return r
+
+    def run_command(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("remind_access_requests", *args, stdout=out)
+        return out.getvalue()
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=APPROVERS, SITE_URL="https://example.org")
+    def test_one_email_lists_everyone_who_has_waited_with_a_link_to_the_page(self):
+        self.request("ada@example.org", hours_ago=30)
+        self.request("grace@example.org", hours_ago=100)
+        out = self.run_command()
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(set(message.to) >= set(APPROVERS), True)
+        self.assertEqual(message.subject, "Reminder: 2 access requests waiting")
+        self.assertIn("Ada <ada@example.org>", message.body)
+        self.assertIn("Grace <grace@example.org>", message.body)
+        self.assertIn("waiting 4 days", message.body)
+        self.assertIn("https://example.org" + reverse("access_requests"), message.body)
+        self.assertIn("Emailed", out)
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=APPROVERS)
+    def test_nothing_is_sent_when_nobody_has_waited_long_enough_or_nobody_is_waiting(self):
+        self.request("new@example.org", hours_ago=2)
+        self.assertIn("No access requests are waiting", self.run_command())
+        AccessRequest.objects.all().delete()
+        self.assertIn("No access requests are waiting", self.run_command())
+        self.assertEqual(mail.outbox, [])
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=APPROVERS)
+    def test_decided_and_unconfirmed_requests_are_left_out(self):
+        self.request("done@example.org", status="approved")
+        self.request("unconfirmed@example.org", verified=False)
+        self.request("waiting@example.org")
+        self.run_command()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("waiting@example.org", mail.outbox[0].body)
+        self.assertNotIn("done@example.org", mail.outbox[0].body)
+        self.assertNotIn("unconfirmed@example.org", mail.outbox[0].body)
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=APPROVERS)
+    def test_the_wait_can_be_changed_and_a_dry_run_sends_nothing(self):
+        self.request("ada@example.org", hours_ago=30)
+        self.assertIn("No access requests", self.run_command("--older-than-hours", "48"))
+        self.assertIn("Would email", self.run_command("--dry-run"))
+        self.assertEqual(mail.outbox, [])
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=[])
+    def test_superusers_with_an_email_are_reminded_too(self):
+        User.objects.filter(pk=self.superuser.pk).update(email="boss@example.org")
+        self.request("ada@example.org")
+        self.run_command()
+        self.assertEqual(mail.outbox[0].to, ["boss@example.org"])
+
+    @override_settings(ACCESS_REQUEST_RECIPIENTS=[])
+    def test_it_complains_when_nobody_can_be_emailed(self):
+        from django.core.management.base import CommandError
+        User.objects.all().update(email="")
+        self.request("ada@example.org")
+        with self.assertRaises(CommandError):
+            self.run_command()
+
+    def test_the_server_runs_it_every_day_after_the_deploy_task_exists(self):
+        from django.conf import settings
+        import tomllib
+        workflow = (settings.BASE_DIR / ".github" / "workflows" / "access-reminders.yml").read_text()
+        self.assertIn("cron:", workflow)
+        self.assertIn("pixi run remind-access", workflow)
+        tasks = tomllib.loads((settings.BASE_DIR / "pixi.toml").read_text())["tasks"]
+        self.assertEqual(tasks["remind-access"], "python manage.py remind_access_requests")

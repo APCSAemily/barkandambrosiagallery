@@ -20,6 +20,7 @@ Superuser is never granted through a request. Finer access is set per person on 
 """
 import logging
 import re
+from datetime import timedelta
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -194,14 +195,51 @@ def confirm_email(request, uidb64, token):
     return access_request
 
 
-def notify_approvers(access_request, review_url):
-    # The configured addresses, plus every active superuser who has one: all superusers can decide requests.
+def approver_recipients():
+    """The configured addresses, plus every active superuser who has one: all superusers can decide requests."""
     recipients = list(settings.ACCESS_REQUEST_RECIPIENTS)
     known = {r.lower() for r in recipients}
     for address in get_user_model().objects.filter(is_superuser=True, is_active=True).exclude(email="").values_list("email", flat=True):
         if address.lower() not in known:
             known.add(address.lower())
             recipients.append(address)
+    return recipients
+
+
+def send_reminder(review_url, older_than_hours=24, dry_run=False):
+    """
+    One email to the approvers listing the requests that have waited for a decision longer than ``older_than_hours``
+    (counted from when the applicant confirmed their email). Returns the requests listed; sends nothing if there are none.
+    """
+    cutoff = timezone.now() - timedelta(hours=older_than_hours)
+    waiting = list(
+        AccessRequest.objects.filter(status=AccessRequest.Status.PENDING, email_verified_at__isnull=False,
+                                     email_verified_at__lte=cutoff).order_by("email_verified_at")
+    )
+    recipients = approver_recipients()
+    if not waiting or not recipients or dry_run:
+        return waiting, recipients
+    now = timezone.now()
+    lines = []
+    for r in waiting:
+        hours = int((now - r.email_verified_at).total_seconds() // 3600)
+        waited = f"{hours // 24} days" if hours >= 48 else f"{hours} hours"
+        lines.append(f"  - {r.name} <{r.email}> ({', '.join(area_labels(r.areas)) or 'nothing selected'}), waiting {waited}")
+    count = len(waiting)
+    body = (
+        f"{count} access request{'s are' if count != 1 else ' is'} still waiting for a decision on the "
+        "Bark & Ambrosia Beetle Gallery:\n\n" + "\n".join(lines) +
+        f"\n\nApprove or deny them here (superuser sign-in needed):\n{review_url}\n\n"
+        "These people have confirmed their email address and cannot sign in until you decide."
+    )
+    EmailMessage(
+        subject=f"Reminder: {count} access request{'s' if count != 1 else ''} waiting", body=body, to=recipients,
+    ).send(fail_silently=False)
+    return waiting, recipients
+
+
+def notify_approvers(access_request, review_url):
+    recipients = approver_recipients()
     if not recipients:
         access_request.notify_error = "No approvers are configured (ACCESS_REQUEST_RECIPIENTS)."
     else:
