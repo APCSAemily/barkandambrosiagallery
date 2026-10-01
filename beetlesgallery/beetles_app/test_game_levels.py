@@ -91,6 +91,55 @@ class ExpertLabelTests(ScoringCase):
         self.assertEqual(auto_apply_expert_labels(), [])
         self.assertIsNone(Beetles.objects.get(pk=target.pk).taxon)
 
+    def test_good_but_not_ninety_percent_sure_is_not_an_expert(self):
+        target = self.roi(validated=False)
+        for name in ("g1", "g2"):
+            p = self.strong(name, right=34, wrong=6)    # 85% right on validated beetles
+            recompute_skills(p)
+            self.answer(p, target, AFFINIS)
+        self.assertEqual(auto_apply_expert_labels(), [])
+
+    def test_the_unlocks_page_states_the_bar(self):
+        self.client.force_login(self.user)
+        page = self.client.get("/game/unlocks/").content.decode()
+        self.assertIn("at least 90% of the time", page)
+        self.assertIn("neighbouring groups is not enough", page)
+
+    def test_experts_proven_only_in_neighbouring_genera_do_not_write_labels(self):
+        """
+        Two players proven in two other Xyleborini genera are trusted for a genus nobody can be tested on (enough
+        for a suggestion to curators), but not proven there themselves, so nothing is written to the database.
+        """
+        from django.core.cache import cache
+
+        from beetlesgallery.beetles_app import game
+        from beetlesgallery.beetles_app.testing import make_taxon
+        other = {}
+        for genus in ("Ambrosiodmus", "Euwallacea"):
+            other[genus] = make_taxon(subfamily="Scolytinae", tribe="Xyleborini", genus=genus, species="one",
+                                      scientific_name=f"{genus} one")
+        untested = make_taxon(subfamily="Scolytinae", tribe="Xyleborini", genus="Xylosandrus", species="crassiusculus",
+                              scientific_name="Xylosandrus crassiusculus")
+        fields = {"subfamily": "Scolytinae", "tribe": "Xyleborini", "species": "one"}
+        experts = []
+        for name in ("s1", "s2"):
+            p = self.player(name)
+            for genus, taxon in other.items():
+                for _ in range(40):
+                    self.answer(p, self.roi(taxon), dict(fields, genus=genus))
+            recompute_skills(p)
+            experts.append(p)
+        cache.clear()
+        target = self.roi(validated=False)
+        for p in experts:
+            self.answer(p, target, {"subfamily": "Scolytinae", "tribe": "Xyleborini", "genus": "Xylosandrus",
+                                    "species": "crassiusculus"})
+        entry = game.consensus(roi_ids=[target.id])[0]
+        self.assertEqual(entry["trusted_rank"], "species")       # good enough to suggest to a curator ...
+        self.assertEqual(auto_apply_expert_labels(), [])          # ... but not to write without review
+        self.assertIsNone(Beetles.objects.get(pk=target.pk).taxon)
+        self.assertIsNotNone(untested)
+
     @override_settings(GAME_AUTO_APPLY_EXPERT_LABELS=False)
     def test_it_can_be_switched_off(self):
         target = self.roi(validated=False)

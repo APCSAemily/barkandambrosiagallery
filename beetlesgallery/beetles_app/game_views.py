@@ -96,6 +96,9 @@ def game_unlocks(request):
         "focus_ranks": [(r, label, game_levels.FOCUS_PERK[r] in info["perks"]) for r, label in
                         (("subfamily", "Subfamily"), ("tribe", "Tribe"), ("genus", "Genus"))],
         "proposal_level": game_levels.proposal_level(),
+        "trust_min_judged": game.game_setting("GAME_TRUST_MIN_JUDGED", 15),
+        "trust_bound": game.game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
+        "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
     })
 
 
