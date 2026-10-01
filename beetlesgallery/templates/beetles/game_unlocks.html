@@ -35,7 +35,14 @@
     {% else %}
     <p class="text-sm text-gray-700">From level {{ proposal_level }} (with enough reliability), your names for beetles nobody has checked yet are sent to the curators as suggestions. Until then they help the game learn which beetles are hard.</p>
     {% endif %}
-    <p class="text-sm text-gray-700 mt-2">Only <strong>proven experts</strong> have their labels written into the database without a curator checking first, and only when several of them agree. Expertise is earned branch by branch: someone can be an expert on <em>Xyleborus</em> and a beginner on <em>Ips</em>, so their labels may go straight in for one group and not for another. See your <a href="{% url 'game_expertise' %}" class="underline hover:text-gray-900">expertise tree</a>.</p>
+    <p class="text-sm text-gray-700 mt-2">Only <strong>proven experts</strong> have their labels written into the database without a curator checking first. The bar is high:</p>
+    <ul class="text-sm text-gray-700 mt-1 list-disc pl-5 space-y-0.5" data-testid="expert-rule">
+      <li>You must prove yourself on <strong>beetles experts have already checked</strong>, in that exact group: at least {{ trust_min_judged }} answers there, and so accurate that we are 95% sure you are right at least {% widthratio trust_bound 1 100 %}% of the time.</li>
+      <li>You must also be among the most reliable players overall.</li>
+      <li>Being good in neighbouring groups is not enough: it lets your labels reach curators as suggestions, but not skip review.</li>
+      <li>At least {{ min_experts }} such experts must give the same species, and no proven player may disagree.</li>
+    </ul>
+    <p class="text-sm text-gray-700 mt-2">Expertise is earned group by group (subfamily, tribe, genus, species within a genus): someone can be an expert on <em>Xyleborus</em> and a beginner on <em>Ips</em>, so their labels may go straight in for one group and not for another. It is checked again all the time, so it can be lost. See your <a href="{% url 'game_expertise' %}" class="underline hover:text-gray-900">expertise tree</a>.</p>
   </div>
 
   <!-- Focus -->
