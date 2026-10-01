@@ -1,6 +1,7 @@
 """Beetles validated after they were answered: points, accuracy and expertise follow, and the player sees a recap."""
 from unittest import mock
 
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -79,6 +80,8 @@ class LateValidationTests(ScoringCase):
 
 
 class AgreementLaterTests(ScoringCase):
+    # in the request here; the background path (production) is tested in test_game_polish.BackgroundTests
+    @override_settings(GAME_RECOMPUTE_IN_BACKGROUND=False)
     def test_finishing_a_round_rescores_everyone_on_the_same_beetles(self):
         target = self.roi(self.t_affinis, validated=False)
         early = self.player("early")
