@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block extra_css %}
 <style>
@@ -21,7 +22,7 @@
 
   <div class="p-4 mb-4 bg-gray-50 border border-gray-200 rounded-lg">
     {% if feedback.scored %}
-    <p class="text-gray-900"><span class="text-2xl font-semibold tabular-nums">{{ feedback.right }}</span> of {{ feedback.scored }} verified beetles fully right.</p>
+    <p class="text-gray-900"><span class="text-2xl font-semibold tabular-nums">{{ feedback.right|digit_groups }}</span> of {{ feedback.scored|digit_groups }} verified beetles fully right.</p>
     {% else %}
     <p class="text-gray-900">None of these beetles has a verified name yet, so there's nothing to score.</p>
     {% endif %}

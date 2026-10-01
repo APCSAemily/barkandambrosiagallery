@@ -1,4 +1,4 @@
-{% load static %}
+{% load beetle_tags %}{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -229,6 +229,7 @@
     }
   </style>
 
+  <script src="{% static 'js/digit_groups.js' %}"></script>
   <script src="{% static 'js/footer_basehtml.js' %}" defer></script>
   {% block extra_css %}{% endblock %}
 </head>
@@ -319,7 +320,7 @@
             <a href="{% url 'game_home' %}" data-testid="sidebar-player"
               class="flex items-center gap-3 w-full min-h-[3.5rem] rounded-lg px-5 hover:bg-gray-200 transition-all whitespace-nowrap">
               <span class="w-8 flex justify-center">{% include "beetles/includes/game_level_badge.html" with level=game_player.level name=game_player.name %}</span>
-              <span class="min-w-0 leading-tight"><span class="block font-semibold text-gray-800 truncate">{{ user.username }}</span><span class="block text-xs text-gray-500">{{ game_player.name }} &middot; {{ game_player.score }} pts</span></span>
+              <span class="min-w-0 leading-tight"><span class="block font-semibold text-gray-800 truncate">{{ user.username }}</span><span class="block text-xs text-gray-500">{{ game_player.name }} &middot; {{ game_player.score|digit_groups }} pts</span></span>
             </a>
             {% endif %}
 
@@ -435,11 +436,11 @@
 
           <div class="h-px bg-gray-300 my-2 mx-2"></div>
           {% if game_player %}
-          <a href="{% url 'game_home' %}" data-testid="sidebar-player" title="{{ user.username }}: level {{ game_player.level }}, {{ game_player.score }} pts"
+          <a href="{% url 'game_home' %}" data-testid="sidebar-player" title="{{ user.username }}: level {{ game_player.level }}, {{ game_player.score|digit_groups_text }} pts"
             class="flex items-center w-full min-h-[3.5rem] rounded-lg px-5 hover:bg-gray-200 transition-all group overflow-hidden whitespace-nowrap">
             <span class="sidebar-icon w-8 shrink-0 flex justify-center">{% include "beetles/includes/game_level_badge.html" with level=game_player.level name=game_player.name %}</span>
             <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 min-w-0 leading-tight">
-              <span class="block font-semibold text-gray-800 truncate">{{ user.username }}</span><span class="block text-xs text-gray-500">{{ game_player.name }} &middot; {{ game_player.score }} pts</span>
+              <span class="block font-semibold text-gray-800 truncate">{{ user.username }}</span><span class="block text-xs text-gray-500">{{ game_player.name }} &middot; {{ game_player.score|digit_groups }} pts</span>
             </span>
           </a>
           {% endif %}

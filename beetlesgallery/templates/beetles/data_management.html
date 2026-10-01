@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 {% load static %}
 
 {% block content %}
@@ -235,7 +236,7 @@
                 <td class="px-4 py-3 font-medium text-gray-800">
                   <div class="flex flex-col gap-0.5">
                     {% if job.selection_mode == 'ids' %}
-                    <span class="text-gray-500 text-xs font-normal">{{ job.total_requested }} Record(s)</span>
+                    <span class="text-gray-500 text-xs font-normal">{{ job.total_requested|digit_groups }} Record(s)</span>
                     {% else %}
                     <span class="text-gray-500 text-xs italic font-normal">
                       {{ job.get_readable_query|default:"All records"|truncatechars:40 }}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto">
@@ -24,13 +25,13 @@
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Identification (Name That Beetle)</h3>
       <p class="text-sm text-gray-600 mb-2">You get partial credit: each rank you get right earns its points.</p>
       <table class="text-sm mb-3"><tbody>
-        {% for rank, pts in rank_points.items %}<tr><td class="pr-6 py-0.5 capitalize text-gray-700">{{ rank }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|floatformat:0 }}</td></tr>{% endfor %}
+        {% for rank, pts in rank_points.items %}<tr><td class="pr-6 py-0.5 capitalize text-gray-700">{{ rank }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|digit_groups }}</td></tr>{% endfor %}
       </tbody></table>
       <p class="text-sm text-gray-600 mb-4">Going one rank too far costs a little ({% widthratio overreach 1 100 %}% of that rank): right genus but wrong species earns 4.2, stopping at the genus 7, the exact species 15. A wrong subfamily costs {% widthratio wrong 1 100 %}% of everything you claimed.</p>
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Similarity</h3>
       <p class="text-sm text-gray-600 mb-2">The right answer earns more the finer the difference you had to spot:</p>
       <table class="text-sm mb-3"><tbody>
-        {% for name, pts in pair_points %}<tr><td class="pr-6 py-0.5 text-gray-700">{{ name|capfirst }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|floatformat:0 }}</td></tr>{% endfor %}
+        {% for name, pts in pair_points %}<tr><td class="pr-6 py-0.5 text-gray-700">{{ name|capfirst }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|digit_groups }}</td></tr>{% endfor %}
       </tbody></table>
       <p class="text-sm text-gray-600">Two photos that look alike (same photographer, place or magnification) earn up to a quarter more. Partial credit here too: &ldquo;same tribe&rdquo; for two beetles of one genus is true, so it earns the tribe&rsquo;s points; &ldquo;same species&rdquo; earns the genus&rsquo;s points minus a little. Calling relatives strangers (or strangers relatives) loses 1 point per step.</p>
     </section>
@@ -68,7 +69,7 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-2">Levels</h2>
       <p class="text-sm text-gray-600 mb-3">A level needs enough points <em>and</em> enough reliability. Reliability can go down as well as up, so a level is kept only while your answers stay good.</p>
       <div class="overflow-x-auto"><table class="text-sm w-full"><thead class="text-xs uppercase tracking-wider text-gray-500"><tr><th class="text-left py-1 pr-3">Level</th><th class="text-right py-1 pr-3">Points</th><th class="text-right py-1 pr-3">Reliability</th></tr></thead><tbody>
-        {% for l in levels %}<tr class="border-t border-gray-200"><td class="py-1.5 pr-3 text-gray-900">{{ l.level }}. {{ l.name }}{% if l.perks %}<div class="text-xs text-gray-500">Unlocks: {% for p in l.perks %}{{ p.title|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}</td><td class="py-1 pr-3 text-right tabular-nums">{{ l.points }}</td><td class="py-1 pr-3 text-right tabular-nums">{% if l.rating %}{% widthratio l.rating 1 100 %}%{% else %}&ndash;{% endif %}</td></tr>{% endfor %}
+        {% for l in levels %}<tr class="border-t border-gray-200"><td class="py-1.5 pr-3 text-gray-900">{{ l.level }}. {{ l.name }}{% if l.perks %}<div class="text-xs text-gray-500">Unlocks: {% for p in l.perks %}{{ p.title|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}</td><td class="py-1 pr-3 text-right tabular-nums">{{ l.points|digit_groups }}</td><td class="py-1 pr-3 text-right tabular-nums">{% if l.rating %}{% widthratio l.rating 1 100 %}%{% else %}&ndash;{% endif %}</td></tr>{% endfor %}
       </tbody></table></div>
       <p class="mt-3 text-sm text-gray-600"><strong>Focus</strong> lets you play only one subfamily, tribe or genus. Change it any time on the <a href="{% url 'game_unlocks' %}" class="underline">unlocks page</a>.</p>
     </section>

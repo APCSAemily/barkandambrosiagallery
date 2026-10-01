@@ -410,8 +410,8 @@
       const lc = $("level-chip");
       lc.classList.remove("hidden");
       lc.classList.add("inline-flex");
-      lc.textContent = chip.next_at ? "L" + chip.level + " · " + chip.score + "/" + chip.next_at : "L" + chip.level + " · " + chip.score;
-      lc.title = chip.next_at ? (chip.next_at - chip.score) + " points to level " + (chip.level + 1) : "Top level";
+      lc.textContent = "L" + chip.level + " · " + digitGroupsText(chip.score) + (chip.next_at ? "/" + digitGroupsText(chip.next_at) : "");
+      lc.title = chip.next_at ? digitGroupsText(chip.next_at - chip.score) + " points to level " + (chip.level + 1) : "Top level";
       $("level-bar").style.width = Math.round((chip.next_at ? chip.level_progress : 1) * 100) + "%";
     }
   }
@@ -703,10 +703,10 @@
     } catch (e) { /* the home page closes anything left open */ }
     if (!data || !data.recap || !data.recap.labelled) { location.href = root.dataset.homeUrl; return; }
     const r = data.recap;
-    $("recap-points").textContent = (r.points > 0 ? "+" : "") + Math.round(r.points);
-    $("recap-right").textContent = r.scored ? r.right + "/" + r.scored : "–";
+    $("recap-points").textContent = (r.points > 0 ? "+" : "") + digitGroupsText(r.points);
+    $("recap-right").textContent = r.scored ? digitGroupsText(r.right) + "/" + digitGroupsText(r.scored) : "–";
     $("recap-streak").textContent = r.streak;
-    $("recap-line").textContent = r.labelled + " beetles labelled. Level " + r.level + ", " + r.level_name + ". " + r.today + " of " + r.goal + " beetles today.";
+    $("recap-line").textContent = digitGroupsText(r.labelled) + " beetles labelled. Level " + r.level + ", " + r.level_name + ". " + r.today + " of " + r.goal + " beetles today.";
     const holder = $("recap-badges");
     holder.innerHTML = "";
     r.badges.forEach((b) => {

@@ -854,7 +854,7 @@ function updateButtonLabel(container) {
         if(hiddenSelect.options[i].selected) count++;
     }
     if (count > 0) {
-        span.textContent = `${count} Selected`;
+        span.textContent = `${digitGroupsText(count)} Selected`;
         btn.classList.add('border-gray-400', 'text-gray-900', 'font-medium', 'bg-gray-100');
     } else {
         span.textContent = 'All';
