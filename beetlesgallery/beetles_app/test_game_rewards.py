@@ -36,7 +36,8 @@ class LevelAndGoalTests(RewardsCase):
         self.answers(3)
         self.answers(2, skipped=True)
         state = rewards.progress(self.user)
-        self.assertEqual((state["total"], state["today"], state["level"], state["to_next"]), (3, 3, 1, 50))
+        # 3 answers x 0.5 participation - 2 skips x 0.25 = 1 point so far
+        self.assertEqual((state["total"], state["today"], state["level"], state["to_next"]), (3, 3, 1, 49))
 
     @override_settings(GAME_DAILY_GOAL=4)
     def test_the_daily_goal(self):

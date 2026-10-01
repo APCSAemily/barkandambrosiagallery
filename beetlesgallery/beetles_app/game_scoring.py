@@ -26,7 +26,8 @@ of what the same answer would earn on a validated beetle, and never less than ze
     against one strong one earns nothing;
   * the more judges agree, the closer it gets to the cap.
 
-Not sure / skip costs a little (GAME_POINTS_UNSURE, 0.25).
+Not sure / skip costs a little (GAME_POINTS_UNSURE, 0.25). Every real answer earns a small participation point
+(GAME_POINTS_PARTICIPATION, 0.5), so the score grows with play.
 
 When a beetle is validated later, or its label is corrected, every answer on it is re-scored against the truth,
 up or down (recompute, run for a player when they leave the game and for everyone every night).
@@ -246,7 +247,21 @@ def consensus_points(answer, votes, judges):
 # One answer
 # ---------------------------------------------------------------------------
 def score(answer, votes_for, judges):
-    """(points, basis, detail). ``votes_for(roi_id)`` gives the judges' votes on an unvalidated beetle."""
+    """
+    (points, basis, detail). ``votes_for(roi_id)`` gives the judges' votes on an unvalidated beetle.
+    Every real answer also earns a small participation point (GAME_POINTS_PARTICIPATION), so the score grows the
+    more you play; accuracy still decides most of it.
+    """
+    points, basis, detail = _score(answer, votes_for, judges)
+    if basis in (AnswerPoints.Basis.TRUTH, AnswerPoints.Basis.CONSENSUS, AnswerPoints.Basis.NONE) and not answer.skipped \
+            and not answer.score_hold:
+        bonus = setting("GAME_POINTS_PARTICIPATION", 0.5)
+        points += bonus
+        detail = dict(detail, participation=bonus)
+    return points, basis, detail
+
+
+def _score(answer, votes_for, judges):
     if answer.score_hold:
         return 0.0, AnswerPoints.Basis.NONE, {"held": True}
     if answer.skipped or (answer.mode == "pair" and answer.pair_answer == "unsure"):
