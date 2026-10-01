@@ -11,7 +11,7 @@ from django.http import QueryDict
 from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase
 
-from beetlesgallery.beetles_app.templatetags.beetle_tags import digit_groups, remove_filter
+from beetlesgallery.beetles_app.templatetags.beetle_tags import digit_groups, digit_groups_text, remove_filter
 
 URL = "/beetles/?country=USA&country=Canada&sex=m&page=3&q=ips"
 
@@ -130,3 +130,17 @@ class DigitGroupsTests(SimpleTestCase):
     def test_in_template(self):
         out = Template("{% load beetle_tags %}{{ n|digit_groups }}").render(Context({"n": "4096"}))
         self.assertIn('<span class="digit-group">4</span>', out)
+
+    def test_scores_are_rounded_and_can_keep_decimals(self):
+        self.assertEqual(self.groups(12345.6), ["12", "346"])
+        self.assertTrue(str(digit_groups(12345.678, 1)).endswith("</span>.7"))
+        self.assertEqual(self.groups("-4500"), ["4", "500"])
+        self.assertTrue(str(digit_groups(-4500)).startswith("-"))
+        self.assertEqual(str(digit_groups(-0.2)), '<span class="digit-group">0</span>')
+
+    def test_plain_text_version_for_attributes(self):
+        self.assertEqual(digit_groups_text(1234567), "1\u202f234\u202f567")
+        self.assertEqual(digit_groups_text(999), "999")
+        self.assertEqual(digit_groups_text("n/a"), "n/a")
+        out = Template('{% load beetle_tags %}<a title="{{ n|digit_groups_text }} pts">').render(Context({"n": 70000}))
+        self.assertEqual(out, '<a title="70\u202f000 pts">')

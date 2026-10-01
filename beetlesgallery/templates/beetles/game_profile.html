@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto">
@@ -12,7 +13,7 @@
     </div>
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Score</div>
-      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.score|floatformat:0 }}</div>
+      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.score|digit_groups }}</div>
     </div>
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Accuracy</div>
@@ -20,7 +21,7 @@
     </div>
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Beetles seen</div>
-      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.viewed }}</div>
+      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.viewed|digit_groups }}</div>
     </div>
   </div>
 

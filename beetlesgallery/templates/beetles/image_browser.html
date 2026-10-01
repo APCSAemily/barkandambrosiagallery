@@ -419,7 +419,7 @@
       }
 
       if (count > 0) {
-          span.textContent = `${count} Selected`;
+          span.textContent = `${digitGroupsText(count)} Selected`;
           btn.classList.add('border-gray-400', 'ring-1', 'ring-gray-200', 'text-gray-900', 'font-medium');
           btn.classList.remove('border-text/20', 'text-text', 'hover:border-text/30');
       } else {
@@ -485,10 +485,10 @@
       cb.checked = selectedIds.has(cb.value);
     });
     document.querySelectorAll('.selected-count').forEach(span => {
-      span.textContent = count;
+      span.textContent = digitGroupsText(count);
     });
     const globalCountSpan = document.getElementById('global-selection-count');
-    if (globalCountSpan) globalCountSpan.textContent = count;
+    if (globalCountSpan) globalCountSpan.textContent = digitGroupsText(count);
 
     document.querySelectorAll('.download-selected-btn').forEach(btn => {
       btn.disabled = count === 0;

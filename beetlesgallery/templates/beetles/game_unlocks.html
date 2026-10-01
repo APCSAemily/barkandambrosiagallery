@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto">
@@ -11,12 +12,12 @@
     <div class="flex items-center gap-2">
       {% include "beetles/includes/game_level_badge.html" with level=info.level name=info.name %}
       <span class="text-xl font-bold text-gray-900">{{ info.name }}</span>
-      <span class="ml-auto text-sm text-gray-600 tabular-nums"><strong class="text-gray-900">{{ info.score|floatformat:0 }}</strong> pts &middot; <strong class="text-gray-900">{% widthratio info.rating 1 100 %}%</strong></span>
+      <span class="ml-auto text-sm text-gray-600 tabular-nums"><strong class="text-gray-900">{{ info.score|digit_groups }}</strong> pts &middot; <strong class="text-gray-900">{% widthratio info.rating 1 100 %}%</strong></span>
     </div>
     {% if info.next %}
     <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio info.progress 1 100 %}%"></div></div>
     <p class="mt-1.5 text-xs text-gray-500">
-      Level {{ info.next.level }}: {% if info.next.points_needed %}{{ info.next.points_needed }} pts{% endif %}{% if info.next.points_needed and info.next.rating_short %} + {% endif %}{% if info.next.rating_short %}{% widthratio info.next.rating_needed 1 100 %}% reliability{% endif %}{% if not info.next.points_needed and not info.next.rating_short %}almost there{% endif %}
+      Level {{ info.next.level }}: {% if info.next.points_needed %}{{ info.next.points_needed|digit_groups }} pts{% endif %}{% if info.next.points_needed and info.next.rating_short %} + {% endif %}{% if info.next.rating_short %}{% widthratio info.next.rating_needed 1 100 %}% reliability{% endif %}{% if not info.next.points_needed and not info.next.rating_short %}almost there{% endif %}
     </p>
     {% endif %}
   </div>
@@ -30,7 +31,7 @@
         <div class="font-semibold {% if row.level <= info.level %}text-gray-900{% endif %}">{{ row.name }}</div>
         {% for perk in row.perks %}<div class="text-xs {% if row.level <= info.level %}text-gray-700{% endif %}"><i class="fi {% if row.level <= info.level %}fi-rr-unlock{% else %}fi-rr-lock{% endif %}"></i> {{ perk.title }}</div>{% endfor %}
       </div>
-      <div class="text-xs text-right tabular-nums whitespace-nowrap">{{ row.points }} pts{% if row.rating %}<br>{% widthratio row.rating 1 100 %}%{% endif %}</div>
+      <div class="text-xs text-right tabular-nums whitespace-nowrap">{{ row.points|digit_groups }} pts{% if row.rating %}<br>{% widthratio row.rating 1 100 %}%{% endif %}</div>
     </li>
     {% endfor %}
   </ol>

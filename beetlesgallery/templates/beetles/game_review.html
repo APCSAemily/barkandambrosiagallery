@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
@@ -7,7 +8,7 @@
     <div>
       <h1 class="page-title">Game review</h1>
       <p class="text-sm text-gray-500">
-        {{ rounds }} rounds, {{ answers }} answers. Accuracy is measured on validated ROIs (<code>bbox_is_validated</code>) only;
+        {{ rounds|digit_groups }} rounds, {{ answers|digit_groups }} answers. Accuracy is measured on validated ROIs (<code>bbox_is_validated</code>) only;
         players are not told which items those are.
       </p>
     </div>
@@ -112,7 +113,7 @@
   </details>
 
   <details class="group mb-8" data-testid="section" {% if only_trusted %}open{% endif %}>
-  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Label proposals for unvalidated ROIs <span class="text-sm font-normal text-gray-400">({{ consensus_total }})</span></h2></summary>
+  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Label proposals for unvalidated ROIs <span class="text-sm font-normal text-gray-400">({{ consensus_total|digit_groups }})</span></h2></summary>
   <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-2">
     <span></span>
     <div class="flex text-sm bg-gray-100 rounded-lg p-1 self-start">
@@ -124,7 +125,7 @@
     Votes from both modes, weighted by each player's reliability at that rank. A pair answer such as
     &ldquo;same genus&rdquo; votes for the validated partner's subfamily, tribe and genus.
     Percent = the winning name's share of the weighted vote; <i class="fi fi-rr-shield-check text-green-700"></i> = expert-backed.
-    Showing {{ consensus|length }} of {{ consensus_total }} (most answered first); the CSV has all of them.
+    Showing {{ consensus|length|digit_groups }} of {{ consensus_total|digit_groups }} (most answered first); the CSV has all of them.
   </p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg">
     <table class="w-full text-sm whitespace-nowrap">
@@ -144,7 +145,7 @@
           <td class="px-3 py-2 text-right tabular-nums">{{ entry.answers }} <span class="text-gray-400 text-xs">({{ entry.players }} player{{ entry.players|pluralize }})</span></td>
           {% for r, vote in entry.rank_list %}
           <td class="px-3 py-2 {% if vote.trusted %}font-semibold text-gray-900{% endif %}">
-            {% if vote %}{{ vote.value }} <span class="text-gray-400 text-xs font-normal">{% widthratio vote.support 1 100 %}% · {{ vote.votes }}</span>{% if vote.trusted %} <i class="fi fi-rr-shield-check text-green-700" title="Expert-backed ({{ vote.trusted_votes }})"></i>{% endif %}{% else %}<span class="text-gray-300">—</span>{% endif %}
+            {% if vote %}{{ vote.value }} <span class="text-gray-400 text-xs font-normal">{% widthratio vote.support 1 100 %}% · {{ vote.votes|digit_groups }}</span>{% if vote.trusted %} <i class="fi fi-rr-shield-check text-green-700" title="Expert-backed ({{ vote.trusted_votes }})"></i>{% endif %}{% else %}<span class="text-gray-300">—</span>{% endif %}
           </td>
           {% endfor %}
         </tr>

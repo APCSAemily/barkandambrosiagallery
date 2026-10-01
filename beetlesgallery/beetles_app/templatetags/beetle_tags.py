@@ -30,28 +30,57 @@ def remove_filter(context, field, value=None):
         
     return query.urlencode()
 
+def _split_number(value, decimals):
+    """(sign, groups of three digits, fraction text) for a number, or None for anything else."""
+    from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = Decimal(str(value).strip())
+        decimals = max(int(decimals or 0), 0)
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if not number.is_finite():
+        return None
+    text = f"{abs(number.quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)):f}"
+    whole, _, fraction = text.partition(".")
+    groups = []
+    while whole:
+        groups.insert(0, whole[-3:])
+        whole = whole[:-3]
+    sign = "-" if number < 0 and any(c not in "0." for c in text) else ""
+    return sign, groups, f".{fraction}" if fraction else ""
+
+
 @register.filter
-def digit_groups(value):
+def digit_groups(value, decimals=0):
     """
-    Render a whole number with its digits in groups of three, each group a span with
+    Render a number with its digits in groups of three, each group a span with
     extra space before it (e.g. 70000 -> "70 000"), so large counts are easy to read.
-    Non-numbers are returned unchanged.
+    Rounded to ``decimals`` places (none by default): {{ score|digit_groups:1 }}.
+    Non-numbers are returned unchanged. static/js/digit_groups.js does the same in the browser.
     """
     from django.utils.safestring import mark_safe
 
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
+    parts = _split_number(value, decimals)
+    if parts is None:
         return value
-    digits = str(abs(number))
-    groups = []
-    while digits:
-        groups.insert(0, digits[-3:])
-        digits = digits[:-3]
+    sign, groups, fraction = parts
     gap = ' style="margin-left:0.4em"'
     spans = "".join(
         f'<span class="digit-group"{gap if i else ""}>{group}</span>'
         for i, group in enumerate(groups)
     )
     # Only digits and fixed markup go into the string, so it is safe to mark as such.
-    return mark_safe(("-" if number < 0 else "") + spans)
+    return mark_safe(sign + spans + fraction)
+
+
+@register.filter
+def digit_groups_text(value, decimals=0):
+    """digit_groups as plain text (a narrow space between groups), for places markup cannot go, like a title."""
+    parts = _split_number(value, decimals)
+    if parts is None:
+        return value
+    sign, groups, fraction = parts
+    return sign + "\u202f".join(groups) + fraction

@@ -1,9 +1,9 @@
-  <div id="gallery-results-container" class="transition-opacity duration-150">
+{% load beetle_tags %}  <div id="gallery-results-container" class="transition-opacity duration-150">
     <div class="w-full max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-text/10">
 
          <div class="flex flex-wrap items-center gap-4">
              <div class="text-sm text-text/70">
-               Found <span class="font-bold text-text">{{ total_matches }}</span> image{{ total_matches|pluralize }}.
+               Found <span class="font-bold text-text">{{ total_matches|digit_groups }}</span> image{{ total_matches|pluralize }}.
              </div>
 
              {# View Toggle #}
@@ -74,7 +74,7 @@
                             <button type="button" 
                                     onclick="toggleDownloadMenu(this.nextElementSibling)" 
                                     class="group inline-flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-black">
-                                <span>Download All ({{ total_matches }})</span>
+                                <span>Download All ({{ total_matches|digit_groups }})</span>
                                 <svg class="w-4 h-4 text-gray-500 group-hover:text-black transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
 
@@ -102,7 +102,7 @@
                                 name="download_type" 
                                 value="package"
                                 class="text-sm font-bold text-gray-700 hover:text-black hover:underline">
-                            Download All ({{ total_matches }})
+                            Download All ({{ total_matches|digit_groups }})
                         </button>
                     {% endif %}
                 {% endif %}
@@ -346,7 +346,7 @@
          
          <div class="flex flex-wrap items-center gap-4">
              <div class="text-sm text-text/70">
-               Found <span class="font-bold text-text">{{ total_matches }}</span> image{{ total_matches|pluralize }}.
+               Found <span class="font-bold text-text">{{ total_matches|digit_groups }}</span> image{{ total_matches|pluralize }}.
              </div>
              
              <div class="flex items-center gap-4">
@@ -405,7 +405,7 @@
                             <button type="button" 
                                     onclick="toggleDownloadMenu(this.nextElementSibling)" 
                                     class="group inline-flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-black">
-                                <span>Download All ({{ total_matches }})</span>
+                                <span>Download All ({{ total_matches|digit_groups }})</span>
                                 <svg class="w-4 h-4 text-gray-500 group-hover:text-black transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
 
@@ -433,7 +433,7 @@
                                 name="download_type" 
                                 value="package"
                                 class="text-sm font-bold text-gray-700 hover:text-black hover:underline">
-                            Download All ({{ total_matches }})
+                            Download All ({{ total_matches|digit_groups }})
                         </button>
                     {% endif %}
                 {% endif %}

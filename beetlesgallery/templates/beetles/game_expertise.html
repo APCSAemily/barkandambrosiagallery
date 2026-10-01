@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block extra_css %}
 <style>
@@ -32,7 +33,7 @@
 
   <div class="st-{{ tree.root.status }} flex items-center gap-2 p-3 mb-3 bg-gray-50 border border-gray-200 rounded-xl">
     <span class="tree-dot"></span><span class="tree-name text-gray-900">Telling subfamilies apart</span>
-    <span class="ml-auto text-xs text-gray-500 tabular-nums">{% if tree.root.judged %}{{ tree.root.correct }}/{{ tree.root.judged }}{% else %}&ndash;{% endif %}</span>
+    <span class="ml-auto text-xs text-gray-500 tabular-nums">{% if tree.root.judged %}{{ tree.root.correct|digit_groups }}/{{ tree.root.judged|digit_groups }}{% else %}&ndash;{% endif %}</span>
   </div>
 
   <div class="space-y-2" id="tree">
@@ -41,7 +42,7 @@
       <summary class="flex items-center gap-2 p-3">
         <span class="tree-dot"></span><span class="tree-name text-gray-900">{{ sub.name }}</span>
         <span class="text-xs text-gray-400">subfamily</span>
-        <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ sub.species_done }} of {{ sub.species_total }} species covered">{% if sub.judged %}{{ sub.correct }}/{{ sub.judged }}{% if sub.species_total %} · {{ sub.species_done }}/{{ sub.species_total }} sp.{% endif %}{% else %}&ndash;{% endif %}</span>
+        <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ sub.species_done|digit_groups_text }} of {{ sub.species_total|digit_groups_text }} species covered">{% if sub.judged %}{{ sub.correct|digit_groups }}/{{ sub.judged|digit_groups }}{% if sub.species_total %} · {{ sub.species_done|digit_groups }}/{{ sub.species_total|digit_groups }} sp.{% endif %}{% else %}&ndash;{% endif %}</span>
       </summary>
       <div class="pl-6 pr-3 pb-3 space-y-1">
         {% for t in sub.tribes %}
@@ -49,14 +50,14 @@
           <summary class="flex items-center gap-2 py-1.5">
             <span class="tree-dot"></span><span class="tree-name text-gray-800">{{ t.name }}</span>
             <span class="text-xs text-gray-400">tribe</span>
-            <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ t.species_done }} of {{ t.species_total }} species covered">{% if t.judged %}{{ t.correct }}/{{ t.judged }}{% if t.species_total %} · {{ t.species_done }}/{{ t.species_total }} sp.{% endif %}{% else %}&ndash;{% endif %}</span>
+            <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ t.species_done|digit_groups_text }} of {{ t.species_total|digit_groups_text }} species covered">{% if t.judged %}{{ t.correct|digit_groups }}/{{ t.judged|digit_groups }}{% if t.species_total %} · {{ t.species_done|digit_groups }}/{{ t.species_total|digit_groups }} sp.{% endif %}{% else %}&ndash;{% endif %}</span>
           </summary>
           <div class="pl-6 space-y-0.5">
             {% for g in t.genera %}
             <div class="st-{{ g.status }}"><div class="row flex items-center gap-2 py-1">
               <span class="tree-dot"></span><span class="tree-name italic text-gray-800">{{ g.name }}</span>
               <span class="text-xs text-gray-400">genus</span>
-              <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ g.species_done }} of {{ g.species_total }} species covered">{{ g.correct }}/{{ g.judged }}{% if g.species_total %} · {{ g.species_done }}/{{ g.species_total }} sp.{% endif %}</span>
+              <span class="ml-auto text-xs text-gray-500 tabular-nums" title="{{ g.species_done|digit_groups_text }} of {{ g.species_total|digit_groups_text }} species covered">{{ g.correct|digit_groups }}/{{ g.judged|digit_groups }}{% if g.species_total %} · {{ g.species_done|digit_groups }}/{{ g.species_total|digit_groups }} sp.{% endif %}</span>
             </div></div>
             {% endfor %}
             {% if t.hidden %}<div class="text-xs text-gray-400 py-1">{{ t.hidden }} more genera not played yet</div>{% endif %}

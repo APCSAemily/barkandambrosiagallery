@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load beetle_tags %}
 
 {% block title %}Review interactions | Bark & Ambrosia Beetle Gallery{% endblock %}
 
@@ -17,7 +18,7 @@
     {% for value, label, count in tabs %}
     <a href="?status={{ value }}" role="tab" aria-selected="{% if filters.status == value %}true{% else %}false{% endif %}"
       class="px-4 py-2 rounded-lg border text-sm font-semibold {% if filters.status == value %}bg-gray-600 border-gray-600 text-white{% else %}bg-white border-gray-300 text-gray-700 hover:bg-gray-100{% endif %}">
-      {{ label }} <span class="{% if filters.status == value %}text-gray-300{% else %}text-gray-400{% endif %}">({{ count }})</span></a>
+      {{ label }} <span class="{% if filters.status == value %}text-gray-300{% else %}text-gray-400{% endif %}">({{ count|digit_groups }})</span></a>
     {% endfor %}
   </div>
 
