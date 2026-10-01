@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_feedback, game_rewards, game_scoring, game_trust
+from . import game, game_feedback, game_levels, game_rewards, game_scoring, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -63,6 +63,52 @@ def game_home(request):
         "summary": game.player_summary(request.user),
         "leaderboard": game.leaderboard(limit=25, sort=sort, since=game.week_start() if period == "week" else None),
         "sort": sort,
+    })
+
+
+@login_required
+def game_unlocks(request):
+    """The level ladder, what each level unlocks, and the focus a player can choose with what they have unlocked."""
+    from .models import GamePreference
+
+    info = game_levels.for_player(request.user)
+    pref, _ = GamePreference.objects.get_or_create(player=request.user)
+    error = ""
+    if request.method == "POST":
+        rank = request.POST.get("focus_rank", "")
+        value = (request.POST.get("focus_value") or "").strip()[:100]
+        if not rank:
+            pref.focus_rank, pref.focus_value = "", ""
+            pref.save()
+            return redirect("game_unlocks")
+        if rank not in game_levels.FOCUS_PERK or game_levels.FOCUS_PERK[rank] not in info["perks"]:
+            error = "That focus is not unlocked yet."
+        elif not value or not Taxon.objects.filter(game.COMPLETE_TAXON, **{f"{rank}__iexact": value}).exists():
+            error = f"Choose a {rank} from the list."
+        else:
+            canonical = Taxon.objects.filter(**{f"{rank}__iexact": value}).values_list(rank, flat=True).first()
+            pref.focus_rank, pref.focus_value = rank, canonical
+            pref.save()
+            return redirect("game_unlocks")
+    return render(request, "beetles/game_unlocks.html", {
+        "info": info, "ladder": game_levels.table(), "pref": pref, "error": error,
+        "focus_active": game.player_focus(request.user),
+        "focus_ranks": [(r, label, game_levels.FOCUS_PERK[r] in info["perks"]) for r, label in
+                        (("subfamily", "Subfamily"), ("tribe", "Tribe"), ("genus", "Genus"))],
+        "proposal_level": game_levels.proposal_level(),
+        "trust_min_judged": game.game_setting("GAME_TRUST_MIN_JUDGED", 15),
+        "trust_bound": game.game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
+        "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
+    })
+
+
+@login_required
+def game_expertise(request, user_id=None):
+    """The taxonomy tree coloured by how well the player identifies each branch."""
+    player = request.user if user_id is None else get_object_or_404(get_user_model(), id=user_id)
+    return render(request, "beetles/game_expertise.html", {
+        "player": player, "is_self": player == request.user, "tree": game_trust.expertise_tree(player),
+        "info": game_levels.for_player(player),
     })
 
 
@@ -245,7 +291,11 @@ def game_start(request):
         return JsonResponse({
             "error": "There are no images ready for this game yet. Please check back later."
         }, status=404)
-    return JsonResponse({"round": str(rnd.id), "item": _item_payload(rnd, index), "chip": _chip(request.user)})
+    focus = game.player_focus(request.user)
+    return JsonResponse({
+        "round": str(rnd.id), "item": _item_payload(rnd, index), "chip": _chip(request.user),
+        "focus": f"{focus[0].capitalize()}: {focus[1]}" if focus else "",
+    })
 
 
 def _chip(player):
@@ -492,7 +542,7 @@ def game_proposals(request):
         latest.setdefault(review.roi_id, review)  # ordered newest first
     proposals = {
         str(entry["roi"].id): _proposal_json(entry, latest.get(entry["roi"].id))
-        for entry in game.consensus(roi_ids=roi_ids)
+        for entry in game.consensus(roi_ids=roi_ids, voters=game_levels.suggestion_voters())
     }
     reports = {}
     for r in GameReport.objects.filter(roi_id__in=roi_ids, status=GameReport.Status.OPEN).select_related("reporter"):
@@ -535,7 +585,7 @@ def game_proposal_review(request, roi_id):
     if lock and lock.locked_by_id != request.user.id and not lock.is_expired():
         return JsonResponse({"error": f"{lock.locked_by.username} is editing this image."}, status=409)
 
-    entries = game.consensus(roi_ids=[roi.id])
+    entries = game.consensus(roi_ids=[roi.id], voters=game_levels.suggestion_voters())
     if not entries:
         return JsonResponse({"error": "There is no game proposal for this ROI."}, status=404)
     entry = entries[0]

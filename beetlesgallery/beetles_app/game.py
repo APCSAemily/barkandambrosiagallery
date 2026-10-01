@@ -267,8 +267,41 @@ def focus_filter(player):
     return Q(taxon__genus__in=genera) | Q(taxon__tribe__in=tribes)
 
 
+def player_focus(player):
+    """
+    (rank, value) when the player has chosen to see only one subfamily, tribe or genus and their level still
+    allows it (levels can go down), else None.
+    """
+    from .game_levels import FOCUS_PERK, for_player
+    from .models import GamePreference
+
+    pref = GamePreference.objects.filter(player=player).first()
+    if pref is None or not pref.focus_rank or not pref.focus_value:
+        return None
+    if FOCUS_PERK[pref.focus_rank] not in for_player(player)["perks"]:
+        return None
+    return pref.focus_rank, pref.focus_value
+
+
+def _focused(qs, focus):
+    return qs.filter(**{f"taxon__{focus[0]}__iexact": focus[1]}) if focus else qs
+
+
+def pools(player):
+    """
+    The beetles to choose from: (validated, not validated). With a focus, only that part of the tree, as long as it
+    has beetles left in both pools; otherwise everything, so the feed never runs dry because of a focus.
+    """
+    focus = player_focus(player)
+    checks, opens = _focused(check_rois(), focus), _focused(open_rois(), focus)
+    if focus and not (checks.exists() and opens.exists()):
+        return check_rois(), open_rois()
+    return checks, opens
+
+
 def build_classify_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "classify", size)
+    check_pool, open_pool = pools(player)
     target = target_difficulty(player)
     revealed = list(revealed_ids(player))
     seen_open = _seen(player, "classify", False)
@@ -279,12 +312,12 @@ def build_classify_items(player, size, fresh_only=False):
         ids = []
         n_focus = n // 2 if focus is not None else 0
         if n_focus:
-            ids = _sample(check_rois().filter(focus), n_focus, target, exclude=exclude, allow_seen=False)
-        ids += _sample(check_rois(), n - len(ids), target, exclude=exclude + ids, allow_seen=False)
+            ids = _sample(check_pool.filter(focus), n_focus, target, exclude=exclude, allow_seen=False)
+        ids += _sample(check_pool, n - len(ids), target, exclude=exclude + ids, allow_seen=False)
         return [{"a": str(i), "b": None, "check": True} for i in ids]
 
     def pick_open(n):
-        ids = _sample(open_rois(), n, target, seen_open, allow_seen=not fresh_only)
+        ids = _sample(open_pool, n, target, seen_open, allow_seen=not fresh_only)
         return [{"a": str(i), "b": None, "check": False} for i in ids]
 
     checks, opens = _fill(n_checks, n_open, pick_checks, pick_open)
@@ -368,6 +401,7 @@ def _partner_for(anchor, target, exclude=()):
 
 def build_pair_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "pair", size)
+    check_pool, open_pool = pools(player)
     target = target_difficulty(player)
     revealed = list(revealed_ids(player))
     seen_open = _seen(player, "pair", False)
@@ -392,8 +426,8 @@ def build_pair_items(player, size, fresh_only=False):
 
     checks, opens = _fill(
         n_checks, n_open,
-        lambda n, exclude=(): make_pairs(check_rois(), n, None, True, exclude),
-        lambda n: make_pairs(open_rois(), n, seen_open, False),
+        lambda n, exclude=(): make_pairs(check_pool, n, None, True, exclude),
+        lambda n: make_pairs(open_pool, n, seen_open, False),
     )
     return checks + opens
 
@@ -475,6 +509,8 @@ def finish_round(rnd):
     recompute_skills(rnd.player)
     update_difficulty(rnd.answers.values_list("roi_id", flat=True))
     recompute([rnd.player_id])
+    from .game_trust import auto_apply_expert_labels
+    auto_apply_expert_labels(list(rnd.answers.filter(is_check=False).values_list("roi_id", flat=True)))
 
 
 # ---------------------------------------------------------------------------
@@ -692,7 +728,7 @@ def implied_labels(answer):
     return {r: values[r] for r in RANKS[: depth + 1] if values[r]}
 
 
-def consensus(limit=None, roi_ids=None):
+def consensus(limit=None, roi_ids=None, voters=None):
     """
     Reliability-weighted votes for each unvalidated ROI that has answers, with the
     trusted-expert verdict from game_trust.
@@ -701,6 +737,7 @@ def consensus(limit=None, roi_ids=None):
     {"roi", "answers", "players", "ranks": {rank: {"value", "support", "votes",
     "trusted", "trusted_votes"}}, "trusted_rank", "taxon"}
     ``support`` is the winning value's share of the total vote weight at that rank.
+    ``voters``, when given, limits it to the answers of those players (see game_levels.suggestion_voters).
     """
     from .game_trust import TrustContext
 
@@ -711,6 +748,8 @@ def consensus(limit=None, roi_ids=None):
     )
     if roi_ids is not None:
         answers = answers.filter(roi_id__in=list(roi_ids))
+    if voters is not None:
+        answers = answers.filter(player_id__in=list(voters))
     answers = list(answers)
     player_ids = {a.player_id for a in answers}
     reliability = player_reliability(player_ids)
@@ -756,7 +795,7 @@ def consensus(limit=None, roi_ids=None):
                 ranks[r].update(verdict["ranks"][r])
         results.append({
             "roi": entry["roi"], "answers": entry["answers"],
-            "players": len(entry["players"]), "ranks": ranks,
+            "players": len(entry["players"]), "ranks": ranks, "votes": entry["votes"],
             "rank_list": [(r, ranks[r]) for r in RANKS],
             "trusted_rank": verdict["trusted_rank"],
             "taxon": verdict["taxon"],

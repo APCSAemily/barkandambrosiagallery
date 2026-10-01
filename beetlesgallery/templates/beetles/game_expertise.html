@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+  /* Colour means accuracy here: grey not enough answers yet, red still learning, amber getting there, green good,
+     and a green glow for proven expert. */
+  .tree-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
+  .st-unknown .tree-dot { background: #e5e7eb; }
+  .st-learning .tree-dot { background: #ef4444; }
+  .st-fair .tree-dot { background: #f59e0b; }
+  .st-good .tree-dot { background: #22c55e; }
+  .st-expert .tree-dot { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.25), 0 0 10px rgba(22,163,74,.6); }
+  .st-expert > summary .tree-name, .st-expert > .row .tree-name { font-weight: 700; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <a href="{% if is_self %}{% url 'game_home' %}{% else %}{% url 'game_home' %}{% endif %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Beetle ID Game</a>
+  <h1 class="page-title">{% if is_self %}Your expertise{% else %}{{ player.username }}&rsquo;s expertise{% endif %}</h1>
+  <p class="text-gray-600 mb-4">Expertise is earned branch by branch, from beetles we know the answer to. A subfamily shows how well {% if is_self %}you tell{% else %}they tell{% endif %} its tribes apart, a tribe its genera, a genus its species. A branch needs {{ tree.needed }} or more answers, accurate enough that it can't be luck, to become <strong>expert</strong>. Play beetles from a branch to light it up{% if is_self %}; a <a href="{% url 'game_unlocks' %}" class="underline hover:text-gray-900">focus</a> helps{% endif %}.</p>
+
+  <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-6" aria-label="Legend">
+    <span class="st-unknown flex items-center gap-1.5"><span class="tree-dot"></span>fewer than {{ tree.min_shown }} answers</span>
+    <span class="st-learning flex items-center gap-1.5"><span class="tree-dot"></span>under 60% right</span>
+    <span class="st-fair flex items-center gap-1.5"><span class="tree-dot"></span>60&ndash;85%</span>
+    <span class="st-good flex items-center gap-1.5"><span class="tree-dot"></span>85% or more</span>
+    <span class="st-expert flex items-center gap-1.5"><span class="tree-dot"></span>proven expert</span>
+  </div>
+
+  <div class="st-{{ tree.root.status }} flex items-center gap-2 p-3 mb-3 bg-gray-50 border border-gray-200 rounded-xl">
+    <span class="tree-dot"></span><span class="tree-name text-gray-900">Telling subfamilies apart</span>
+    <span class="ml-auto text-xs text-gray-500 tabular-nums">{% if tree.root.judged %}{{ tree.root.correct }}/{{ tree.root.judged }}{% else %}&ndash;{% endif %}</span>
+  </div>
+
+  <div class="space-y-2" id="tree">
+    {% for sub in tree.subfamilies %}
+    <details class="st-{{ sub.status }} border border-gray-200 rounded-xl bg-white" {% if sub.tribes %}open{% endif %}>
+      <summary class="flex items-center gap-2 p-3">
+        <span class="tree-dot"></span><span class="tree-name text-gray-900">{{ sub.name }}</span>
+        <span class="text-xs text-gray-400">subfamily</span>
+        <span class="ml-auto text-xs text-gray-500 tabular-nums">{% if sub.judged %}{{ sub.correct }}/{{ sub.judged }}{% else %}&ndash;{% endif %}</span>
+      </summary>
+      <div class="pl-6 pr-3 pb-3 space-y-1">
+        {% for t in sub.tribes %}
+        <details class="st-{{ t.status }}" {% if t.genera %}open{% endif %}>
+          <summary class="flex items-center gap-2 py-1.5">
+            <span class="tree-dot"></span><span class="tree-name text-gray-800">{{ t.name }}</span>
+            <span class="text-xs text-gray-400">tribe</span>
+            <span class="ml-auto text-xs text-gray-500 tabular-nums">{% if t.judged %}{{ t.correct }}/{{ t.judged }}{% else %}&ndash;{% endif %}</span>
+          </summary>
+          <div class="pl-6 space-y-0.5">
+            {% for g in t.genera %}
+            <div class="st-{{ g.status }}"><div class="row flex items-center gap-2 py-1">
+              <span class="tree-dot"></span><span class="tree-name italic text-gray-800">{{ g.name }}</span>
+              <span class="text-xs text-gray-400">genus</span>
+              <span class="ml-auto text-xs text-gray-500 tabular-nums">{{ g.correct }}/{{ g.judged }}</span>
+            </div></div>
+            {% endfor %}
+            {% if t.hidden %}<div class="text-xs text-gray-400 py-1">{{ t.hidden }} more genera not played yet</div>{% endif %}
+          </div>
+        </details>
+        {% endfor %}
+        {% if sub.hidden %}<div class="text-xs text-gray-400 py-1">{{ sub.hidden }} tribe{{ sub.hidden|pluralize }} not played yet</div>{% endif %}
+      </div>
+    </details>
+    {% empty %}
+    <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-2xl">The species list has not been loaded yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

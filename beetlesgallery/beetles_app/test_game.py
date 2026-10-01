@@ -475,6 +475,8 @@ class ProposalApiTests(TrustCase):
         self.assertEqual(proposal["review"]["decision"], "accepted")
 
     def test_dismiss_and_genus_only(self):
+        from beetlesgallery.beetles_app.models import PlayerScore
+        PlayerScore.objects.create(player=self.user, score=900, rating=0.7)   # at the suggestions level
         target = self.roi(validated=False)
         self.answer(self.user, target, check=False, subfamily="Scolytinae", tribe="Xyleborini", genus="Xyleborus")
         self.client.force_login(self.staff)

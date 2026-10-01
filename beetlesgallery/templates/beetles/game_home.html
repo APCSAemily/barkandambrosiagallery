@@ -29,6 +29,13 @@
     <p class="text-xs text-gray-400 px-1">There are no rounds: beetles keep coming until you tap Exit. Your score is shown here, never while you play.</p>
   </div>
 
+  {% if rewards.proposals %}
+  <div class="mb-3 p-4 border border-green-200 bg-green-50 rounded-2xl text-sm text-gray-700" data-testid="proposals-banner">
+    <strong>Your labels count.</strong> Your names for beetles nobody has checked yet go to the curators as suggestions.
+    Only proven experts' labels go straight into the database, branch by branch. <a href="{% url 'game_unlocks' %}" class="underline">More</a>
+  </div>
+  {% endif %}
+
   <!-- Your progress: level, daily goal and streak. Counts only: accuracy is in the stats below, never in the feed. -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl sm:col-span-1">
@@ -37,7 +44,14 @@
       <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden" role="meter" aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{% widthratio rewards.level_progress 1 100 %}">
         <div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio rewards.level_progress 1 100 %}%"></div>
       </div>
-      <div class="mt-1.5 text-xs text-gray-500">{% if rewards.to_next %}{{ rewards.to_next }} more beetle{{ rewards.to_next|pluralize }} to the next level{% else %}Top level reached{% endif %}</div>
+      <div class="mt-1.5 text-xs text-gray-500">
+        {% if not rewards.next %}Top level reached
+        {% else %}{% if rewards.to_next %}{{ rewards.to_next }} more points{% endif %}{% if rewards.to_next and rewards.next.rating_short %} and {% endif %}{% if rewards.next.rating_short %}{% widthratio rewards.next.rating_needed 1 100 %}% reliability{% endif %}{% if not rewards.to_next and not rewards.next.rating_short %}Almost there{% endif %} for level {{ rewards.next.level }}{% endif %}
+      </div>
+      <div class="mt-2 flex gap-3 text-xs">
+        <a href="{% url 'game_unlocks' %}" class="underline text-gray-600 hover:text-gray-900">Levels and unlocks</a>
+        <a href="{% url 'game_expertise' %}" class="underline text-gray-600 hover:text-gray-900">Expertise tree</a>
+      </div>
     </div>
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Daily goal</div>

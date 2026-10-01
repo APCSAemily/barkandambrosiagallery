@@ -28,18 +28,15 @@ class RewardsCase(GameCase):
 
 
 class LevelAndGoalTests(RewardsCase):
-    def test_levels_follow_the_number_of_beetles_labelled(self):
-        self.assertEqual(rewards.level_for(0)[:2], (0, "Egg"))
-        self.assertEqual(rewards.level_for(10)[:2], (1, "Larva"))
-        self.assertEqual(rewards.level_for(99)[:2], (3, "Young adult"))
-        self.assertEqual(rewards.level_for(5000)[:2], (8, "Coleopterist"))
-        self.assertIsNone(rewards.level_for(5000)[3])   # nothing above the top level
+    def set_score(self, score, rating=0.0):
+        from beetlesgallery.beetles_app.models import PlayerScore
+        PlayerScore.objects.update_or_create(player=self.user, defaults={"score": score, "rating": rating})
 
     def test_progress_counts_labelled_beetles_and_not_skips(self):
         self.answers(3)
         self.answers(2, skipped=True)
         state = rewards.progress(self.user)
-        self.assertEqual((state["total"], state["today"], state["level"], state["to_next"]), (3, 3, 1, 7))
+        self.assertEqual((state["total"], state["today"], state["level"], state["to_next"]), (3, 3, 1, 50))
 
     @override_settings(GAME_DAILY_GOAL=4)
     def test_the_daily_goal(self):
@@ -120,13 +117,29 @@ class PlayEventsTests(RewardsCase):
         self.answers(1)
         self.assertEqual([e["kind"] for e in rewards.play_events(self.user, before)], ["streak"])   # the first of the day
 
+    def set_score(self, score, rating=0.0):
+        from beetlesgallery.beetles_app.models import PlayerScore
+        PlayerScore.objects.update_or_create(player=self.user, defaults={"score": score, "rating": rating})
+
     def test_a_level_up_and_a_milestone(self):
         self.answers(9)
+        self.set_score(40)
         before = rewards.progress(self.user)
         self.answers(1)
-        kinds = [e["kind"] for e in rewards.play_events(self.user, before)]
+        self.set_score(55)
+        events = rewards.play_events(self.user, before)
+        kinds = [e["kind"] for e in events]
         self.assertIn("level", kinds)
         self.assertIn("milestone", kinds)
+        self.assertIn("focus on a subfamily", next(e for e in events if e["kind"] == "level")["text"])
+
+    def test_reaching_the_suggestions_level_says_so(self):
+        self.set_score(790, 0.65)
+        before = rewards.progress(self.user)
+        self.set_score(805, 0.65)
+        events = rewards.play_events(self.user, before)
+        self.assertIn("proposals", [e["kind"] for e in events])
+        self.assertIn("curators", next(e for e in events if e["kind"] == "proposals")["text"])
 
     @override_settings(GAME_DAILY_GOAL=2)
     def test_reaching_the_daily_goal_once(self):
@@ -182,6 +195,8 @@ class FeedAndHomeTests(RewardsCase):
 
     def test_the_home_page_shows_level_goal_streak_and_badges(self):
         self.answers(12)
+        from beetlesgallery.beetles_app.models import PlayerScore
+        PlayerScore.objects.update_or_create(player=self.user, defaults={"score": 60})
         self.client.force_login(self.user)
         page = self.client.get(reverse("game_home")).content.decode()
         for text in ("Larva", "Level 2", "day streak", "Daily goal", "Warming up", "First steps"):

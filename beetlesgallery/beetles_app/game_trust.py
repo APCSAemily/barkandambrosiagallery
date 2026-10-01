@@ -196,29 +196,50 @@ def complete_labels(labels, index):
     return labels
 
 
+def elite_players():
+    """
+    The players reliable enough overall to be experts: the top GAME_EXPERT_PERCENTILE share by rating (the top
+    quarter by default). None, meaning no limit, until GAME_EXPERT_MIN_PLAYERS players are rated, because a
+    percentile of a handful of players means little.
+    """
+    from .game_scoring import cached_ratings
+
+    min_judged = game_setting("GAME_RATER_MIN_JUDGED", 10)
+    rated = {pid: r for pid, (r, _, n) in cached_ratings().items() if n >= min_judged}
+    if len(rated) < game_setting("GAME_EXPERT_MIN_PLAYERS", 10):
+        return None
+    ordered = sorted(rated.values())
+    cut = ordered[int(len(ordered) * (1 - game_setting("GAME_EXPERT_PERCENTILE", 0.25)))] if ordered else 1.0
+    return {pid for pid, r in rated.items() if r >= cut}
+
+
 class TrustContext:
     """Answers "is this player trusted for this label?" for a set of players."""
 
     def __init__(self, player_ids):
         self.index = trust_index()
+        self.elite = elite_players()
         self.proven = defaultdict(set)
         for pid, rank, branch in PlayerSkill.objects.filter(
             player_id__in=list(player_ids), proven=True
         ).values_list("player_id", "rank", "branch"):
             self.proven[pid].add((rank, branch.lower()))
 
-    def how_trusted(self, player_id, rank, labels):
+    def how_trusted(self, player_id, rank, labels, direct_only=False):
         """
         "direct" if proven in this label's branch, "siblings" if the branch is untestable
-        and the player is proven in enough related branches, else None.
+        and the player is proven in enough related branches, else None. ``direct_only`` refuses the
+        sibling route: the player must have proven themselves in this very branch.
         """
         branch = branch_for(rank, labels).lower()
         if BRANCH_OF[rank] and not branch:
             return None
+        if self.elite is not None and player_id not in self.elite:
+            return None   # experts also have to be among the most reliable players overall
         proven = self.proven.get(player_id, set())
         if (rank, branch) in proven:
             return "direct"
-        if is_testable(rank, branch, self.index):
+        if direct_only or is_testable(rank, branch, self.index):
             return None
         parent = branch_parent(rank, branch, self.index)
         if parent is None:
@@ -229,11 +250,11 @@ class TrustContext:
         ]
         return "siblings" if len(siblings) >= game_setting("GAME_TRUST_SIBLINGS", 2) else None
 
-    def trusted_through(self, player_id, rank, labels):
+    def trusted_through(self, player_id, rank, labels, direct_only=False):
         """Trusted at ``rank`` and at every rank above it."""
         labels = complete_labels(labels, self.index)
         for r in RANKS[: RANKS.index(rank) + 1]:
-            if not labels.get(r) or not self.how_trusted(player_id, r, labels):
+            if not labels.get(r) or not self.how_trusted(player_id, r, labels, direct_only):
                 return False
         return True
 
@@ -352,3 +373,125 @@ def player_report(player):
         "min_lower_bound": game_setting("GAME_TRUST_MIN_LOWER_BOUND", 0.9),
         "siblings": game_setting("GAME_TRUST_SIBLINGS", 2),
     }
+
+
+# ---------------------------------------------------------------------------
+# Experts' labels straight into the database
+# ---------------------------------------------------------------------------
+def auto_apply_expert_labels(roi_ids=None):
+    """
+    Write the species that proven experts agree on onto beetles that have no name yet, without waiting for a
+    curator. This is the strictest rule in the game. Each expert counted must have *proven themselves directly*
+    in every branch the label falls in (its subfamily, tribe within it, genus within that, species within the
+    genus): at least GAME_TRUST_MIN_JUDGED answers on validated beetles there, with the Wilson lower bound of their
+    accuracy at least GAME_TRUST_MIN_LOWER_BOUND (90% by default, at 95% confidence), and be among the most
+    reliable players overall (elite_players). Proof in neighbouring branches, which is enough for a suggestion to
+    curators, is not enough here. GAME_AUTO_APPLY_MIN_EXPERTS (2) such experts must give the same species, no
+    proven player may disagree, the beetle must have no species label, not be validated, and no curator has
+    reviewed a game label for it before. The beetle stays unvalidated so a curator still confirms it; a
+    LabelReview with no reviewer records that it was automatic. Returns the ids of the beetles labelled.
+    """
+    from django.db import transaction
+
+    from . import game
+    from .models import LabelReview
+
+    if not game_setting("GAME_AUTO_APPLY_EXPERT_LABELS", True):
+        return []
+    min_experts = game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2)
+    reviewed = LabelReview.objects.all()
+    if roi_ids is not None:
+        reviewed = reviewed.filter(roi_id__in=list(roi_ids))
+    reviewed = set(reviewed.values_list("roi_id", flat=True))
+    entries = [
+        e for e in game.consensus(roi_ids=roi_ids)
+        if not (e["roi"].id in reviewed or e["roi"].bbox_is_validated or e["roi"].is_deleted
+                or e["roi"].depicts_valid_name_id or e["trusted_rank"] != "species" or e["taxon"] is None)
+    ]
+    if not entries:
+        return []
+    trust = TrustContext({pid for e in entries for pid, _ in e["votes"]})
+    applied = []
+    for entry in entries:
+        roi, taxon = entry["roi"], entry["taxon"]
+        if direct_experts(entry, trust) < min_experts:
+            continue
+        with transaction.atomic():
+            roi.depicts_valid_name_id = taxon.valid_species_id
+            roi.save(update_fields=["depicts_valid_name_id"])
+            LabelReview.objects.create(
+                roi=roi, decision=LabelReview.Decision.ACCEPTED, subfamily=taxon.subfamily or "", tribe=taxon.tribe or "",
+                genus=taxon.genus or "", species=taxon.species or "", taxon=taxon, trusted_rank="species",
+                answers=entry["answers"], reviewed_by=None,
+            )
+        applied.append(roi.id)
+    return applied
+
+
+def direct_experts(entry, trust):
+    """Players who give the consensus species (and every rank above it) and are directly proven for all of it."""
+    winners = {r: (entry["ranks"][r] or {}).get("value", "").lower() for r in RANKS}
+    count = set()
+    for pid, labels in entry["votes"]:
+        labels = complete_labels(labels, trust.index)
+        if all((labels.get(r) or "").lower() == winners[r] for r in RANKS) and trust.trusted_through(
+                pid, "species", labels, direct_only=True):
+            count.add(pid)
+    return len(count)
+
+
+# ---------------------------------------------------------------------------
+# The expertise tree a player sees
+# ---------------------------------------------------------------------------
+def node_status(skill, min_shown):
+    """How a branch is shown: not enough answers yet, still learning, getting there, good, or expert."""
+    if skill is None or skill.judged < min_shown:
+        return "unknown"
+    if skill.proven:
+        return "expert"
+    accuracy = skill.correct / skill.judged
+    if accuracy >= 0.85:
+        return "good"
+    if accuracy >= 0.6:
+        return "fair"
+    return "learning"
+
+
+def expertise_tree(player):
+    """
+    The taxonomy as subfamily > tribe > genus, each branch with how well the player identifies what is inside it:
+    a subfamily shows their tribe calls within it, a tribe their genus calls, a genus their species calls.
+    Branches they have not played are counted but not listed one by one.
+    """
+    min_shown = game_setting("GAME_REPORT_MIN_JUDGED", 5)
+    skills = {(s.rank, s.branch.lower()): s for s in skills_for(player)}
+
+    def node(rank, name):
+        skill = skills.get((rank, name.lower()))
+        return {
+            "name": name, "status": node_status(skill, min_shown),
+            "judged": skill.judged if skill else 0, "correct": skill.correct if skill else 0,
+            "accuracy": (skill.correct / skill.judged) if skill and skill.judged else None,
+            "proven": bool(skill and skill.proven),
+        }
+
+    layout = defaultdict(lambda: defaultdict(set))
+    for subfamily, tribe, genus in Taxon.objects.filter(COMPLETE_TAXON).values_list("subfamily", "tribe", "genus").distinct():
+        layout[subfamily][tribe or "(no tribe)"].add(genus)
+    tree = []
+    for subfamily in sorted(layout):
+        sub = node("tribe", subfamily)
+        sub["tribes"], sub["hidden"] = [], 0
+        for tribe in sorted(layout[subfamily]):
+            t = node("genus", tribe)
+            genera = [node("species", g) for g in sorted(layout[subfamily][tribe])]
+            t["genera"] = [g for g in genera if g["status"] != "unknown"]
+            t["hidden"] = len(genera) - len(t["genera"])
+            if t["status"] != "unknown" or t["genera"]:
+                sub["tribes"].append(t)
+            else:
+                sub["hidden"] += 1
+        tree.append(sub)
+    root = node("subfamily", "")
+    return {"root": root, "subfamilies": tree, "min_shown": min_shown, "needed": answers_needed(),
+            "experts": sum(1 for s in skills.values() if s.proven)}

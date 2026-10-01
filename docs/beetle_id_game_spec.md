@@ -247,3 +247,29 @@ Full rules for players are on the "How scoring works" page (`/game/how-it-works/
 - **Retroactive**: points are recomputed for a player when they leave the game and for everyone nightly
   (`manage.py recompute_game_scores`, "Nightly game scores" workflow). Answers on beetles validated since are then
   scored against the truth.
+
+## Update: levels, perks, focus, expertise tree (game_levels.py)
+
+- **Levels need points and reliability** (reliability = the rating). Egg (0), Larva (50: focus a subfamily),
+  Pupa (150, 35%: focus a tribe), Young adult (400, 50%: focus a genus), Beetle scout (800, 60%: **labels go to
+  curators as suggestions**), Field entomologist (1500, 70%), Taxonomist (3000, 75%), Beetle master (6000, 80%),
+  Coleopterist (10000, 85%). Levels can drop if reliability drops; perks follow the current level.
+- **Suggestions to curators** (annotation page proposals) only count answers from players at the suggestions level
+  or proven experts somewhere (`GAME_PROPOSALS_NEED_LEVEL`, default on).
+- **Experts' labels without review**: when at least `GAME_AUTO_APPLY_MIN_EXPERTS` (2) experts agree down to
+  species with no expert disagreeing, on a beetle with no species label, not validated and never reviewed, the species
+  is written to the beetle (still unvalidated) with a `LabelReview` that has no reviewer
+  (`GAME_AUTO_APPLY_EXPERT_LABELS`, default on). Runs when a player leaves the game (their round's beetles) and nightly.
+  Each expert counted must be **proven directly** in every branch of the label (subfamily; tribe within it; genus
+  within the tribe; species within the genus): at least `GAME_TRUST_MIN_JUDGED` (15) answers on validated beetles
+  there and a Wilson lower bound (95% confidence) of at least `GAME_TRUST_MIN_LOWER_BOUND` (90%), and be in the top
+  `GAME_EXPERT_PERCENTILE` of players overall. Proof in neighbouring branches (the sibling rule for untestable
+  branches) still backs a suggestion to curators, but never a label written without review.
+- **Experts must also be in the top `GAME_EXPERT_PERCENTILE` (25%) by rating** once `GAME_EXPERT_MIN_PLAYERS` (10)
+  players are rated.
+- **Focus** (`GamePreference`): a player can limit the feed to one subfamily / tribe / genus when unlocked; falls back
+  to everything when the focus has no beetles left.
+- **Expertise tree** (`/game/expertise/`, anyone's at `/game/players/<id>/expertise/`): subfamily > tribe > genus,
+  each coloured by accuracy (grey too few, red <60%, amber 60-85%, green 85%+, glowing green proven expert).
+- **Unlocks page** (`/game/unlocks/`): the ladder, what is missing for the next level, what happens to your labels,
+  and the focus picker.

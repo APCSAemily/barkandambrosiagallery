@@ -1,5 +1,5 @@
 """
-Rewards that keep the Beetle ID game fun: a daily goal, a streak of days, levels and badges.
+Rewards that keep the Beetle ID game fun: a daily goal, a streak of days and badges (levels are in game_levels.py).
 
 Everything is worked out from the player's answers (nothing new is stored), and nothing here says how
 *accurate* they are. A count, a streak or a level can be shown while they play; accuracy-based badges are only
@@ -14,13 +14,6 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from .models import GameAnswer
-
-# (labelled beetles needed, name): the level you are on is the last one you have reached.
-LEVELS = [
-    (0, "Egg"), (10, "Larva"), (30, "Pupa"), (75, "Young adult"), (150, "Beetle scout"),
-    (300, "Field entomologist"), (600, "Taxonomist"), (1000, "Beetle master"), (2000, "Coleopterist"),
-]
-
 
 def daily_goal():
     return getattr(settings, "GAME_DAILY_GOAL", 20)
@@ -51,24 +44,20 @@ def streak_days(days, today=None):
     return n
 
 
-def level_for(total):
-    """(index, name, labelled needed for it, labelled needed for the next level or None)."""
-    index = max(i for i, (need, _) in enumerate(LEVELS) if total >= need)
-    nxt = LEVELS[index + 1][0] if index + 1 < len(LEVELS) else None
-    return index, LEVELS[index][1], LEVELS[index][0], nxt
-
-
 def progress(player):
     """What the home page and the feed's little chip show."""
+    from . import game_levels
     total = labelled(player).count()
     today = labelled(player, answered_at__date=timezone.localdate()).count()
-    level, name, floor, nxt = level_for(total)
+    level = game_levels.for_player(player)
     return {
         "total": total, "today": today, "goal": daily_goal(), "goal_met": today >= daily_goal(),
         "streak": streak_days(active_days(player)),
-        "level": level + 1, "level_name": name,
-        "to_next": (nxt - total) if nxt else None,
-        "level_progress": round((total - floor) / (nxt - floor), 3) if nxt else 1.0,
+        "level": level["level"], "level_name": level["name"], "proposals": level["proposals"],
+        "perks": sorted(level["perks"]),
+        "to_next": level["next"]["points_needed"] if level["next"] else None,
+        "next": level["next"],
+        "level_progress": round(level["progress"], 3),
     }
 
 
@@ -162,7 +151,12 @@ def play_events(player, before):
     now = progress(player)
     events = []
     if now["level"] > before["level"]:
-        events.append({"kind": "level", "title": f"Level {now['level']}", "text": f"You are now a {now['level_name']}."})
+        from .game_levels import PERKS, PROPOSALS
+        gained = [p for p in now["perks"] if p not in before["perks"]]
+        unlocked = " Unlocked: " + ", ".join(PERKS[p][0].lower() for p in gained) + "." if gained else ""
+        events.append({"kind": "level", "title": f"Level {now['level']}", "text": f"You are now a {now['level_name']}.{unlocked}"})
+        if PROPOSALS in gained:
+            events.append({"kind": "proposals", "title": "Your labels now count", "text": PERKS[PROPOSALS][1]})
     if now["goal_met"] and not before["goal_met"]:
         events.append({"kind": "goal", "title": "Daily goal reached", "text": f"{now['goal']} beetles today. Keep going!"})
     if now["streak"] > before["streak"] and now["today"] == 1:
