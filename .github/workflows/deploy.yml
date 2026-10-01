@@ -35,40 +35,72 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Stop if folder missing
+            # The live site keeps running on the old version until the new one has been built, checked and migrated.
+            # Any failing step stops the deploy (set -e) before the live site is touched; a failed health check
+            # after the switch puts the previous version back. Either way the job goes red, so GitHub tells you.
+            set -eu
+            set -o pipefail
             cd /opt/barkandambrosiagallery || exit 1
-            
-            # 1. Update Code
-            git fetch --all
+            test -f .env.prod || { echo "No .env.prod on the server: stopping"; exit 1; }
+
+            # 1. Update code (git leaves the ignored .env, .env.prod and .env.version alone)
+            git fetch --all --tags
+            PREVIOUS=$(git rev-parse HEAD)
             git reset --hard origin/main
-            
-            # 2. Set Version (Fixes empty version on manual runs)
             RELEASE_TAG="${{ github.event.release.tag_name }}"
             if [ -z "$RELEASE_TAG" ]; then
                RELEASE_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "manual-deploy")
             fi
             echo "APP_VERSION=$RELEASE_TAG" > .env.version
 
-            # 3. Build Container (Do this BEFORE running pixi commands)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            # 2. Build the new images. The running containers are not touched yet.
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build web worker
 
-            # 4. Install JS & Build CSS
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run install-js
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run build-css
-            
-            # 5. Collect Static (Moves CSS to where WhiteNoise finds it)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run collectstatic --no-input
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run migrate
+            # 3. Pre-flight in a throw-away container with the new code: settings load, and the database accepts
+            #    the site's password (this is where a password mismatch is caught, before anything changes).
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run python manage.py check --deploy --fail-level ERROR
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run python manage.py migrate --plan
 
-            # 5b. Make sure the published interactions dataset (v1.0) is in the database, which the interactions
+            # 4. CSS, static files and the database. Migrations only ever add (see test_deploy_safety), so the
+            #    old version still running keeps working on the new tables.
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run install-js
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run build-css
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run collectstatic --no-input
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run migrate
+
+            # 4b. Make sure the published interactions dataset (v1.0) is in the database, which the interactions
             # page is built from. It only adds rows that are missing and never changes one that is there, so
             # corrections made through the upload page survive every deploy.
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run import-interactions
-            
-            # 6. Restart to apply changes
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run import-interactions
             # (The taxonomy is loaded by an admin with `manage.py migrate_taxonomy_to_db`.
             # It purges and reloads the taxonomy tables, so it is never part of a deploy.)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml restart web
+
+            # 5. Switch the site and the worker to the new version
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps web worker
+
+            # 6. Health check: the public home page (which reads the database) must answer 200 within two minutes.
+            #    The public address, not localhost, so ALLOWED_HOSTS and the proxy in front are checked too.
+            SITE=$(grep -E '^SITE_URL=' .env.prod | cut -d= -f2- | tr -d '"' || true)
+            SITE=${SITE:-https://barkandambrosiagallery.org}
+            healthy=0
+            code=none
+            for i in $(seq 1 24); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$SITE/" || true)
+              if [ "$code" = "200" ]; then healthy=1; break; fi
+              sleep 5
+            done
+            if [ "$healthy" != "1" ]; then
+              echo "Health check failed (last status: $code). Recent web log:"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=80 web || true
+              echo "Rolling back to $PREVIOUS"
+              git reset --hard "$PREVIOUS"
+              echo "APP_VERSION=rollback-$(git rev-parse --short HEAD)" > .env.version
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml build web worker
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps -T web pixi run collectstatic --no-input
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps web worker
+              exit 1
+            fi
+            echo "Deployed $RELEASE_TAG: the site answers 200"
 
             # 7. Cleanup
             docker image prune -f

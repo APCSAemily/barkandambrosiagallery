@@ -59,17 +59,24 @@ ready-made downloads.
 
 The deploy fills an empty database by itself. If you would rather do it through the site, or want to edit the data first:
 
-* `beetlesgallery/data/interactions/v1.0/interactions_v1.0_upload.csv`: all 1,015 published records with their Records IDs,
-  in the upload format. Staff can also download it from **Upload or Update Interactions → Initial file (published v1.0)**.
+* **Upload or Update Interactions → Initial file (published v1.0)**: all 1,015 published records with their Records IDs,
+  in the upload format, built on request from the published JSON (`manage.py make_interactions_upload_file` writes the
+  same file to disk).
   Upload it once into an empty database (tick "Check the file only" first). Every beetle must be in the species list, so
   load the taxonomy first (the page lists any that are not). The published set has 104 records that share a beetle,
   organism and source with another; the file's `records_id` column marks each as its own numbered record, so they are accepted.
 * `static/downloads/interactions_upload_template.csv` (also **Blank template** on that page): the columns with one example row.
 * After either way the deploy's loader finds the records already there and adds nothing, so nothing is doubled.
-* If the published JSON ever changes, regenerate the file with `manage.py make_interactions_upload_file` (a test fails when they differ).
 
 ## Not changed
 
 The "About" text that describes v1.0 (1,015 records,
 281 publications, the per-group results) is still the published description of v1.0; the numbers in the tiles, tabs and filters
 are live.
+
+## What is kept in git
+
+Only what the site needs: `beetlesgallery/data/interactions/v1.0/` holds the published JSON the deploy loads
+(`bark_beetle_pathogens_master.json`) and the two summaries the tests compare the page against
+(`beetle_hosts_summary.json`, `references.json`). The spreadsheet and CSV exports of the v1.0 release are not
+kept; the page's own downloads (CSV and Excel) are built from the database.

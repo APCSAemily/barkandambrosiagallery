@@ -4,7 +4,7 @@ import os
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse, StreamingHttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 
@@ -38,9 +38,12 @@ def interactions_export(request):
 @area_required(INTERACTIONS)
 def interactions_initial_file(request):
     """The published v1.0 dataset as an upload file (see make_interactions_upload_file), to start an empty database by hand."""
-    from .management.commands.make_interactions_upload_file import DEFAULT_OUT
+    import json
 
-    response = FileResponse(open(DEFAULT_OUT, "rb"), content_type="text/csv; charset=utf-8")
+    from .management.commands.make_interactions_upload_file import SOURCE, render
+
+    text = render(json.loads(SOURCE.read_text(encoding="utf-8")))
+    response = HttpResponse(text.encode("utf-8"), content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="interactions_v1.0_upload.csv"'
     return response
 
