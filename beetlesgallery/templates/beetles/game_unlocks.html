@@ -37,12 +37,12 @@
     {% endif %}
     <p class="text-sm text-gray-700 mt-2">Only <strong>proven experts</strong> have their labels written into the database without a curator checking first. The bar is high:</p>
     <ul class="text-sm text-gray-700 mt-1 list-disc pl-5 space-y-0.5" data-testid="expert-rule">
-      <li>You must prove yourself on <strong>beetles experts have already checked</strong>, in that exact group: at least {{ trust_min_judged }} answers there, and so accurate that we are 95% sure you are right at least {% widthratio trust_bound 1 100 %}% of the time.</li>
+      <li>You must prove yourself on <strong>beetles experts have already checked</strong>, in that exact taxon: {{ per_species }} images of every species in it (all of them, for a species with fewer), with at least {% widthratio trust_accuracy 1 100 %}% right. A genus with two species needs far fewer answers than one with forty.</li>
       <li>You must also be among the most reliable players overall.</li>
-      <li>Being good in neighbouring groups is not enough: it lets your labels reach curators as suggestions, but not skip review.</li>
+      <li>Being good in neighbouring taxa is not enough: it lets your labels reach curators as suggestions, but not skip review.</li>
       <li>At least {{ min_experts }} such experts must give the same species, and no proven player may disagree.</li>
     </ul>
-    <p class="text-sm text-gray-700 mt-2">Expertise is earned group by group (subfamily, tribe, genus, species within a genus): someone can be an expert on <em>Xyleborus</em> and a beginner on <em>Ips</em>, so their labels may go straight in for one group and not for another. It is checked again all the time, so it can be lost. See your <a href="{% url 'game_expertise' %}" class="underline hover:text-gray-900">expertise tree</a>.</p>
+    <p class="text-sm text-gray-700 mt-2">Expertise is earned taxon by taxon (a subfamily, tribe or genus): someone can be an expert on <em>Xyleborus</em> and a beginner on <em>Ips</em>, so their labels may go straight in for one genus and not for another. It is checked again all the time, so it can be lost. See your <a href="{% url 'game_expertise' %}" class="underline hover:text-gray-900">expertise tree</a>.</p>
   </div>
 
   <!-- Focus -->

@@ -1355,6 +1355,11 @@ class GameAnswer(models.Model):
         help_text="A validated beetle shown again so the player can learn it. Earns points, but is left out of "
                   "accuracy and expertise, which only count the first time a beetle is seen.",
     )
+    new_species = models.BooleanField(
+        null=True, blank=True,
+        help_text="The species the player named had no validated images when they named it. If the beetle is later "
+                  "validated as that species, the player is credited with a new species (SpeciesDiscovery).",
+    )
     answered_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1436,6 +1441,32 @@ class GamePreference(models.Model):
         db_table = "game_preference"
 
 
+class SpeciesDiscovery(models.Model):
+    """
+    A player named a species for a beetle when the gallery had no validated images of that species, and a
+    curator later validated the beetle as exactly that species. Shown once as a pop-up (``seen_at``) and as a
+    badge on the player's profile.
+    """
+
+    player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="species_discoveries")
+    roi = models.ForeignKey("Beetles", on_delete=models.CASCADE, related_name="species_discoveries")
+    answer = models.ForeignKey("GameAnswer", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    genus = models.CharField(max_length=100)
+    species = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "game_species_discovery"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["player", "roi"], name="game_discovery_uniq"),
+        ]
+
+    def __str__(self):
+        return f"{self.player}: {self.genus} {self.species}"
+
+
 class PlayerSkill(models.Model):
     """
     How well a player identifies one rank within one branch of the taxonomy, from
@@ -1446,8 +1477,11 @@ class PlayerSkill(models.Model):
       rank=tribe,     branch=<subfamily>  tribe ID within that subfamily
       rank=subfamily, branch=""           subfamily ID overall
 
-    ``proven`` means enough answers with a high enough Wilson lower bound
-    (GAME_TRUST_* settings). ``proven_at`` is when it last became proven.
+    ``proven`` means the player has covered the taxon and is accurate enough (see game_trust.is_proven):
+    enough answers on every species in it that has validated images, at least GAME_TRUST_MIN_ACCURACY right.
+    ``required`` and ``covered`` are the answers that coverage needs and how many of them the player has;
+    ``species_total`` and ``species_done`` count the species in the taxon and those fully covered.
+    ``proven_at`` is when it last became proven.
     """
 
     player = models.ForeignKey(
@@ -1458,6 +1492,10 @@ class PlayerSkill(models.Model):
     correct = models.PositiveIntegerField(default=0)
     judged = models.PositiveIntegerField(default=0)
     lower_bound = models.FloatField(default=0.0)
+    required = models.PositiveIntegerField(default=0)
+    covered = models.PositiveIntegerField(default=0)
+    species_total = models.PositiveIntegerField(default=0)
+    species_done = models.PositiveIntegerField(default=0)
     proven = models.BooleanField(default=False, db_index=True)
     proven_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

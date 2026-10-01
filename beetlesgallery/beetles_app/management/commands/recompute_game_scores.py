@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from beetlesgallery.beetles_app import game_scoring
+from beetlesgallery.beetles_app.game_discoveries import find as find_discoveries
 from beetlesgallery.beetles_app.game_trust import auto_apply_expert_labels, recompute_skills
 
 
@@ -37,5 +38,7 @@ class Command(BaseCommand):
             recompute_skills(player)
         n = game_scoring.recompute(ids)
         applied = [] if ids else auto_apply_expert_labels()
+        found = find_discoveries(ids or None)
         self.stdout.write(self.style.SUCCESS(
-            f"Re-scored {n} player{'s' if n != 1 else ''}. Experts named {len(applied)} beetle{'s' if len(applied) != 1 else ''}."))
+            f"Re-scored {n} player{'s' if n != 1 else ''}. Experts named {len(applied)} beetle{'s' if len(applied) != 1 else ''}. "
+            f"New species found: {len(found)}."))

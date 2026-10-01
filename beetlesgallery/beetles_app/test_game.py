@@ -328,20 +328,36 @@ from unittest import mock  # noqa: E402
 from beetlesgallery.beetles_app import game_trust  # noqa: E402
 from beetlesgallery.beetles_app.models import ImageLock, LabelReview, PlayerSkill, RoiDifficulty  # noqa: E402
 
-# Small thresholds so a handful of answers proves competence: answers_needed() == 3.
-SMALL_TRUST = dict(GAME_TRUST_MIN_JUDGED=3, GAME_TRUST_MIN_LOWER_BOUND=0.4)
+# Small thresholds so a handful of answers proves competence: 3 images per species, 3 answers in all.
+SMALL_TRUST = dict(GAME_TRUST_MIN_JUDGED=3, GAME_TRUST_IMAGES_PER_SPECIES=3)
 
 
-class WilsonTests(SimpleTestCase):
-    def test_default_thresholds_need_35_perfect_answers(self):
-        self.assertEqual(game_trust.answers_needed(), 35)
-        self.assertTrue(game_trust.is_proven(35, 35))
-        self.assertFalse(game_trust.is_proven(34, 35))
-        self.assertFalse(game_trust.is_proven(14, 14))
+class CoverageTests(SimpleTestCase):
+    """Proof scales with the taxon: so many images of every species with validated images, 90% right."""
 
-    @override_settings(**SMALL_TRUST)
-    def test_small_thresholds(self):
-        self.assertEqual(game_trust.answers_needed(), 3)
+    def test_a_small_genus_needs_few_answers_and_a_big_one_many(self):
+        small = {"a x": 20, "a y": 20}
+        big = {f"b {i}": 20 for i in range(40)}
+        self.assertEqual(game_trust.coverage(small, {})["required"], 10)
+        self.assertEqual(game_trust.coverage(big, {})["required"], 200)
+
+    def test_every_species_must_be_covered(self):
+        available = {"a x": 20, "a y": 20, "a z": 2}
+        lopsided = game_trust.coverage(available, {"a x": 30})
+        self.assertFalse(lopsided["complete"])
+        self.assertEqual((lopsided["species_done"], lopsided["species_total"]), (1, 3))
+        full = game_trust.coverage(available, {"a x": 5, "a y": 5, "a z": 2})   # a z only has 2 images
+        self.assertTrue(full["complete"])
+        self.assertEqual(full["required"], 12)
+
+    def test_accuracy_must_be_ninety_percent(self):
+        cover = game_trust.coverage({"a x": 20, "a y": 20}, {"a x": 5, "a y": 5})
+        self.assertTrue(game_trust.is_proven(9, 10, cover))
+        self.assertFalse(game_trust.is_proven(8, 10, cover))
+
+    def test_a_taxon_with_very_few_images_cannot_make_an_expert(self):
+        cover = game_trust.coverage({"a x": 3}, {"a x": 3})
+        self.assertFalse(game_trust.is_proven(3, 3, cover))
 
 
 @override_settings(**SMALL_TRUST)

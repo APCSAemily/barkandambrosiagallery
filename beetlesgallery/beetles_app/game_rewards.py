@@ -77,7 +77,8 @@ BADGES = OrderedDict([
     ("both", ("All-rounder", "Play both games", "fi-rr-apps", True)),
     ("species1", ("Species spotter", "Name a species we know the answer to", "fi-rr-search", False)),
     ("species25", ("Sharp eyes", "Name 25 species we know the answer to", "fi-rr-star", False)),
-    ("expert", ("Trusted expert", "Prove yourself on a branch of the tree", "fi-rr-shield-check", False)),
+    ("expert", ("Trusted expert", "Prove yourself on a taxon", "fi-rr-shield-check", False)),
+    ("discovery", ("New species finder", "Name a species the gallery had never validated, confirmed later by a curator", "fi-rr-sparkles", False)),
 ])
 
 
@@ -115,6 +116,8 @@ def earned_badges(player, before=None):
         from .game_trust import skills_for
         if any(s.proven for s in skills_for(player)):
             have.add("expert")
+        if player.species_discoveries.exists():
+            have.add("discovery")
     return have
 
 
