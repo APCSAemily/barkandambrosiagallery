@@ -748,6 +748,14 @@ video {
   bottom: 0px;
 }
 
+.bottom-12 {
+  bottom: 3rem;
+}
+
+.bottom-3 {
+  bottom: 0.75rem;
+}
+
 .bottom-8 {
   bottom: 2rem;
 }
@@ -2951,6 +2959,10 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
+.text-white\/30 {
+  color: rgb(255 255 255 / 0.3);
+}
+
 .text-yellow-600\/70 {
   color: rgb(202 138 4 / 0.7);
 }
@@ -3457,6 +3469,10 @@ video {
 .hover\:text-text:hover {
   --tw-text-opacity: 1;
   color: rgb(17 24 39 / var(--tw-text-opacity, 1));
+}
+
+.hover\:text-white\/70:hover {
+  color: rgb(255 255 255 / 0.7);
 }
 
 .hover\:underline:hover {

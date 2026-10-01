@@ -23,7 +23,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import game, game_board, game_checked, game_discoveries, game_feedback, game_queue, game_levels, game_rewards, game_scoring, game_tips, game_trust
 from .areas import ANNOTATE, area_required
-from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
+from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, PlayerScore, Taxon
 
 MODES = {m.value: m.label for m in GameRound.Mode}
 # What players see. (The model keeps its own plain labels; changing those would need a migration.)
@@ -68,6 +68,42 @@ def game_home(request):
         "board": game_board.board(limit=5),
         "discussions": discussions_url(),
     })
+
+
+@login_required
+def game_staff_unlocks(request):
+    """
+    Superusers only: grant any player any unlock (or all of them), whatever their level, for people who need the
+    features and for testing. Stored in GamePreference.granted_perks.
+    """
+    from .models import GamePreference
+
+    if not request.user.is_superuser:
+        raise Http404("Not found")
+    users = get_user_model().objects.all()
+    if request.method == "POST":
+        player = get_object_or_404(users, id=request.POST.get("player"))
+        perks = ["all"] if request.POST.get("all") else [p for p in request.POST.getlist("perks") if p in game_levels.PERKS]
+        pref, _ = GamePreference.objects.get_or_create(player=player)
+        pref.granted_perks = perks
+        pref.save(update_fields=["granted_perks", "updated_at"])
+        return redirect(f"{reverse('game_staff_unlocks')}?q={request.POST.get('q', '')}#p{player.id}")
+    q = (request.GET.get("q") or "").strip()[:50]
+    if q:
+        users = users.filter(username__icontains=q)
+    else:   # people with grants first, then the most recent players
+        users = users.filter(id__in=GamePreference.objects.exclude(granted_perks=[]).values("player_id")) | users.filter(
+            id__in=GameAnswer.objects.values("player_id"))
+    grants = dict(GamePreference.objects.filter(player__in=users).values_list("player_id", "granted_perks"))
+    rows = []
+    for u in users.distinct().order_by("username")[:100]:
+        info = game_levels.describe(*(
+            PlayerScore.objects.filter(player=u).values_list("score", "rating").first() or (0.0, 0.0)))
+        mine = grants.get(u.id) or []
+        rows.append({"user": u, "level": info["level"], "name": info["name"], "all": "all" in mine,
+                     "perks": [{"key": k, "title": t, "level": game_levels.perk_level(k), "on": "all" in mine or k in mine,
+                                "earned": k in info["perks"]} for k, (t, _) in game_levels.PERKS.items()]})
+    return render(request, "beetles/game_staff_unlocks.html", {"rows": rows, "q": q})
 
 
 @login_required
@@ -172,6 +208,7 @@ def game_play(request, mode):
         raise Http404("Unknown game mode")
     return render(request, "beetles/game_play.html", {
         "discussions": discussions_url(),
+        "report_reasons": GameReport.Reason.choices,
         "mode": mode,
         "mode_label": GAME_NAMES[mode],
         "ranks": [(r, r.capitalize()) for r in game.RANKS],
@@ -234,6 +271,34 @@ def game_report_roi(request):
         return JsonResponse({"error": "Please choose a reason."}, status=400)
     roi = answer.roi if str(answer.roi_id) == roi_id else answer.roi_b
     report = game_feedback.create_report(request.user, roi, reason, str(body.get("note") or ""), answer)
+    return JsonResponse({"status": report.status, "reason": report.get_reason_display()})
+
+
+@login_required
+@require_POST
+def game_report_item(request):
+    """
+    A player reports a photo straight from the feed (the cog in the full-image view): the beetle goes to the
+    curators on the Image Annotation page and stays out of the game until they deal with it.
+    Body: {"round", "index", "image": 0 or 1 (A or B, as shown), "reason", "note"}.
+    """
+    body = _json_body(request) or {}
+    rnd = GameRound.objects.filter(id=body.get("round"), player=request.user).first() if _is_uuid(body.get("round")) else None
+    index = body.get("index")
+    if rnd is None or not isinstance(index, int) or not 0 <= index < len(rnd.items):
+        return JsonResponse({"error": "Unknown beetle."}, status=404)
+    rois = _item_rois(rnd.items[index])
+    if rois is None:
+        return JsonResponse({"error": "Unknown beetle."}, status=404)
+    a, b = rois
+    shown = [a] if b is None else ([b, a] if rnd.items[index].get("flip") else [a, b])
+    which = body.get("image", 0)
+    if not isinstance(which, int) or not 0 <= which < len(shown):
+        return JsonResponse({"error": "Unknown image."}, status=400)
+    reason = body.get("reason")
+    if reason not in GameReport.Reason.values:
+        return JsonResponse({"error": "Please choose a reason."}, status=400)
+    report = game_feedback.create_report(request.user, shown[which], reason, str(body.get("note") or ""))
     return JsonResponse({"status": report.status, "reason": report.get_reason_display()})
 
 
@@ -465,7 +530,9 @@ def game_answer(request, round_id):
     record = GameAnswer(
         round=rnd, player=request.user, mode=_item_mode(rnd, index), index=index,
         is_check=bool(item.get("check")), is_retry=bool(item.get("retry")), roi=roi_a, roi_b=roi_b,
-        skipped=bool(body.get("skipped")), response_ms=_response_ms(body),
+        skipped=bool(body.get("skipped") or body.get("reported")), response_ms=_response_ms(body),
+        # moving on from a beetle they just reported: no points either way
+        score_hold=bool(body.get("reported")),
     )
     if record.is_check and roi_a.taxon:
         record.ref_subfamily = roi_a.taxon.subfamily or ""

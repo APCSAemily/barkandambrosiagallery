@@ -1447,6 +1447,11 @@ class GamePreference(models.Model):
     focus_rank = models.CharField(max_length=10, choices=FocusRank.choices, blank=True, default="")
     focus_value = models.CharField(max_length=100, blank=True, default="")
     play_mode = models.CharField(max_length=10, choices=PlayMode.choices, default=PlayMode.BOTH)
+    granted_perks = models.JSONField(
+        default=list, blank=True,
+        help_text="Unlocks a superuser granted whatever the player's level (game_levels.PERKS keys, or \"all\"). "
+                  "For people who need the features, and for testing.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

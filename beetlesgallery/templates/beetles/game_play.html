@@ -64,7 +64,8 @@
   data-home-url="{% url 'game_home' %}"
   data-taxa-url="{% url 'game_taxa' %}"
   data-search-url="{% url 'game_taxa_search' %}"
-  data-prefs-url="{% url 'game_prefs' %}">
+  data-prefs-url="{% url 'game_prefs' %}"
+  data-report-url="{% url 'game_report_item' %}">
 
   <!-- Header: leave any time; your score is on the game home, not here -->
   <header class="flex items-center gap-1 px-2 h-14 border-b border-gray-200 bg-white">
@@ -220,6 +221,14 @@
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
     <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
+  <!-- Barely there on purpose: report a photo that looks wrong -->
+  <button type="button" id="report-cog" class="absolute bottom-3 left-3 p-2 text-white/30 hover:text-white/70 text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i></button>
+  <div id="report-menu" class="hidden absolute bottom-12 left-3 w-64 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800" role="menu" aria-label="Report this image">
+    <div class="px-2 py-1 text-xs font-semibold text-gray-500">Something wrong with this image?</div>
+    {% for value, label in report_reasons %}
+    <button type="button" class="report-reason block w-full text-left px-2 py-2 rounded-lg hover:bg-gray-100" data-reason="{{ value }}" role="menuitem">{{ label }}</button>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}
 
@@ -301,7 +310,10 @@
     });
   }
 
-  function openLightbox(url, box) {
+  let lightboxImage = 0;   // which photo of the item is open (A = 0, B = 1), for reporting it
+  function openLightbox(url, box, which) {
+    lightboxImage = which || 0;
+    $("report-menu").classList.add("hidden");
     $("lightbox-img").src = url;
     const b = $("lightbox-box");
     b.style.left = box[0] * 100 + "%";
@@ -311,6 +323,19 @@
     $("lightbox").classList.remove("hidden");
   }
   $("lightbox").addEventListener("click", () => $("lightbox").classList.add("hidden"));
+  $("report-cog").addEventListener("click", (e) => { e.stopPropagation(); $("report-menu").classList.toggle("hidden"); });
+  $("report-menu").addEventListener("click", (e) => e.stopPropagation());
+  document.querySelectorAll(".report-reason").forEach((btn) => btn.addEventListener("click", async () => {
+    try {
+      await api(root.dataset.reportUrl, { round: roundId, index: item.index, image: lightboxImage, reason: btn.dataset.reason });
+      $("lightbox").classList.add("hidden");
+      toast({ kind: "report", title: "Thanks!", text: "Sent to the curators to check." });
+      send({ skipped: true, reported: true });   // on to the next beetle, no points lost
+    } catch (err) {
+      $("report-menu").classList.add("hidden");
+      toast({ kind: "report", title: "Couldn't send", text: err.message });
+    }
+  }));
 
   // Warm the browser cache with the next beetle's photos while this one is answered.
   function prefetch(urls) {
@@ -573,7 +598,7 @@
         tag.textContent = i === 0 ? "A" : "B";
         frame.appendChild(tag);
       }
-      frame.addEventListener("click", () => openLightbox(im.url, im.box));
+      frame.addEventListener("click", () => openLightbox(im.url, im.box, i));
       cell.appendChild(frame);
       holder.appendChild(cell);
     });
