@@ -59,7 +59,12 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-2 gap-3 mb-3">
+  <div class="grid grid-cols-3 gap-3 mb-3">
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Score</div>
+      <div class="mt-1 text-2xl font-bold text-gray-900" data-testid="score">{{ score.score|floatformat:0 }}</div>
+      <a href="{% url 'game_how' %}" class="text-xs text-gray-500 underline hover:text-gray-900">How scoring works</a>
+    </div>
     <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
       <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Beetles labelled</div>
       <div class="mt-1 text-2xl font-bold text-gray-900">{{ summary.labelled }}</div>

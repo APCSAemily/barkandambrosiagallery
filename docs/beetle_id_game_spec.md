@@ -224,3 +224,26 @@ All derived from the player's answers (`game_rewards.py`), nothing new is stored
   score appears, after leaving), the streak, any new badge. Then "Keep playing" or the game home.
 - **Game home**: level and progress bar, daily goal, streak, all badges (earned and locked), and a leaderboard that can be
   *this week* (resets Monday) or all time, by beetles labelled or accuracy.
+
+## Update: points (game_scoring.py)
+
+Every answer is worth points (`AnswerPoints`); a player's score is the running total, never below zero (`PlayerScore`).
+Full rules for players are on the "How scoring works" page (`/game/how-it-works/`).
+
+- **Validated beetles (truth)** earn the most. Name That Beetle: subfamily 1, tribe 2, genus 4, species 8 when right,
+  minus 75% of that when wrong (`GAME_POINTS_WRONG_FACTOR`). Family Ties: by the true relation, different subfamilies 1,
+  subfamily 2, tribe 3, genus 5, species 5, plus up to 25% for alike photos (photographer, institution, magnification,
+  country, aspect; `GAME_POINTS_SIMILARITY_BONUS`); wrong loses 1 per step off (`GAME_POINTS_PAIR_STEP`).
+- **Unvalidated beetles (agreement)**: up to 60% (`GAME_POINTS_CONSENSUS_CAP`) of the truth points, never negative.
+  Judges are players with at least `GAME_RATER_MIN_JUDGED` (10) judged ranks whose *rating* is at or above the median.
+  A proven expert for that branch weighs 1; anyone else weighs `1 / (1 + exp(-(their rating - your rating) / 0.1))`.
+  Per rank, agreement `c = (agree - disagree) / (agree + disagree + 1)`, points `cap x rank points x max(0, c)`.
+- **Rating**: the lower end of a Wilson interval (z = 1) of the player's judged ranks on validated beetles,
+  first sightings only. It is what decides whose agreement counts; the score is what decides unlocks.
+- **Not sure / skip**: -0.25 (`GAME_POINTS_UNSURE`).
+- **Retries**: a validated beetle answered wrong comes back after `GAME_RETRY_AFTER_DAYS` (2), at most
+  `GAME_RETRY_MAX` (3) times, `GAME_RETRY_PER_BATCH` (1) per batch, marked "Seen before". It earns half
+  (`GAME_POINTS_RETRY_FACTOR`) and is left out of accuracy and expertise (`GameAnswer.is_retry`).
+- **Retroactive**: points are recomputed for a player when they leave the game and for everyone nightly
+  (`manage.py recompute_game_scores`, "Nightly game scores" workflow). Answers on beetles validated since are then
+  scored against the truth.

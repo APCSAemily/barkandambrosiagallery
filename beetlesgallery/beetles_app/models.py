@@ -1350,6 +1350,11 @@ class GameAnswer(models.Model):
         help_text="Left out of scores: the player reported this ROI and the report is open, "
                   "or the ROI stopped being a valid reference.",
     )
+    is_retry = models.BooleanField(
+        default=False,
+        help_text="A validated beetle shown again so the player can learn it. Earns points, but is left out of "
+                  "accuracy and expertise, which only count the first time a beetle is seen.",
+    )
     answered_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1363,6 +1368,51 @@ class GameAnswer(models.Model):
 
     def __str__(self):
         return f"{self.player} #{self.index} ({self.mode})"
+
+
+class AnswerPoints(models.Model):
+    """
+    The points one game answer is worth (see game_scoring.py). Recomputed whenever what it depends on changes:
+    a beetle being validated (or its label corrected) re-scores answers on it against the truth, and other
+    players' answers move the consensus points of beetles that are not validated yet.
+    """
+
+    class Basis(models.TextChoices):
+        TRUTH = "truth", "Scored against a validated label"
+        CONSENSUS = "consensus", "Agreement with stronger players"
+        UNSURE = "unsure", "Not sure / skipped"
+        NONE = "none", "Not scored (yet)"
+
+    answer = models.OneToOneField(GameAnswer, on_delete=models.CASCADE, primary_key=True, related_name="points")
+    points = models.FloatField(default=0.0)
+    basis = models.CharField(max_length=10, choices=Basis.choices, default=Basis.NONE)
+    detail = models.JSONField(default=dict, blank=True, help_text="How the points were made up, for the player's feedback.")
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "game_answer_points"
+
+
+class PlayerScore(models.Model):
+    """
+    A player's running totals, recomputed from AnswerPoints (and their scored answers) so lists are fast.
+
+    ``score`` is the sum of their points in the order they earned them, never allowed below zero.
+    ``rating`` is how reliable they are on beetles we know the answer to (0 to 1, a cautious lower estimate
+    of their accuracy). It decides whose agreement counts for others and how much.
+    """
+
+    player = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, primary_key=True, related_name="game_score")
+    score = models.FloatField(default=0.0, db_index=True)
+    rating = models.FloatField(default=0.0)
+    accuracy = models.FloatField(null=True, blank=True)
+    judged = models.PositiveIntegerField(default=0, help_text="Judged ranks on validated beetles (first sightings).")
+    viewed = models.PositiveIntegerField(default=0, help_text="Beetles shown and answered or skipped.")
+    labelled = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "game_player_score"
 
 
 class PlayerSkill(models.Model):

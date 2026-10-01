@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_feedback, game_rewards, game_trust
+from . import game, game_feedback, game_rewards, game_scoring, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -54,6 +54,7 @@ def game_home(request):
     game.close_idle_rounds(request.user)   # anything they left open counts now
     period = "week" if request.GET.get("period") == "week" else "all"
     return render(request, "beetles/game_home.html", {
+        "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
         "badges": game_rewards.badge_cards(request.user),
         "period": period,
@@ -62,6 +63,20 @@ def game_home(request):
         "summary": game.player_summary(request.user),
         "leaderboard": game.leaderboard(limit=25, sort=sort, since=game.week_start() if period == "week" else None),
         "sort": sort,
+    })
+
+
+@login_required
+def game_how(request):
+    """How the game is scored, in plain words."""
+    from . import game_scoring
+    return render(request, "beetles/game_how.html", {
+        "rank_points": game_scoring.RANK_POINTS, "pair_points": [
+            (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
+        "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
+        "cap": int(game.game_setting("GAME_POINTS_CONSENSUS_CAP", 0.6) * 100),
+        "unsure": game.game_setting("GAME_POINTS_UNSURE", 0.25),
+        "retry_days": game.game_setting("GAME_RETRY_AFTER_DAYS", 2),
     })
 
 
@@ -194,6 +209,8 @@ def _item_payload(rnd, index):
         "images": _item_images(rnd, index),
         "prefetch": [],
     }
+    if rnd.items[index].get("retry"):
+        payload["again"] = True   # a beetle they got wrong before, shown again so they can learn it
     # Let the browser start downloading the next photos while this item is answered.
     following = _next_index(rnd, index + 1)
     if following is not None:
@@ -279,7 +296,7 @@ def game_answer(request, round_id):
     before = game_rewards.progress(request.user)
     record = GameAnswer(
         round=rnd, player=request.user, mode=rnd.mode, index=index,
-        is_check=bool(item.get("check")), roi=roi_a, roi_b=roi_b,
+        is_check=bool(item.get("check")), is_retry=bool(item.get("retry")), roi=roi_a, roi_b=roi_b,
         skipped=bool(body.get("skipped")), response_ms=_response_ms(body),
     )
     if record.is_check and roi_a.taxon:
@@ -314,6 +331,7 @@ def game_answer(request, round_id):
         # The same item was submitted twice (double tap, two tabs).
         return JsonResponse({"error": "That answer was already saved; please reload."}, status=409)
 
+    game_scoring.score_new_answer(record)
     extra = {
         "celebrate": _worth_celebrating(record, scores),
         "events": game_rewards.play_events(request.user, before),

@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
+    PlayerSkill, AnswerPoints, PlayerScore, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -814,6 +814,28 @@ class PlayerSkillAdmin(admin.ModelAdmin):
     list_filter = ("rank", "proven")
     search_fields = ("player__username", "branch")
     readonly_fields = ("player", "rank", "branch", "correct", "judged", "lower_bound", "proven", "proven_at", "updated_at")
+
+
+@admin.register(PlayerScore)
+class PlayerScoreAdmin(admin.ModelAdmin):
+    """Read-only: recomputed from the answers (manage.py recompute_game_scores)."""
+    list_display = ("player", "score", "rating", "accuracy", "judged", "viewed", "labelled", "updated_at")
+    search_fields = ("player__username",)
+    readonly_fields = list_display
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(AnswerPoints)
+class AnswerPointsAdmin(admin.ModelAdmin):
+    """Read-only: recomputed from the answers."""
+    list_display = ("answer", "points", "basis", "computed_at")
+    list_filter = ("basis",)
+    readonly_fields = ("answer", "points", "basis", "detail", "computed_at")
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(LabelReview)
