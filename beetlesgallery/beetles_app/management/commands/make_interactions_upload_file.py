@@ -5,10 +5,10 @@ The file has every record with its Records ID, so uploading it into an empty dat
 as the interactions page has always shown it. It is the same thing ``import_pathogen_interactions`` loads on every
 deploy, in the form a person can upload by hand (and edit first if they like).
 
-    manage.py make_interactions_upload_file            rewrites beetlesgallery/data/interactions/v1.0/interactions_v1.0_upload.csv
+    manage.py make_interactions_upload_file            writes interactions_v1.0_upload.csv in the current folder
     manage.py make_interactions_upload_file --out x.csv
 
-A test fails if the committed file no longer matches the published JSON, so run this again when that changes.
+The site builds the same file on request (Upload or Update Interactions → Initial file), so it isn't kept in git.
 """
 import csv
 import json
@@ -21,7 +21,7 @@ from beetlesgallery.beetles_app.interaction_upload import EXPORT_COLUMNS
 
 DATA = Path(settings.BASE_DIR) / "beetlesgallery" / "data" / "interactions" / "v1.0"
 SOURCE = DATA / "bark_beetle_pathogens_master.json"
-DEFAULT_OUT = DATA / "interactions_v1.0_upload.csv"
+DEFAULT_OUT = Path("interactions_v1.0_upload.csv")
 COLUMNS = [c for c in EXPORT_COLUMNS if c not in ("origin",)]
 
 

@@ -126,12 +126,13 @@ class InitialFileTests(PageBehaviourCase):
             genus, _, species = name.partition(" ")
             make_taxon(valid_species_id=valid_id, scientific_name=name, genus=genus, species=species)
 
-    def test_the_committed_file_is_what_the_published_json_gives(self):
-        committed = maker.DEFAULT_OUT.read_text(encoding="utf-8")
-        self.assertEqual(committed, maker.render(self.published), "run: manage.py make_interactions_upload_file")
+    def test_the_initial_file_download_is_built_from_the_published_json(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("interactions_initial_file"))
+        self.assertEqual(response.content.decode("utf-8"), maker.render(self.published))
 
     def test_the_file_has_every_record_and_the_upload_columns(self):
-        rows = list(csv.DictReader(io.StringIO(maker.DEFAULT_OUT.read_text(encoding="utf-8-sig"))))
+        rows = list(csv.DictReader(io.StringIO(maker.render(self.published).lstrip("\ufeff"))))
         self.assertEqual(len(rows), 1015)
         self.assertEqual(list(rows[0]), maker.COLUMNS)
         self.assertEqual({r["record_id"] for r in rows}, {"NEW"})
@@ -139,7 +140,7 @@ class InitialFileTests(PageBehaviourCase):
 
     def test_uploading_it_into_an_empty_database_recreates_the_published_dataset(self):
         self.give_the_species_list()
-        text = maker.DEFAULT_OUT.read_text(encoding="utf-8-sig")
+        text = maker.render(self.published).lstrip("\ufeff")
         check = import_interactions(text, user=self.staff, dry_run=True)
         self.assertTrue(check.ok, check.errors)
         self.assertEqual(PathogenInteraction.objects.count(), 0)          # a check saves nothing
@@ -160,13 +161,13 @@ class InitialFileTests(PageBehaviourCase):
 
     def test_the_deploys_loader_then_adds_nothing(self):
         self.give_the_species_list()
-        import_interactions(maker.DEFAULT_OUT.read_text(encoding="utf-8-sig"), user=self.staff)
+        import_interactions(maker.render(self.published).lstrip("\ufeff"), user=self.staff)
         call_command("import_pathogen_interactions", stdout=io.StringIO())
         self.assertEqual(PathogenInteraction.objects.count(), 1015)
 
     def test_uploading_it_twice_is_refused_and_changes_nothing(self):
         self.give_the_species_list()
-        text = maker.DEFAULT_OUT.read_text(encoding="utf-8-sig")
+        text = maker.render(self.published).lstrip("\ufeff")
         import_interactions(text, user=self.staff)
         again = import_interactions(text, user=self.staff)
         self.assertFalse(again.ok)

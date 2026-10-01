@@ -103,8 +103,9 @@ class DeployScriptTests(SimpleTestCase):
     def test_pixi_tasks_the_deploy_runs_exist(self):
         # Steps that run inside the production web container. (The Modal job runs on
         # GitHub's runner and calls the 'modal' program, not a pixi task.)
-        wanted = set(re.findall(r"exec -T web pixi run ([\w-]+)", self.deploy))
+        wanted = set(re.findall(r"(?:exec -T|run --rm --no-deps -T) web pixi run ([\w-]+)", self.deploy))
         self.assertTrue(wanted, "found no production 'pixi run' steps in deploy.yml")
+        wanted.discard("python")   # 'pixi run python manage.py ...' runs Python itself, not a named task
         self.assertEqual(sorted(t for t in wanted if t not in self.pixi_tasks), [])
 
     def test_management_commands_behind_pixi_tasks_exist(self):
@@ -131,6 +132,22 @@ class DeployScriptTests(SimpleTestCase):
         lines = [ln for ln in self.deploy.splitlines() if not ln.strip().startswith("#")]
         found = [item for item in DEPLOY_DENYLIST if any(item in ln for ln in lines)]
         self.assertEqual(found, [], "deploy.yml must not run these against production")
+
+    def test_the_live_site_is_only_switched_after_the_checks_and_migrations(self):
+        # A failing step must stop the deploy before the running site changes (set -e), the database must be
+        # checked before anything else, and the switch to new containers comes after the migrations.
+        self.assertIn("set -eu", self.deploy)
+        self.assertIn("set -o pipefail", self.deploy)
+        order = ["build web worker", "migrate --plan", "pixi run migrate", "import-interactions", "up -d --no-deps web worker"]
+        positions = [self.deploy.index(step) for step in order]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("up -d --build", self.deploy)   # that swapped the site before the checks
+
+    def test_a_failed_health_check_rolls_back_and_fails_the_job(self):
+        self.assertIn('curl -s -o /dev/null -w "%{http_code}" "$SITE/"', self.deploy)
+        tail = self.deploy[self.deploy.index("Health check failed"):]
+        self.assertIn('git reset --hard "$PREVIOUS"', tail)
+        self.assertIn("exit 1", tail)
 
     def test_deploy_keeps_the_data_volumes(self):
         prod = (settings.BASE_DIR / "docker-compose.prod.yml").read_text()
