@@ -209,7 +209,17 @@
                   <option value="name">File name A to Z</option>
                   <option value="resolution">Largest image</option>
                   <option value="largest">Largest file</option>
+                  <option value="game_confidence">Game proposals: most confident first</option>
                 </select>
+              </div>
+              <div class="space-y-1">
+                <label for="game-filter" class="block text-xs font-bold text-gray-500 uppercase">Game label proposals</label>
+                <select id="game-filter" class="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs focus:ring-1 focus:ring-gray-500 outline-none">
+                  <option value="">All images</option>
+                  <option value="any">With game proposals waiting</option>
+                  <option value="expert">Expert-backed proposals only</option>
+                </select>
+                <p class="text-[10px] text-gray-400">Proposals a curator already accepted or dismissed drop out until new answers arrive.</p>
               </div>
               {% if filter_groups %}
                 <button type="button" onclick="closeAndApplyFilters()" class="w-full mb-2 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 rounded-lg transition-colors text-sm shadow-sm flex items-center justify-center gap-2">
@@ -856,6 +866,8 @@ function getFilterQueryString() {
     if (search) params.append('search', search);
     const sort = document.getElementById('image-sort');
     if (sort && sort.value) params.append('ordering', sort.value);
+    const gameFilter = document.getElementById('game-filter');
+    if (gameFilter && gameFilter.value) params.append('game', gameFilter.value);
 
     document.querySelectorAll('select.advanced-filter').forEach(sel => {
         Array.from(sel.selectedOptions).forEach(opt => {
@@ -940,6 +952,24 @@ function loadNextPage() {
   }
 }
 
+// Sorting and the game-proposal filter apply straight away.
+['image-sort', 'game-filter'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => resetAndLoadImages());
+});
+
+// The game proposal on an image, as a small badge: green when proven experts back it, grey otherwise.
+function gameBadgeHtml(g) {
+  if (!g) return '';
+  const where = g.rank ? `${g.rank}${g.value ? ' ' + escHtml(g.value) : ''}` : 'no agreement yet';
+  const title = `Game proposal: ${where}. ${Math.round(g.support * 100)}% agreement from ${g.players} player(s)` +
+    (g.trusted_rank ? `, expert-backed to ${g.trusted_rank}` : '');
+  const cls = g.trusted_rank ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200';
+  return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold ${cls}" title="${title}" data-testid="game-badge">
+    <i class="fi ${g.trusted_rank ? 'fi-rr-shield-check' : 'fi-rr-gamepad'}"></i>${g.trusted_rank ? 'expert · ' + g.trusted_rank
+      : (g.rank ? Math.round(g.support * 100) + '% · ' + g.rank : g.players + (g.players === 1 ? ' vote' : ' votes'))}</span>`;
+}
+
 function renderImageList(imagesToRender, append = false) {
   const listEl = document.getElementById('image-list');
   if (!append) listEl.innerHTML = '';
@@ -956,7 +986,7 @@ function renderImageList(imagesToRender, append = false) {
       </div>
       <div class="flex-1 min-w-0 text-left">
         <p class="text-sm font-medium text-gray-900 truncate" title="${img.image_asset_id}">${img.image_asset_id}</p>
-        <p class="text-xs text-gray-500 mt-0.5 truncate">${img.is_validated ? 'Validated' : 'Not Validated'}</p>
+        <p class="text-xs text-gray-500 mt-0.5 truncate flex items-center gap-1.5">${img.is_validated ? 'Validated' : 'Not Validated'} ${gameBadgeHtml(img.game)}</p>
       </div>
       <div class="flex-shrink-0">
         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${img.annotation_count === 0 ? 'bg-gray-100 text-gray-600 border border-gray-200' : (img.has_unvalidated_boxes ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-green-100 text-green-800 border border-green-200')} shadow-sm" title="ROIs">
