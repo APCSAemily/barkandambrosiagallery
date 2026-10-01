@@ -17,10 +17,12 @@ levels are kept only while the answers stay good.
     8      Beetle master          6000      80%
     9      Coleopterist          10000      85%
 
-Separately from levels, a player who proves themselves on one part of the tree (game_trust.py: enough answers in a
-branch, accurate enough to be sure it isn't luck) is an *expert* there. When enough experts agree on a beetle
-that has no name yet, their name is written straight into the database (game_trust.auto_apply_expert_labels), still
-marked unvalidated so a curator can confirm it. Nobody else's labels skip review.
+Separately from levels, a player who proves themselves on one part of the tree is an *expert* there (game_trust.py:
+at least GAME_TRUST_MIN_JUDGED answers on validated beetles in that branch, with a Wilson lower bound on their
+accuracy of at least GAME_TRUST_MIN_LOWER_BOUND, 90% by default, and among the most reliable players overall). When
+at least two experts, each proven directly in every branch of the label, agree on a beetle that has no name yet,
+their name is written straight into the database (game_trust.auto_apply_expert_labels), still marked unvalidated so
+a curator can confirm it. Nobody else's labels skip review.
 """
 from .game import game_setting
 

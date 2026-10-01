@@ -256,10 +256,15 @@ Full rules for players are on the "How scoring works" page (`/game/how-it-works/
   Coleopterist (10000, 85%). Levels can drop if reliability drops; perks follow the current level.
 - **Suggestions to curators** (annotation page proposals) only count answers from players at the suggestions level
   or proven experts somewhere (`GAME_PROPOSALS_NEED_LEVEL`, default on).
-- **Experts' labels without review**: when at least `GAME_AUTO_APPLY_MIN_EXPERTS` (2) proven experts agree down to
+- **Experts' labels without review**: when at least `GAME_AUTO_APPLY_MIN_EXPERTS` (2) experts agree down to
   species with no expert disagreeing, on a beetle with no species label, not validated and never reviewed, the species
   is written to the beetle (still unvalidated) with a `LabelReview` that has no reviewer
   (`GAME_AUTO_APPLY_EXPERT_LABELS`, default on). Runs when a player leaves the game (their round's beetles) and nightly.
+  Each expert counted must be **proven directly** in every branch of the label (subfamily; tribe within it; genus
+  within the tribe; species within the genus): at least `GAME_TRUST_MIN_JUDGED` (15) answers on validated beetles
+  there and a Wilson lower bound (95% confidence) of at least `GAME_TRUST_MIN_LOWER_BOUND` (90%), and be in the top
+  `GAME_EXPERT_PERCENTILE` of players overall. Proof in neighbouring branches (the sibling rule for untestable
+  branches) still backs a suggestion to curators, but never a label written without review.
 - **Experts must also be in the top `GAME_EXPERT_PERCENTILE` (25%) by rating** once `GAME_EXPERT_MIN_PLAYERS` (10)
   players are rated.
 - **Focus** (`GamePreference`): a player can limit the feed to one subfamily / tribe / genus when unlocked; falls back
