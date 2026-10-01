@@ -114,48 +114,11 @@
 
   <!-- Leaderboard -->
   <div class="mb-6">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
       <h2 class="text-lg font-semibold text-gray-900">Leaderboard</h2>
-      <div class="flex flex-wrap justify-end gap-2">
-        <div class="flex text-sm bg-gray-100 rounded-lg p-1">
-          <a href="?sort={{ sort }}&period=week" class="px-3 py-1.5 rounded-md {% if period == 'week' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">This week</a>
-          <a href="?sort={{ sort }}&period=all" class="px-3 py-1.5 rounded-md {% if period == 'all' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">All time</a>
-        </div>
-        <div class="flex text-sm bg-gray-100 rounded-lg p-1">
-          <a href="?sort=labelled&period={{ period }}" class="px-3 py-1.5 rounded-md {% if sort == 'labelled' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Labelled</a>
-          <a href="?sort=accuracy&period={{ period }}" class="px-3 py-1.5 rounded-md {% if sort == 'accuracy' %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Accuracy</a>
-        </div>
-      </div>
+      <a href="{% url 'game_leaderboard' %}" class="text-sm underline text-gray-600 hover:text-gray-900">Search, this week and specialists</a>
     </div>
-
-    {% if leaderboard %}
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-          <tr>
-            <th class="py-2 pl-4 pr-2 text-left w-10">#</th>
-            <th class="py-2 px-2 text-left">Player</th>
-            <th class="py-2 px-2 text-right">Labelled</th>
-            <th class="py-2 pl-2 pr-4 text-right">Accuracy</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in leaderboard %}
-          <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-gray-100 font-semibold{% endif %}">
-            <td class="py-2.5 pl-4 pr-2 text-gray-400">{{ row.position }}</td>
-            <td class="py-2.5 px-2 text-gray-900 truncate max-w-[9rem]">{{ row.username }}</td>
-            <td class="py-2.5 px-2 text-right tabular-nums">{{ row.labelled }}</td>
-            <td class="py-2.5 pl-2 pr-4 text-right tabular-nums">
-              {% if row.accuracy is not None %}{% widthratio row.accuracy 1 100 %}%{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-sm text-gray-500 p-4 bg-gray-50 rounded-2xl">No one has played yet. Be the first!</p>
-    {% endif %}
+    {% include "beetles/includes/game_board_table.html" with rows=board %}
   </div>
 
   {% if user.is_staff %}

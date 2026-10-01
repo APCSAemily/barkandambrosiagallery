@@ -1,0 +1,31 @@
+{# rows from game_board.board: position, username, level, score, accuracy, viewed, is_expert #}
+<div class="border border-gray-200 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+      <tr>
+        <th class="py-2 pl-3 pr-1 text-left w-10">#</th>
+        <th class="py-2 px-2 text-left">Player</th>
+        <th class="py-2 px-2 text-right">Score</th>
+        <th class="py-2 px-2 text-right"><span class="sm:hidden">Acc.</span><span class="hidden sm:inline">Accuracy</span></th>
+        <th class="py-2 pl-1 pr-3 text-right whitespace-nowrap"><span class="sm:hidden">Seen</span><span class="hidden sm:inline">Beetles seen</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-gray-100 font-semibold{% endif %}">
+        <td class="py-2.5 pl-3 pr-1 text-gray-400 tabular-nums">{{ row.position }}</td>
+        <td class="py-2.5 px-2">
+          <a href="{% url 'game_profile' row.player_id %}" class="text-gray-900 underline decoration-gray-300 hover:decoration-gray-900">{{ row.username }}</a>
+          <span class="ml-1 text-xs text-gray-400 whitespace-nowrap">L{{ row.level }}</span>
+          {% if row.is_expert %}<i class="fi fi-rr-shield-check text-green-600 ml-0.5" title="Proven expert in part of the tree"></i>{% endif %}
+        </td>
+        <td class="py-2.5 px-2 text-right tabular-nums">{{ row.score }}</td>
+        <td class="py-2.5 px-2 text-right tabular-nums">{% if row.accuracy is not None %}{% widthratio row.accuracy 1 100 %}%{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}</td>
+        <td class="py-2.5 pl-1 pr-3 text-right tabular-nums">{{ row.viewed }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="p-4 text-gray-500">No players to show.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

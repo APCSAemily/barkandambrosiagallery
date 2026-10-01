@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <a href="{% url 'game_leaderboard' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Leaderboard</a>
+  <h1 class="page-title">{{ player.username }}{% if is_self %} <span class="text-base font-normal text-gray-400">(you)</span>{% endif %}</h1>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Level {{ p.level.level }}</div>
+      <div class="mt-1 text-lg font-bold text-gray-900">{{ p.level.name }}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Score</div>
+      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.score|floatformat:0 }}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Accuracy</div>
+      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{% if p.accuracy is not None %}{% widthratio p.accuracy 1 100 %}%{% else %}&ndash;{% endif %}</div>
+    </div>
+    <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+      <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Beetles seen</div>
+      <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{{ p.score.viewed }}</div>
+    </div>
+  </div>
+
+  <div class="mb-6 text-sm text-gray-600">
+    {{ p.streak }} day streak &middot; {{ p.modes.classify|default:0 }} named in Name That Beetle &middot; {{ p.modes.pair|default:0 }} in Family Ties
+  </div>
+
+  <h2 class="text-lg font-semibold text-gray-900 mb-2">Expert in</h2>
+  {% if p.expert_in %}
+  <ul class="mb-2 flex flex-wrap gap-2">
+    {% for e in p.expert_in %}<li class="px-3 py-1 rounded-full border border-green-200 bg-green-50 text-sm text-green-800"><i class="fi fi-rr-shield-check"></i> {{ e.what }}{% if e.branch %} <em>{{ e.branch }}</em>{% endif %}</li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-gray-500 mb-2">Not a proven expert anywhere yet.</p>
+  {% endif %}
+  <a href="{% url 'game_player_expertise' player.id %}" class="inline-block mb-8 text-sm underline text-gray-600 hover:text-gray-900">See the whole expertise tree</a>
+
+  <h2 class="text-lg font-semibold text-gray-900 mb-3">Badges</h2>
+  <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+    {% for b in p.badges %}{% if b.earned %}
+    <div class="p-3 rounded-2xl border bg-white border-gray-300 text-center" title="{{ b.how }}">
+      <i class="fi {{ b.icon }} text-2xl text-gray-700"></i>
+      <div class="mt-1 text-xs font-semibold text-gray-900">{{ b.name }}</div>
+    </div>
+    {% endif %}{% empty %}{% endfor %}
+  </div>
+</div>
+{% endblock %}
