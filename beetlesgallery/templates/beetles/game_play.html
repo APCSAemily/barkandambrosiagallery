@@ -32,18 +32,18 @@
           font-size: 0.9375rem; font-weight: 500; color: #111827; text-align: left; width: 100%; }
   .rung small { margin-left: auto; padding-left: 0.5rem; font-size: 0.6875rem; font-weight: 500; color: #9ca3af; }
   .rung::before { content: ""; position: absolute; left: 1.0625rem; top: 50%; width: 0.75rem; height: 0.75rem; margin-top: -0.375rem; border-radius: 9999px; background: #fff; border: 2px solid #9ca3af; z-index: 1; }
-  .rung.filled::before { background: #4b5563; border-color: #4b5563; }
+  .rung.filled::before { background: #6b7280; border-color: #6b7280; }
   .rung::after { content: ""; position: absolute; left: 1.375rem; top: -0.3125rem; width: 2px; height: calc(100% + 0.3125rem); background: #e5e7eb; }
   .rung:first-child::after { display: none; }
-  .rung.filled::after { background: #4b5563; }
-  .rung.selected { background: #4b5563; border-color: #4b5563; color: #fff; }
+  .rung.filled::after { background: #6b7280; }
+  .rung.selected { background: #6b7280; border-color: #6b7280; color: #fff; }
   .rung.selected small { color: #d1d5db; }
   .rung.selected::before { background: #fff; border-color: #fff; }
 
   #actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   #actions button { height: 3rem; border-radius: 0.75rem; font-size: 1rem; }
   #skip { flex: 0 0 32%; font-weight: 500; color: #4b5563; border: 1px solid #d1d5db; background: #fff; }
-  #submit { flex: 1 1 auto; font-weight: 600; color: #fff; background: #4b5563; }
+  #submit { flex: 1 1 auto; font-weight: 600; color: #fff; background: #6b7280; }
   #submit:disabled { background: #d1d5db; }
   #actions button:active:not(:disabled) { transform: scale(0.98); }
   .icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; color: #374151; }
@@ -148,7 +148,7 @@
       <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="sum-accuracy">&ndash;</div><div class="text-xs text-gray-500">accuracy</div></div>
     </div>
     <div class="flex flex-col gap-3 max-w-sm mx-auto">
-      <a id="review-link" href="#" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-xl"><i class="fi fi-rr-list-check"></i> See the answers</a>
+      <a id="review-link" href="#" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-500 hover:bg-gray-500 rounded-xl"><i class="fi fi-rr-list-check"></i> See the answers</a>
       <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">Back to the game home</a>
     </div>
   </div>
@@ -186,7 +186,7 @@
       <select id="focus-value" class="select-chevron w-full h-11 px-3 text-base border border-gray-300 rounded-xl bg-white" aria-label="Which one"></select>
       <div class="flex gap-2">
         <button type="button" id="focus-clear" class="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 font-medium">Show everything</button>
-        <button type="button" id="focus-save" class="flex-1 h-11 rounded-xl bg-gray-600 text-white font-semibold disabled:bg-gray-300" disabled>Focus</button>
+        <button type="button" id="focus-save" class="flex-1 h-11 rounded-xl bg-gray-500 text-white font-semibold disabled:bg-gray-300" disabled>Focus</button>
       </div>
     </div>
   </div>
@@ -208,7 +208,7 @@
     </div>
     <div id="recap-badges" class="mb-6 space-y-2"></div>
     <div class="flex flex-col gap-3">
-      <button type="button" id="recap-more" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-xl">Keep playing</button>
+      <button type="button" id="recap-more" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-500 hover:bg-gray-500 rounded-xl">Keep playing</button>
       <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">See my stats and the leaderboard</a>
     </div>
     <a href="{{ discussions }}" target="_blank" rel="noopener" class="mt-6 inline-block text-sm text-gray-500 underline hover:text-gray-800" data-testid="discussions-link">Bug or idea? Tell us on GitHub Discussions</a>
@@ -537,7 +537,7 @@
       b.type = "button";
       const on = r.rank === focusRank;
       b.className = "h-11 rounded-xl border text-sm font-semibold capitalize " +
-        (on ? "bg-gray-600 border-gray-600 text-white" : r.unlocked ? "border-gray-300 text-gray-800" : "border-gray-200 text-gray-400");
+        (on ? "bg-gray-500 border-gray-500 text-white" : r.unlocked ? "border-gray-300 text-gray-800" : "border-gray-200 text-gray-400");
       b.innerHTML = r.unlocked ? r.rank : '<i class="fi fi-rr-lock text-xs"></i> L' + r.level;
       b.title = r.unlocked ? "" : "Unlocks at level " + r.level;
       b.addEventListener("click", () => {

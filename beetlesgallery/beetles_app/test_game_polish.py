@@ -128,3 +128,20 @@ class BackgroundTests(ScoringCase):
                 self.captureOnCommitCallbacks(execute=True):
             game.finish_round(rnd)
         self.assertEqual(queued.call_args.kwargs["args"], [[early.id]])
+
+
+class LayoutTests(ScoringCase):
+    def test_checked_beetles_are_linked_from_the_leaderboard_not_the_profile(self):
+        self.client.force_login(self.user)
+        board = self.client.get(reverse("game_leaderboard")).content.decode()
+        profile = self.client.get(reverse("game_profile", args=[self.user.id])).content.decode()
+        self.assertIn(reverse("game_checked"), board)
+        self.assertNotIn(reverse("game_checked"), profile)
+
+    def test_game_buttons_use_the_lighter_house_grey(self):
+        from django.conf import settings
+        root = settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles"
+        for name in ("game_home.html", "game_play.html"):
+            source = (root / name).read_text()
+            self.assertNotIn("text-white bg-gray-700", source, name)
+            self.assertNotIn("bg-gray-700 hover:bg-gray-800", source, name)
