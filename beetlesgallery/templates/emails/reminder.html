@@ -1,0 +1,15 @@
+{% extends "emails/base.html" %}
+{% block content %}
+<p style="margin:0 0 16px;">Hello,</p>
+<p style="margin:0 0 16px;">A friendly reminder: <strong>{{ count }} access request{{ count|pluralize:" is,s are" }}</strong> still waiting for a decision.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;width:100%;font-size:14px;line-height:1.5;border-collapse:collapse;">
+  {% for r in waiting %}<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;">
+    <strong>{{ r.name }}</strong> <span style="color:#777777;">&lt;{{ r.email }}&gt;</span><br>
+    <span style="color:#555555;">{{ r.areas }}</span> · <span style="color:#777777;">waiting {{ r.waited }}</span>
+  </td></tr>{% endfor %}
+</table>
+<p style="margin:0 0 4px;">These people have confirmed their email address and cannot sign in until someone decides.</p>
+{% include "emails/_button.html" with url=review_url label="Review the requests" %}
+<p style="margin:0 0 16px;">Thank you for looking after the gallery!</p>
+{% endblock %}
+{% block footer %}You are receiving this because you can approve access requests for the Bark &amp; Ambrosia Beetle Gallery.{% endblock %}

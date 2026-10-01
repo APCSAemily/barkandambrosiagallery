@@ -1,0 +1,10 @@
+{% autoescape off %}Hello,
+
+A friendly reminder: {{ count }} access request{{ count|pluralize:" is,s are" }} still waiting for a decision on the Bark & Ambrosia Beetle Gallery.
+
+{% for r in waiting %}  - {{ r.name }} <{{ r.email }}> ({{ r.areas }}), waiting {{ r.waited }}
+{% endfor %}
+These people have confirmed their email address and cannot sign in until someone decides. You can approve or decline them here (superuser sign-in needed):
+{{ review_url }}
+
+Thank you for looking after the gallery!{% endautoescape %}
