@@ -643,10 +643,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Deep link from another page (the specimen detail page's pencil icon, or
   // "Open in annotator" on the game review page): open straight to that image.
-  const focusImageId = new URLSearchParams(window.location.search).get('image');
+  // With &roi=<id> too (game review links), that ROI is selected and open in the side panel.
+  const deepLink = new URLSearchParams(window.location.search);
+  const focusImageId = deepLink.get('image');
   if (focusImageId) {
     const match = state.images.find(i => i.image_asset_id === focusImageId);
-    selectImage(match || { image_asset_id: focusImageId });
+    Promise.resolve(selectImage(match || { image_asset_id: focusImageId })).then(() => {
+      const roiId = deepLink.get('roi');
+      if (!roiId) return;
+      const idx = state.bboxes.findIndex(b => String(b.id) === roiId);
+      if (idx < 0) return;
+      switchRightTab('bbox');
+      selectBox(idx);
+      mobileTab('right');
+      const acc = document.getElementById(`roi-accordion-${idx}`);
+      if (acc) acc.scrollIntoView({ block: 'center' });
+    });
   }
 
   const browserContent = document.getElementById('browser-section-content');

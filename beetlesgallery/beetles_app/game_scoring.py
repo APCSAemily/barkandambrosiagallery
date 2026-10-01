@@ -40,8 +40,9 @@ import math
 from collections import defaultdict
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from django.db.models import Q
+from django.db import IntegrityError, connection, transaction
+from django.db.models import F, Q, Value
+from django.db.models.functions import Greatest
 from django.utils import timezone
 
 from . import game
@@ -395,6 +396,19 @@ def players_sharing_beetles(player_id, roi_ids, limit=200):
 # ---------------------------------------------------------------------------
 # Recomputing
 # ---------------------------------------------------------------------------
+LOCK_KEY = 0x6A6D5C01   # any fixed number: the advisory lock that serialises score writes
+
+
+def _write_lock():
+    """
+    Many players finish at the same time in production (several web workers and the background worker), and each
+    finish re-scores the players it touches. Their writes take turns behind one Postgres advisory lock, held until
+    the transaction ends, so two recomputes never delete and re-create the same rows at once.
+    """
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [LOCK_KEY])
+
 def recompute(player_ids=None):
     """
     Re-score every answer of these players (everyone when None) and refresh their totals. Safe to run any time;
@@ -436,6 +450,7 @@ def recompute(player_ids=None):
     players = list(by_player) if player_ids is None else list(player_ids)
     existing = set(get_user_model().objects.filter(id__in=players).values_list("id", flat=True))
     with transaction.atomic():
+        _write_lock()
         AnswerPoints.objects.filter(answer__player_id__in=players).delete()
         AnswerPoints.objects.bulk_create(rows, batch_size=1000)
         RetroCredit.objects.bulk_create(credits, ignore_conflicts=True)
@@ -463,12 +478,23 @@ def score_new_answer(answer):
     votes = votes_on(roi_ids) if not is_truth(answer.roi) else {}
     judges = Judges(cached_ratings()) if votes else _NoJudges()
     points, basis, detail = score(answer, lambda rid: votes.get(rid, []), judges)
-    AnswerPoints.objects.update_or_create(answer=answer, defaults=dict(points=round(points, 3), basis=basis, detail=detail))
-    current, _ = PlayerScore.objects.get_or_create(player_id=answer.player_id)
-    current.score = round(max(0.0, current.score + points), 2)
-    current.viewed += 1
-    current.labelled += 0 if answer.skipped else 1
-    current.save(update_fields=["score", "viewed", "labelled", "updated_at"])
+    for attempt in range(2):   # a recompute may have re-created the row in between: try once more
+        try:
+            with transaction.atomic():
+                AnswerPoints.objects.update_or_create(
+                    answer=answer, defaults=dict(points=round(points, 3), basis=basis, detail=detail))
+            break
+        except IntegrityError:
+            if attempt:
+                raise
+    PlayerScore.objects.get_or_create(player_id=answer.player_id)
+    # one UPDATE, so two answers saved at the same moment can't overwrite each other's total
+    PlayerScore.objects.filter(player_id=answer.player_id).update(
+        score=Greatest(Value(0.0), F("score") + round(points, 2)),
+        viewed=F("viewed") + 1,
+        labelled=F("labelled") + (0 if answer.skipped else 1),
+        updated_at=timezone.now(),
+    )
     return points, basis
 
 

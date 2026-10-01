@@ -36,6 +36,7 @@ class MixTests(MixedFeedCase):
             self.assertEqual(bool(it.get("b")), it["mode"] == "pair")
 
     def test_beginners_get_mostly_family_ties_and_experts_mostly_naming(self):
+        GamePreference.objects.create(player=self.user, granted_perks=["choose_game"])   # plays both
         asked = {}
 
         def fake(mode):
@@ -81,10 +82,15 @@ class MixTests(MixedFeedCase):
 
 
 class ChooseGameTests(MixedFeedCase):
-    def test_level_one_plays_both_and_cannot_choose(self):
-        res = self.post("game_prefs", {"play_mode": "pair"})
+    def test_level_one_plays_similarity_only(self):
+        res = self.post("game_prefs", {"play_mode": "both"})
         self.assertEqual(res.status_code, 403)
         self.assertIn("level 2", res.json()["error"])
+        self.assertEqual(game.play_mode(self.user), "pair")
+        self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"pair"})
+
+    def test_level_two_unlocks_identification_and_defaults_to_both(self):
+        self.level(60)
         self.assertEqual(game.play_mode(self.user), "both")
 
     def test_from_level_two_a_player_can_pick_one_game(self):
@@ -103,12 +109,12 @@ class ChooseGameTests(MixedFeedCase):
             self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=10))), {"pair"})
 
     def test_the_choice_lapses_if_the_level_drops(self):
-        GamePreference.objects.create(player=self.user, play_mode="pair")
-        self.assertEqual(game.play_mode(self.user), "both")
+        GamePreference.objects.create(player=self.user, play_mode="classify")
+        self.assertEqual(game.play_mode(self.user), "pair")   # back to Similarity only
 
     def test_start_tells_the_feed_what_is_unlocked(self):
         prefs = self.post("game_start", {"mode": "mixed"}).json()["prefs"]
-        self.assertEqual((prefs["play_mode"], prefs["choose_game"], prefs["choose_game_level"]), ("both", False, 2))
+        self.assertEqual((prefs["play_mode"], prefs["choose_game"], prefs["choose_game_level"]), ("pair", False, 2))
         self.assertEqual([(r["rank"], r["unlocked"], r["level"]) for r in prefs["focus_ranks"]],
                          [("subfamily", False, 3), ("tribe", False, 4), ("genus", False, 5)])
 

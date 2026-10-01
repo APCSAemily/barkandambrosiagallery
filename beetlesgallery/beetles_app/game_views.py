@@ -10,6 +10,7 @@ import json
 from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -28,7 +29,7 @@ from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, Label
 
 MODES = {m.value: m.label for m in GameRound.Mode}
 # What players see. (The model keeps its own plain labels; changing those would need a migration.)
-GAME_NAMES = {"classify": "Name That Beetle", "pair": "Family Ties", "mixed": "Beetle ID"}
+GAME_NAMES = {"classify": "Name That Beetle", "pair": "Similarity", "mixed": "Beetle ID"}
 GAME_TAGLINES = {
     "classify": "One beetle, four guesses: subfamily, tribe, genus, species. Go as deep as you dare.",
     "pair": "Two beetles. How close is the family? From total strangers to the very same species.",
@@ -67,6 +68,10 @@ def game_home(request):
         "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
         "board": game_board.board(limit=5),
+        "standing": game_board.accuracy_standing(request.user),
+        # the public address in production (SITE_URL), this server's own when developing
+        "share_url": (request.build_absolute_uri(reverse("game_home")) if settings.DEBUG
+                      else settings.SITE_URL.rstrip("/") + reverse("game_home")),
         "discussions": discussions_url(),
     })
 
@@ -211,7 +216,9 @@ def game_play(request, mode):
         raise Http404("Unknown game mode")
     return render(request, "beetles/game_play.html", {
         "discussions": discussions_url(),
-        "report_reasons": GameReport.Reason.choices,
+        # short, one line each, for the little report menu in the full-image view
+        "report_reasons": [("wrong_label", "Wrong name"), ("bad_box", "Box doesn't fit"),
+                           ("bad_image", "Bad photo"), ("other", "Something else")],
         "mode": mode,
         "mode_label": GAME_NAMES[mode],
         "ranks": [(r, r.capitalize()) for r in game.RANKS],
@@ -460,9 +467,9 @@ def game_prefs(request):
         mode = body.get("play_mode")
         if mode not in GamePreference.PlayMode.values:
             return JsonResponse({"error": "Unknown game."}, status=400)
-        if mode != "both" and game_levels.CHOOSE_GAME not in info["perks"]:
+        if mode != "pair" and game_levels.CHOOSE_GAME not in info["perks"]:
             level = game_levels.perk_level(game_levels.CHOOSE_GAME)
-            return JsonResponse({"error": f"Choosing your game unlocks at level {level}."}, status=403)
+            return JsonResponse({"error": f"Identification unlocks at level {level}."}, status=403)
         pref.play_mode = mode
     if "focus_rank" in body:
         rank = body.get("focus_rank") or ""
@@ -487,7 +494,7 @@ def game_prefs(request):
 def _chip(player):
     """The small counters in the feed's header: today's beetles against the daily goal, and the day streak."""
     state = game_rewards.progress(player)
-    return {k: state[k] for k in ("today", "goal", "goal_met", "streak")}
+    return {k: state[k] for k in ("today", "goal", "goal_met", "streak", "level", "score", "next_at", "level_progress")}
 
 
 def _clean_classification(body):

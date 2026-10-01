@@ -58,6 +58,8 @@ def progress(player):
         "to_next": level["next"]["points_needed"] if level["next"] else None,
         "next": level["next"],
         "level_progress": round(level["progress"], 3),
+        "score": round(level["score"]),
+        "next_at": level["next"]["points"] if level["next"] else None,
     }
 
 
@@ -78,6 +80,28 @@ BADGES = OrderedDict([
     ("species1", ("Species spotter", "Name a species we know the answer to", "fi-rr-search", False)),
     ("species25", ("Sharp eyes", "Name 25 species we know the answer to", "fi-rr-star", False)),
     ("expert", ("Trusted expert", "Prove yourself on a taxon", "fi-rr-shield-check", False)),
+    # harder, and some very specific
+    ("fivehundred", ("Field season", "Label 500 beetles", "fi-rr-leaf", True)),
+    ("tenthousand", ("Ten thousand eyes", "Label 10,000 beetles", "fi-rr-binoculars", True)),
+    ("streak100", ("Centennial", "Play 100 days in a row", "fi-rr-calendar-star", True)),
+    ("streak365", ("Year of the beetle", "Play 365 days in a row", "fi-rr-sun", True)),
+    ("marathon", ("Marathon", "Label 200 beetles in one day", "fi-rr-running", True)),
+    ("goal7", ("Creature of habit", "Reach the daily goal on 7 days", "fi-rr-calendar-check", True)),
+    ("nightowl", ("Night owl", "Play between midnight and 4 am", "fi-rr-moon", True)),
+    ("earlybird", ("Early bird", "Play between 5 and 6 am", "fi-rr-sunrise", True)),
+    ("species100", ("Eagle eye", "Name 100 species we know the answer to", "fi-rr-eye", False)),
+    ("flawless", ("Flawless", "20 checked beetles in a row, every rank right", "fi-rr-diamond", False)),
+    ("genera10", ("Genus hopper", "Name the right species in 10 different genera", "fi-rr-shuffle", False)),
+    ("genera50", ("Taxonomic tourist", "Name the right species in 50 different genera", "fi-rr-globe", False)),
+    ("platypod", ("Pinhole borer", "Name 25 Platypodinae species right", "fi-rr-bullseye", False)),
+    ("similar50", ("Family resemblance", "50 Similarity answers exactly right", "fi-rr-link", False)),
+    ("twins", ("Doppelganger", "Spot 10 pairs of the very same species", "fi-rr-copy", False)),
+    ("comeback", ("Comeback", "Get a beetle right the second time", "fi-rr-refresh", False)),
+    ("ahead", ("Ahead of the curators", "10 answers proven right after a curator checked them", "fi-rr-time-forward", False)),
+    ("curator", ("Sharp-eyed", "3 of your reports led to a fix", "fi-rr-flag-alt", False)),
+    ("discovery3", ("Explorer", "Find 3 new species", "fi-rr-compass", False)),
+    ("expert5", ("Polymath", "Be a proven expert in 5 taxa", "fi-rr-graduation-cap", False)),
+    ("king", ("Royalty", "Reach the top level", "fi-rr-crown", False)),
     ("discovery", ("New species finder", "Name a species the gallery had never validated, confirmed later by a curator", "fi-rr-sparkles", False)),
 ])
 
@@ -112,12 +136,80 @@ def earned_badges(player, before=None):
         have.add("species1")
     if right_species >= 25:
         have.add("species25")
+    if right_species >= 100:
+        have.add("species100")
+    have |= _harder_badges(player, answers, done, total, best, per_day)
     if before is None:
+        from .game_levels import for_player
         from .game_trust import skills_for
-        if any(s.proven for s in skills_for(player)):
+        proven = sum(1 for s in skills_for(player) if s.proven)
+        if proven:
             have.add("expert")
-        if player.species_discoveries.exists():
+        if proven >= 5:
+            have.add("expert5")
+        finds = player.species_discoveries.count()
+        if finds:
             have.add("discovery")
+        if finds >= 3:
+            have.add("discovery3")
+        if player.game_reports.filter(status="corrected").count() >= 3:
+            have.add("curator")
+        if for_player(player)["next"] is None:
+            have.add("king")
+    return have
+
+
+def _harder_badges(player, answers, done, total, best, per_day):
+    """The harder badges that come from answers (see BADGES)."""
+    from django.db.models import Q
+    from django.db.models.functions import ExtractHour
+
+    have = set()
+    for key, needed in (("fivehundred", 500), ("tenthousand", 10000)):
+        if total >= needed:
+            have.add(key)
+    for key, needed in (("streak100", 100), ("streak365", 365)):
+        if best >= needed:
+            have.add(key)
+    day_counts = [row["n"] for row in per_day]
+    if any(n >= 200 for n in day_counts):
+        have.add("marathon")
+    if sum(1 for n in day_counts if n >= daily_goal()) >= 7:
+        have.add("goal7")
+    hours = set(done.annotate(h=ExtractHour("answered_at", tzinfo=timezone.get_current_timezone())).values_list("h", flat=True).distinct())
+    if hours & {0, 1, 2, 3}:
+        have.add("nightowl")
+    if 5 in hours:
+        have.add("earlybird")
+    known = answers.filter(Q(is_check=True) | Q(validated_later=True), skipped=False, score_hold=False)
+    first = known.filter(is_retry=False)
+    right_species = first.filter(mode="classify", correct_species=True)
+    genera = right_species.values("ref_genus").distinct().count()
+    if genera >= 10:
+        have.add("genera10")
+    if genera >= 50:
+        have.add("genera50")
+    if right_species.filter(ref_subfamily__iexact="Platypodinae").count() >= 25:
+        have.add("platypod")
+    exact_pairs = first.filter(mode="pair").exclude(Q(correct_subfamily=False) | Q(correct_tribe=False)
+                                                    | Q(correct_genus=False) | Q(correct_species=False))
+    if exact_pairs.count() >= 50:
+        have.add("similar50")
+    if exact_pairs.filter(pair_answer="species").count() >= 10:
+        have.add("twins")
+    if answers.filter(is_retry=True, correct_species=True).exists() or answers.filter(
+            is_retry=True, mode="classify", correct_genus=True, species="").exists():
+        have.add("comeback")
+    if answers.filter(validated_later=True, correct_species=True).count() >= 10:
+        have.add("ahead")
+    run = longest = 0
+    for oks in first.filter(mode="classify").order_by("answered_at").values_list(
+            "correct_subfamily", "correct_tribe", "correct_genus", "correct_species"):
+        judged = [ok for ok in oks if ok is not None]
+        run = run + 1 if judged and all(judged) else 0
+        longest = max(longest, run)
+    if longest >= 20:
+        have.add("flawless")
     return have
 
 
