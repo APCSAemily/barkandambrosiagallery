@@ -1415,6 +1415,27 @@ class PlayerScore(models.Model):
         db_table = "game_player_score"
 
 
+class GamePreference(models.Model):
+    """
+    A player's chosen focus: only beetles of one subfamily, tribe or genus (a perk unlocked by levels).
+    Blank means no focus.
+    """
+
+    class FocusRank(models.TextChoices):
+        NONE = "", "Everything"
+        SUBFAMILY = "subfamily", "Subfamily"
+        TRIBE = "tribe", "Tribe"
+        GENUS = "genus", "Genus"
+
+    player = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, primary_key=True, related_name="game_preference")
+    focus_rank = models.CharField(max_length=10, choices=FocusRank.choices, blank=True, default="")
+    focus_value = models.CharField(max_length=100, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "game_preference"
+
+
 class PlayerSkill(models.Model):
     """
     How well a player identifies one rank within one branch of the taxonomy, from

@@ -69,7 +69,10 @@
     <button type="button" id="exit" class="icon-btn gap-1 pr-3 font-medium text-sm" aria-label="Exit the game">
       <i class="fi fi-rr-angle-left text-lg"></i><span>Exit</span>
     </button>
-    <h1 class="flex-1 text-center font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
+    <div class="flex-1 min-w-0 text-center leading-tight">
+      <h1 class="font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
+      <div id="focus-line" class="hidden text-[11px] text-gray-500 truncate"></div>
+    </div>
     <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
       <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
     </span>
@@ -358,6 +361,7 @@
       const data = await api(root.dataset.startUrl, { mode: MODE });
       roundId = data.round;
       updateChip(data.chip);
+      if (data.focus) { $("focus-line").textContent = "Focus: " + data.focus.replace(/^[^:]+: /, ""); $("focus-line").classList.remove("hidden"); }
       await showItem(data.item);
     } catch (e) {
       $("loading").classList.add("hidden");

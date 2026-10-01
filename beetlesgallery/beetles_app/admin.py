@@ -4,7 +4,7 @@ from django.utils import timezone
 from .models import (
     UploadBatch, UpdateBatch, Beetles, ImageAsset, DownloadJob, ImageLock,
     Taxon, Synonym, CategoryMapping, GameRound, GameAnswer,
-    PlayerSkill, AnswerPoints, PlayerScore, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
+    PlayerSkill, AnswerPoints, PlayerScore, GamePreference, LabelReview, RoiDifficulty, GameReport, ModelPrediction, PathogenInteraction, AccessRequest, InteractionProposal, AreaGrant,
 )
 from simple_history.admin import SimpleHistoryAdmin
 
@@ -825,6 +825,12 @@ class PlayerScoreAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(GamePreference)
+class GamePreferenceAdmin(admin.ModelAdmin):
+    list_display = ("player", "focus_rank", "focus_value", "updated_at")
+    search_fields = ("player__username", "focus_value")
 
 
 @admin.register(AnswerPoints)

@@ -7,13 +7,14 @@ Re-score every Beetle ID game answer and refresh every player's score (see game_
 This is how beetles validated (or corrected) since an answer was given change that answer's points, and how
 consensus points follow other players' later answers. The server runs it every night from the
 "Nightly game scores" workflow; a player's own answers are also re-scored whenever they leave the game.
-It only writes the game's own score tables.
+It writes the game's own score tables, and the species name of beetles that experts agree on and nobody has named
+yet (game_trust.auto_apply_expert_labels; those stay unvalidated for a curator to confirm).
 """
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from beetlesgallery.beetles_app import game_scoring
-from beetlesgallery.beetles_app.game_trust import recompute_skills
+from beetlesgallery.beetles_app.game_trust import auto_apply_expert_labels, recompute_skills
 
 
 class Command(BaseCommand):
@@ -35,4 +36,6 @@ class Command(BaseCommand):
         for player in players:   # expertise first: it decides which judges count as experts
             recompute_skills(player)
         n = game_scoring.recompute(ids)
-        self.stdout.write(self.style.SUCCESS(f"Re-scored {n} player{'s' if n != 1 else ''}."))
+        applied = [] if ids else auto_apply_expert_labels()
+        self.stdout.write(self.style.SUCCESS(
+            f"Re-scored {n} player{'s' if n != 1 else ''}. Experts named {len(applied)} beetle{'s' if len(applied) != 1 else ''}."))
