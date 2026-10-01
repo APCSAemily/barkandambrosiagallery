@@ -27,10 +27,11 @@ from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, Label
 
 MODES = {m.value: m.label for m in GameRound.Mode}
 # What players see. (The model keeps its own plain labels; changing those would need a migration.)
-GAME_NAMES = {"classify": "Name That Beetle", "pair": "Family Ties"}
+GAME_NAMES = {"classify": "Name That Beetle", "pair": "Family Ties", "mixed": "Beetle ID"}
 GAME_TAGLINES = {
     "classify": "One beetle, four guesses: subfamily, tribe, genus, species. Go as deep as you dare.",
     "pair": "Two beetles. How close is the family? From total strangers to the very same species.",
+    "mixed": "Name beetles and spot family ties.",
 }
 PAIR_CHOICES = [(c.value, c.label) for c in GameAnswer.PairAnswer]
 # Family Ties: the ladder from strangers (top) to the same species (bottom). "Not sure" is its own button.
@@ -62,10 +63,7 @@ def game_home(request):
         "discoveries": game_discoveries.pop_unseen(request.user),
         "score": game_scoring.score_for(request.user),
         "rewards": game_rewards.progress(request.user),
-        "badges": game_rewards.badge_cards(request.user),
-        "games": [{"mode": m, "name": GAME_NAMES[m], "tagline": GAME_TAGLINES[m]} for m in MODES],
-        "summary": game.player_summary(request.user),
-        "board": game_board.board(limit=10),
+        "board": game_board.board(limit=5),
         "discussions": discussions_url(),
     })
 
@@ -281,9 +279,15 @@ def _item_images(rnd, index):
     return [{"url": r.display_url, "box": _box(r)} for r in rois]
 
 
+def _item_mode(rnd, index):
+    """The game of one item: a mixed feed stores it per item, a single-game round has one for all."""
+    return rnd.items[index].get("mode") or rnd.mode
+
+
 def _item_payload(rnd, index):
     payload = {
         "index": index,
+        "mode": _item_mode(rnd, index),
         "position": rnd.answers.count() + 1,
         "total": len(rnd.items),
         "images": _item_images(rnd, index),
@@ -291,7 +295,7 @@ def _item_payload(rnd, index):
     }
     if rnd.items[index].get("retry"):
         payload["again"] = True   # a beetle they got wrong before, shown again so they can learn it
-    if rnd.mode == GameRound.Mode.CLASSIFY:
+    if payload["mode"] == GameRound.Mode.CLASSIFY:
         others = (GameAnswer.objects.filter(roi_id=rnd.items[index]["a"], skipped=False)
                   .exclude(player=rnd.player).values("player").distinct().count())
         if others:
@@ -318,8 +322,12 @@ def game_start(request):
     if mode not in MODES:
         return JsonResponse({"error": "Unknown game mode."}, status=400)
 
-    # Pick up where the player left off (e.g. after a reload) before starting afresh.
+    # Pick up where the player left off (e.g. after a reload) before starting afresh. "fresh" (after changing the
+    # game or focus) closes what is left of the current batch so the new choice applies straight away.
     rnd = game.resumable_round(request.user, mode)
+    if rnd is not None and (body or {}).get("fresh"):
+        game.finish_round(rnd)
+        rnd = None
     index = _next_index(rnd) if rnd else None
     if index is None:
         if rnd is not None:
@@ -334,7 +342,69 @@ def game_start(request):
     return JsonResponse({
         "round": str(rnd.id), "item": _item_payload(rnd, index), "chip": _chip(request.user),
         "focus": f"{focus[0].capitalize()}: {focus[1]}" if focus else "",
+        "prefs": _prefs(request.user),
     })
+
+
+def _prefs(player):
+    """The game and focus choices for the feed's toolbar: what is chosen, and what is unlocked at which level."""
+    from .models import GamePreference
+
+    info = game_levels.for_player(player)
+    pref = GamePreference.objects.filter(player=player).first()
+    focus = game.player_focus(player)
+    return {
+        "level": info["level"],
+        "play_mode": game.play_mode(player),
+        "choose_game": game_levels.CHOOSE_GAME in info["perks"],
+        "choose_game_level": game_levels.perk_level(game_levels.CHOOSE_GAME),
+        "focus": {"rank": focus[0], "value": focus[1]} if focus else None,
+        "focus_ranks": [
+            {"rank": r, "unlocked": perk in info["perks"], "level": game_levels.perk_level(perk)}
+            for r, perk in game_levels.FOCUS_PERK.items()
+        ],
+        "saved_focus": {"rank": pref.focus_rank, "value": pref.focus_value} if pref and pref.focus_rank else None,
+    }
+
+
+@login_required
+@require_POST
+def game_prefs(request):
+    """
+    Change the game (both / Name That Beetle / Family Ties) or the focus from the feed. Each only if unlocked.
+    Body: {"play_mode": ...} and/or {"focus_rank": ..., "focus_value": ...} (focus_rank "" clears the focus).
+    """
+    from .models import GamePreference
+
+    body = _json_body(request) or {}
+    info = game_levels.for_player(request.user)
+    pref, _ = GamePreference.objects.get_or_create(player=request.user)
+    if "play_mode" in body:
+        mode = body.get("play_mode")
+        if mode not in GamePreference.PlayMode.values:
+            return JsonResponse({"error": "Unknown game."}, status=400)
+        if mode != "both" and game_levels.CHOOSE_GAME not in info["perks"]:
+            level = game_levels.perk_level(game_levels.CHOOSE_GAME)
+            return JsonResponse({"error": f"Choosing your game unlocks at level {level}."}, status=403)
+        pref.play_mode = mode
+    if "focus_rank" in body:
+        rank = body.get("focus_rank") or ""
+        value = str(body.get("focus_value") or "").strip()[:100]
+        if not rank:
+            pref.focus_rank, pref.focus_value = "", ""
+        elif rank not in game_levels.FOCUS_PERK:
+            return JsonResponse({"error": "Unknown focus."}, status=400)
+        elif game_levels.FOCUS_PERK[rank] not in info["perks"]:
+            level = game_levels.perk_level(game_levels.FOCUS_PERK[rank])
+            return JsonResponse({"error": f"Focus on a {rank} unlocks at level {level}."}, status=403)
+        else:
+            canonical = (Taxon.objects.filter(game.COMPLETE_TAXON, **{f"{rank}__iexact": value})
+                         .values_list(rank, flat=True).first()) if value else None
+            if not canonical:
+                return JsonResponse({"error": f"Choose a {rank} from the list."}, status=400)
+            pref.focus_rank, pref.focus_value = rank, canonical
+    pref.save()
+    return JsonResponse({"prefs": _prefs(request.user)})
 
 
 def _chip(player):
@@ -384,7 +454,7 @@ def game_answer(request, round_id):
     roi_a, roi_b = _item_rois(item)
     before = game_rewards.progress(request.user)
     record = GameAnswer(
-        round=rnd, player=request.user, mode=rnd.mode, index=index,
+        round=rnd, player=request.user, mode=_item_mode(rnd, index), index=index,
         is_check=bool(item.get("check")), is_retry=bool(item.get("retry")), roi=roi_a, roi_b=roi_b,
         skipped=bool(body.get("skipped")), response_ms=_response_ms(body),
     )
@@ -396,7 +466,7 @@ def game_answer(request, round_id):
 
     scores = {}
     if not record.skipped:
-        if rnd.mode == GameRound.Mode.CLASSIFY:
+        if record.mode == GameRound.Mode.CLASSIFY:
             answer = _clean_classification(body)
             if answer is None:
                 return JsonResponse({"error": "Please choose a name from the lists."}, status=400)

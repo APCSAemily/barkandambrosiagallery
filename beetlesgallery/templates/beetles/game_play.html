@@ -26,6 +26,7 @@
   .rank-row .chev { position: absolute; right: 0.875rem; pointer-events: none; color: #9ca3af; font-size: 0.75rem; }
 
   /* The relatedness ladder: a meter that fills from "strangers" down to "same species" */
+  #ladder.hidden, #ranks.hidden { display: none; }   /* the panel of the other game, while this one is on screen */
   #ladder { position: relative; display: flex; flex-direction: column; gap: 0.25rem; touch-action: none; user-select: none; -webkit-user-select: none; }
   .rung { position: relative; display: flex; align-items: center; height: 2.5rem; padding: 0 0.875rem 0 2.75rem; border: 1px solid #d1d5db; border-radius: 0.75rem; background: #fff;
           font-size: 0.9375rem; font-weight: 500; color: #111827; text-align: left; width: 100%; }
@@ -62,7 +63,8 @@
   data-exit-url="{% url 'game_exit' %}"
   data-home-url="{% url 'game_home' %}"
   data-taxa-url="{% url 'game_taxa' %}"
-  data-search-url="{% url 'game_taxa_search' %}">
+  data-search-url="{% url 'game_taxa_search' %}"
+  data-prefs-url="{% url 'game_prefs' %}">
 
   <!-- Header: leave any time; your score is on the game home, not here -->
   <header class="flex items-center gap-1 px-2 h-14 border-b border-gray-200 bg-white">
@@ -70,19 +72,30 @@
       <i class="fi fi-rr-angle-left text-lg"></i><span>Exit</span>
     </button>
     <div class="flex-1 min-w-0 text-center leading-tight">
-      <h1 class="font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
+      <h1 id="game-title" class="font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
       <div id="focus-line" class="hidden text-[11px] text-gray-500 truncate"></div>
     </div>
     <span id="combo" class="hidden items-center px-2 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Beetles answered in a row without skipping"></span>
     <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
       <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
     </span>
-    {% if mode == 'classify' %}
-    <button type="button" id="open-search" class="icon-btn" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
-    {% else %}
-    <button type="button" id="open-help" class="icon-btn" aria-label="How it works"><i class="fi fi-rr-interrogation text-lg"></i></button>
-    {% endif %}
+    <button type="button" id="open-search" class="icon-btn hidden" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
+    <button type="button" id="open-help" class="icon-btn hidden" aria-label="How it works"><i class="fi fi-rr-interrogation text-lg"></i></button>
   </header>
+
+  {% if mode == 'mixed' %}
+  <!-- Your unlocks, right where you play: which game, and a focus. Locked ones say the level that opens them. -->
+  <div id="toolbar" class="hidden items-center gap-2 px-2 py-1.5 border-b border-gray-200 bg-white">
+    <div class="flex flex-1 min-w-0 p-0.5 bg-gray-100 rounded-lg text-xs font-semibold" role="radiogroup" aria-label="Which game">
+      <button type="button" data-play="both" class="play-opt flex-1 h-8 rounded-md">Both</button>
+      <button type="button" data-play="classify" class="play-opt flex-1 h-8 rounded-md">Name</button>
+      <button type="button" data-play="pair" class="play-opt flex-1 h-8 rounded-md">Ties</button>
+    </div>
+    <button type="button" id="focus-btn" class="inline-flex items-center gap-1 h-9 px-3 max-w-[45%] rounded-lg border border-gray-300 text-xs font-semibold text-gray-700">
+      <i class="fi fi-rr-bullseye" id="focus-icon"></i><span id="focus-label" class="truncate">Focus</span>
+    </button>
+  </div>
+  {% endif %}
 
   <div id="error" class="hidden mx-3 mt-2 p-2.5 rounded-lg border bg-red-50 border-red-200 text-red-700 text-sm"></div>
 
@@ -97,8 +110,7 @@
     <div id="photos"></div>
 
     <div id="panel">
-      {% if mode == 'classify' %}
-      <div class="space-y-2" id="ranks">
+      <div class="space-y-2 hidden" id="ranks">
         {% for rank, label in ranks %}
         <div class="rank-row relative" data-row="{{ rank }}">
           <label for="pick-{{ rank }}">{{ label }}</label>
@@ -107,16 +119,14 @@
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <div id="ladder" role="radiogroup" aria-label="How closely related are these two beetles?">
+      <div id="ladder" class="hidden" role="radiogroup" aria-label="How closely related are these two beetles?">
         {% for value, label, hint in rungs %}
         <button type="button" role="radio" aria-checked="false" data-choice="{{ value }}" class="rung">{{ label }}<small>{{ hint }}</small></button>
         {% endfor %}
       </div>
-      {% endif %}
 
       <div id="actions">
-        <button type="button" id="skip">{% if mode == 'pair' %}Not sure{% else %}Skip{% endif %}</button>
+        <button type="button" id="skip">Skip</button>
         <button type="button" id="submit" disabled>Next</button>
       </div>
     </div>
@@ -155,10 +165,24 @@
       <h2 class="font-semibold text-gray-900">How it works</h2>
     </div>
     <div class="p-5 text-gray-700 space-y-3 overflow-y-auto">
-      <p>You see two beetles, <strong>A</strong> and <strong>B</strong>. Tap the closest family tie you are sure of.</p>
-      <p>The list runs from <strong>different subfamily</strong> at the top to <strong>same species</strong> at the bottom. Pick the lowest line you are confident about, and everything above it is included.</p>
-      <p>Not sure? Tap <strong>Not sure</strong>. That is always fine.</p>
-      <p>Tap a photo to see the whole image.</p>
+      <p>How related are <strong>A</strong> and <strong>B</strong>? Pick the lowest line you're sure of.</p>
+      <p>Unsure? Tap <strong>Not sure</strong>.</p>
+    </div>
+  </div>
+
+  <!-- Focus: only beetles of one subfamily, tribe or genus -->
+  <div id="focus-sheet" class="hidden absolute inset-0 z-10 bg-white flex-col">
+    <div class="flex items-center gap-2 px-2 h-14 border-b border-gray-200">
+      <button type="button" id="close-focus" class="icon-btn" aria-label="Close"><i class="fi fi-rr-cross text-lg"></i></button>
+      <h2 class="font-semibold text-gray-900">Focus</h2>
+    </div>
+    <div class="p-4 space-y-3">
+      <div id="focus-ranks" class="grid grid-cols-3 gap-2"></div>
+      <select id="focus-value" class="w-full h-11 px-3 text-base border border-gray-300 rounded-xl bg-white" aria-label="Which one"></select>
+      <div class="flex gap-2">
+        <button type="button" id="focus-clear" class="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 font-medium">Show everything</button>
+        <button type="button" id="focus-save" class="flex-1 h-11 rounded-xl bg-gray-600 text-white font-semibold disabled:bg-gray-300" disabled>Focus</button>
+      </div>
     </div>
   </div>
 </div>
@@ -202,11 +226,12 @@
 <script>
 (function () {
   const root = document.getElementById("game");
-  const MODE = root.dataset.mode;
+  const PAGE_MODE = root.dataset.mode;          // "mixed" (both games in one feed) or one game
+  let MODE = PAGE_MODE === "mixed" ? "classify" : PAGE_MODE;   // the game of the beetle on screen
+  const GAME_NAMES = { classify: "Name That Beetle", pair: "Family Ties" };
   const RANKS = ["subfamily", "tribe", "genus", "species"];
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const $ = (id) => document.getElementById(id);
-  const SEARCH_ON = MODE === "classify";
 
   let roundId = null;
   let item = null;
@@ -388,15 +413,124 @@
     if ([10, 25, 50, 100].includes(combo)) toast({ kind: "combo", title: combo + " in a row!", text: "No skips. Keep it going." });
   }
 
+  // ---------- which game is on screen ----------
+  function setMode(mode) {
+    MODE = mode;
+    root.dataset.mode = mode;   // the photo layout follows it
+    $("ranks").classList.toggle("hidden", mode !== "classify");
+    $("ladder").classList.toggle("hidden", mode !== "pair");
+    $("skip").textContent = mode === "pair" ? "Not sure" : "Skip";
+    $("game-title").textContent = GAME_NAMES[mode];
+    $("open-search").classList.toggle("hidden", mode !== "classify");
+    $("open-help").classList.toggle("hidden", mode !== "pair");
+  }
+
+  // ---------- unlocks in the feed: which game, and focus ----------
+  let prefs = null;
+  function renderPrefs(p) {
+    prefs = p;
+    if (!p || !$("toolbar")) return;
+    $("toolbar").classList.remove("hidden");
+    $("toolbar").classList.add("flex");
+    document.querySelectorAll(".play-opt").forEach((b) => {
+      const on = b.dataset.play === p.play_mode;
+      const locked = !p.choose_game && b.dataset.play !== "both";
+      b.className = "play-opt flex-1 h-8 rounded-md " + (on ? "bg-white text-gray-900 shadow-sm" : locked ? "text-gray-400" : "text-gray-600");
+      b.innerHTML = (locked ? '<i class="fi fi-rr-lock text-[10px]"></i> ' : "") + { both: "Both", classify: "Name", pair: "Ties" }[b.dataset.play];
+      b.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    const anyFocus = p.focus_ranks.some((r) => r.unlocked);
+    $("focus-label").textContent = p.focus ? p.focus.value : (anyFocus ? "Focus" : "Focus · L" + p.focus_ranks[0].level);
+    $("focus-icon").className = "fi " + (anyFocus ? "fi-rr-bullseye" : "fi-rr-lock");
+    $("focus-btn").classList.toggle("text-gray-400", !anyFocus);
+    $("focus-btn").classList.toggle("border-gray-600", !!p.focus);
+  }
+  async function savePrefs(body) {
+    try {
+      const data = await api(root.dataset.prefsUrl, body);
+      renderPrefs(data.prefs);
+      await startFeed(true);   // the new choice applies from the next beetle
+    } catch (e) {
+      toast({ kind: "lock", title: "Locked", text: e.message });
+    }
+  }
+  document.querySelectorAll(".play-opt").forEach((b) => b.addEventListener("click", () => {
+    if (!prefs || b.dataset.play === prefs.play_mode) return;
+    if (!prefs.choose_game && b.dataset.play !== "both") {
+      toast({ kind: "lock", title: "Locked", text: "Choosing your game unlocks at level " + prefs.choose_game_level + "." });
+      return;
+    }
+    savePrefs({ play_mode: b.dataset.play });
+  }));
+
+  let focusRank = "";
+  async function loadFocusValues(rank, selected) {
+    const sel = $("focus-value");
+    sel.innerHTML = "";
+    $("focus-save").disabled = true;
+    if (!rank) return;
+    const data = await api(root.dataset.taxaUrl + "?rank=" + encodeURIComponent(rank));
+    const first = document.createElement("option");
+    first.value = ""; first.textContent = "Choose a " + rank + "…";
+    sel.appendChild(first);
+    (data.options || []).forEach((o) => { const el = document.createElement("option"); el.value = el.textContent = o.value; sel.appendChild(el); });
+    if (selected) sel.value = selected;
+    $("focus-save").disabled = !sel.value;
+  }
+  function renderFocusRanks() {
+    const holder = $("focus-ranks");
+    holder.innerHTML = "";
+    prefs.focus_ranks.forEach((r) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      const on = r.rank === focusRank;
+      b.className = "h-11 rounded-xl border text-sm font-semibold capitalize " +
+        (on ? "bg-gray-600 border-gray-600 text-white" : r.unlocked ? "border-gray-300 text-gray-800" : "border-gray-200 text-gray-400");
+      b.innerHTML = r.unlocked ? r.rank : '<i class="fi fi-rr-lock text-xs"></i> L' + r.level;
+      b.title = r.unlocked ? "" : "Unlocks at level " + r.level;
+      b.addEventListener("click", () => {
+        if (!r.unlocked) { toast({ kind: "lock", title: "Locked", text: "Focus on a " + r.rank + " unlocks at level " + r.level + "." }); return; }
+        focusRank = r.rank;
+        renderFocusRanks();
+        loadFocusValues(r.rank, "").catch((e) => showError(e.message));
+      });
+      holder.appendChild(b);
+    });
+  }
+  function openFocus(open) {
+    $("focus-sheet").classList.toggle("hidden", !open);
+    $("focus-sheet").classList.toggle("flex", open);
+    if (!open || !prefs) return;
+    const current = prefs.focus || prefs.saved_focus;
+    focusRank = current ? current.rank : "";
+    renderFocusRanks();
+    loadFocusValues(focusRank, current ? current.value : "").catch((e) => showError(e.message));
+  }
+  if ($("focus-btn")) {
+    $("focus-btn").addEventListener("click", () => {
+      if (prefs && !prefs.focus_ranks.some((r) => r.unlocked)) {
+        toast({ kind: "lock", title: "Locked", text: "Focus unlocks at level " + prefs.focus_ranks[0].level + "." });
+        return;
+      }
+      openFocus(true);
+    });
+    $("close-focus").addEventListener("click", () => openFocus(false));
+    $("focus-value").addEventListener("change", () => { $("focus-save").disabled = !$("focus-value").value; });
+    $("focus-save").addEventListener("click", () => { openFocus(false); savePrefs({ focus_rank: focusRank, focus_value: $("focus-value").value }); });
+    $("focus-clear").addEventListener("click", () => { openFocus(false); savePrefs({ focus_rank: "" }); });
+  }
+
   // ---------- the feed ----------
-  async function startFeed() {
+  async function startFeed(fresh) {
     show("loading");
     showError("");
     try {
-      const data = await api(root.dataset.startUrl, { mode: MODE });
+      const data = await api(root.dataset.startUrl, { mode: PAGE_MODE, fresh: !!fresh });
       roundId = data.round;
       updateChip(data.chip);
-      if (data.focus) { $("focus-line").textContent = "Focus: " + data.focus.replace(/^[^:]+: /, ""); $("focus-line").classList.remove("hidden"); }
+      renderPrefs(data.prefs);
+      $("focus-line").textContent = data.focus ? "Focus: " + data.focus.replace(/^[^:]+: /, "") : "";
+      $("focus-line").classList.toggle("hidden", !data.focus || !!$("toolbar"));
       await showItem(data.item);
     } catch (e) {
       $("loading").classList.add("hidden");
@@ -406,6 +540,7 @@
 
   async function showItem(next) {
     item = next;
+    setMode(item.mode || PAGE_MODE);
     let images;
     try {
       images = await Promise.all(item.images.map((im) => loadImage(im.url)));
@@ -437,7 +572,7 @@
     if (item.others) {
       const peers = document.createElement("div");
       peers.style.cssText = "position:absolute;bottom:0.5rem;left:50%;transform:translateX(-50%);z-index:2;background:rgba(255,255,255,.95);border:1px solid #d1d5db;border-radius:9999px;padding:0.2rem 0.75rem;font-size:0.75rem;color:#4b5563;white-space:nowrap";
-      peers.textContent = "Named by " + item.others + " other player" + (item.others === 1 ? "" : "s") + ". What do you think?";
+      peers.textContent = "Named by " + item.others + (item.others === 1 ? " other" : " others");
       holder.appendChild(peers);
     }
     if (item.again) {
@@ -659,7 +794,7 @@
     sheet.classList.toggle("flex", open);
     if (open) { search.value = ""; results.innerHTML = ""; setTimeout(() => search.focus(), 50); }
   }
-  if (SEARCH_ON) {
+  {
     $("open-search").addEventListener("click", () => openSearch(true));
     $("close-search").addEventListener("click", () => openSearch(false));
     search.addEventListener("input", () => {
@@ -714,12 +849,12 @@
     pairChoice = null;
     rungs.forEach((r) => { r.classList.remove("selected", "filled"); r.setAttribute("aria-checked", "false"); });
     pick = { subfamily: "", tribe: "", genus: "", species: "" };
-    renderPickers();
+    if (MODE === "classify") renderPickers();
     updateSubmit();
   }
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { $("lightbox").classList.add("hidden"); if (SEARCH_ON) openSearch(false); }
+    if (e.key === "Escape") { $("lightbox").classList.add("hidden"); openSearch(false); openFocus(false); }
   });
 
   startFeed();

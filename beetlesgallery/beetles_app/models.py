@@ -1270,6 +1270,7 @@ class GameRound(models.Model):
     class Mode(models.TextChoices):
         CLASSIFY = "classify", "Classify"
         PAIR = "pair", "Compare pairs"
+        MIXED = "mixed", "Mixed"   # one feed of both games; each item carries its own mode
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     player = models.ForeignKey(
@@ -1422,9 +1423,14 @@ class PlayerScore(models.Model):
 
 class GamePreference(models.Model):
     """
-    A player's chosen focus: only beetles of one subfamily, tribe or genus (a perk unlocked by levels).
-    Blank means no focus.
+    A player's choices in the game, each a perk unlocked by levels: which game they play (both mixed, or only one
+    of them) and their focus, only beetles of one subfamily, tribe or genus (blank means no focus).
     """
+
+    class PlayMode(models.TextChoices):
+        BOTH = "both", "Both"
+        CLASSIFY = "classify", "Name That Beetle"
+        PAIR = "pair", "Family Ties"
 
     class FocusRank(models.TextChoices):
         NONE = "", "Everything"
@@ -1435,6 +1441,7 @@ class GamePreference(models.Model):
     player = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, primary_key=True, related_name="game_preference")
     focus_rank = models.CharField(max_length=10, choices=FocusRank.choices, blank=True, default="")
     focus_value = models.CharField(max_length=100, blank=True, default="")
+    play_mode = models.CharField(max_length=10, choices=PlayMode.choices, default=PlayMode.BOTH)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

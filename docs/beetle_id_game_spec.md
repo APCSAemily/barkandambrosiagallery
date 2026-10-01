@@ -329,3 +329,39 @@ beetle is marked `new_species` when the gallery had no validated images of the n
 curator later validates the beetle as exactly that species, the player gets a one-time pop-up on the game home and
 a *New species finder* badge, with the species listed on their profile. No extra points. Checked when a player
 leaves the game, when they open the game home, and nightly. Answers given before this release are not marked.
+
+## Update: one game, one button
+
+**One feed, both games** (`game.build_mixed_items`, `GameRound.Mode.MIXED`). The game home has a single Play
+button. The feed mixes Name That Beetle and Family Ties at random, each item carrying its own `mode` (answers are
+saved with it). Beginners get mostly Family Ties and experts mostly naming: the Family Ties share runs from
+`GAME_PAIR_SHARE_START` (70%) at level 1 to `GAME_PAIR_SHARE_END` (15%) at level 10 (`game_levels.pair_share`).
+About half of the open Family Ties beetles (`GAME_STUCK_SHARE`) are ones players tried to name but nobody took to
+species (`game.stuck_rois`), so pairing them with known beetles narrows down what they are not.
+
+**Unlocks in the feed.** A toolbar on the play screen holds the game toggle (Both / Name / Ties) and the focus
+button. Locked choices show a lock and the level that opens them. Changes go through `POST /game/api/prefs/` and
+start a fresh batch so they apply from the next beetle. `GamePreference.play_mode` stores the choice; it lapses if
+the level drops.
+
+**Levels, shifted up one, with a new top level:**
+
+| Level | Name | Points | Reliability | Unlocks |
+|---|---|---|---|---|
+| 1 | Egg | 0 | - | |
+| 2 | Larva | 50 | - | choose your game |
+| 3 | Pupa | 150 | 35% | focus on a subfamily |
+| 4 | Young adult | 400 | 50% | focus on a tribe |
+| 5 | Beetle scout | 800 | 60% | focus on a genus |
+| 6 | Field entomologist | 1500 | 70% | labels go to curators |
+| 7 | Taxonomist | 3000 | 75% | |
+| 8 | Beetle master | 6000 | 80% | |
+| 9 | Coleopterist | 10000 | 85% | |
+| 10 | King of Bark and Ambrosia | 25000 | 92% | |
+
+**Badges on the leaderboard.** A small level badge next to each name (darker as the level rises, gold with a crown
+at level 10) and a sparkle for players who found a new species.
+
+**Less text.** The game home is a Play button, the level card, streak and today, four links and the top five
+players. The unlocks page is the ladder and the focus form, with the expert rules behind a "How experts are
+proven" toggle. The help page keeps the detail for those who want it.

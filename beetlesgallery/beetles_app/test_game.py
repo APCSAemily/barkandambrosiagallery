@@ -167,7 +167,7 @@ class ClassifyApiTests(GameCase):
         rnd, item = self.play("classify")
 
         # The payload must not say which ROI this is or whether it is scored.
-        self.assertEqual(set(item), {"index", "position", "total", "images", "prefetch"})
+        self.assertEqual(set(item), {"index", "mode", "position", "total", "images", "prefetch"})
         self.assertEqual(set(item["images"][0]), {"url", "box"})
         self.assertNotIn(str(check.id), json.dumps(item))
         self.assertEqual(len(item["prefetch"]), 1)  # the other item's photo
@@ -492,7 +492,7 @@ class ProposalApiTests(TrustCase):
 
     def test_dismiss_and_genus_only(self):
         from beetlesgallery.beetles_app.models import PlayerScore
-        PlayerScore.objects.create(player=self.user, score=900, rating=0.7)   # at the suggestions level
+        PlayerScore.objects.create(player=self.user, score=1600, rating=0.75)   # at the suggestions level
         target = self.roi(validated=False)
         self.answer(self.user, target, check=False, subfamily="Scolytinae", tribe="Xyleborini", genus="Xyleborus")
         self.client.force_login(self.staff)

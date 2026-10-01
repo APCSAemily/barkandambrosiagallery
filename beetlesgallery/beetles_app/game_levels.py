@@ -6,16 +6,17 @@ A level needs two things: **points** (they grow the more you play, see game_scor
 player has played and how far their answers can be trusted. Reliability can go down as well as up, so the higher
 levels are kept only while the answers stay good.
 
-    level  name                 points  reliability  unlocks
-    1      Egg                       0       -
-    2      Larva                    50       -       focus on one subfamily
-    3      Pupa                    150      35%      focus on one tribe
-    4      Young adult             400      50%      focus on one genus
-    5      Beetle scout            800      60%      your labels go to curators as suggestions
-    6      Field entomologist     1500      70%
-    7      Taxonomist             3000      75%
-    8      Beetle master          6000      80%
-    9      Coleopterist          10000      85%
+    level  name                         points  reliability  unlocks
+    1      Egg                               0       -
+    2      Larva                            50       -       choose your game (Name That Beetle, Family Ties or both)
+    3      Pupa                            150      35%      focus on one subfamily
+    4      Young adult                     400      50%      focus on one tribe
+    5      Beetle scout                    800      60%      focus on one genus
+    6      Field entomologist             1500      70%      your labels go to curators as suggestions
+    7      Taxonomist                     3000      75%
+    8      Beetle master                  6000      80%
+    9      Coleopterist                  10000      85%
+    10     King of Bark and Ambrosia     25000      92%
 
 Separately from levels, a player who proves themselves on one part of the tree is an *expert* there (game_trust.py:
 at least GAME_TRUST_MIN_JUDGED answers on validated beetles in that branch, with a Wilson lower bound on their
@@ -27,7 +28,9 @@ a curator can confirm it. Nobody else's labels skip review.
 from .game import game_setting
 
 PROPOSALS = "proposals"
+CHOOSE_GAME = "choose_game"
 PERKS = {
+    CHOOSE_GAME: ("Choose your game", "Play Name That Beetle, Family Ties, or both."),
     "focus_subfamily": ("Focus on a subfamily", "Choose one subfamily and the game shows you only its beetles."),
     "focus_tribe": ("Focus on a tribe", "Narrow your focus to a single tribe."),
     "focus_genus": ("Focus on a genus", "Narrow your focus to a single genus."),
@@ -41,14 +44,15 @@ PERKS = {
 # (points, reliability, name, perks)
 LEVELS = [
     (0, 0.0, "Egg", []),
-    (50, 0.0, "Larva", ["focus_subfamily"]),
-    (150, 0.35, "Pupa", ["focus_tribe"]),
-    (400, 0.5, "Young adult", ["focus_genus"]),
-    (800, 0.6, "Beetle scout", [PROPOSALS]),
-    (1500, 0.7, "Field entomologist", []),
+    (50, 0.0, "Larva", [CHOOSE_GAME]),
+    (150, 0.35, "Pupa", ["focus_subfamily"]),
+    (400, 0.5, "Young adult", ["focus_tribe"]),
+    (800, 0.6, "Beetle scout", ["focus_genus"]),
+    (1500, 0.7, "Field entomologist", [PROPOSALS]),
     (3000, 0.75, "Taxonomist", []),
     (6000, 0.8, "Beetle master", []),
     (10000, 0.85, "Coleopterist", []),
+    (25000, 0.92, "King of Bark and Ambrosia", []),
 ]
 FOCUS_PERK = {"subfamily": "focus_subfamily", "tribe": "focus_tribe", "genus": "focus_genus"}
 
@@ -62,6 +66,21 @@ def level_index(score, rating):
         else:
             break
     return reached
+
+
+def perk_level(perk):
+    """1-based level that unlocks ``perk``."""
+    return next(i for i, (_, _, _, perks) in enumerate(LEVELS) if perk in perks) + 1
+
+
+def pair_share(level):
+    """
+    Share of Family Ties in the mixed feed: beginners get mostly Family Ties (easier to answer usefully), experts
+    mostly Name That Beetle. From GAME_PAIR_SHARE_START at level 1 down to GAME_PAIR_SHARE_END at the top level.
+    """
+    start = game_setting("GAME_PAIR_SHARE_START", 0.7)
+    end = game_setting("GAME_PAIR_SHARE_END", 0.15)
+    return start + (end - start) * (level - 1) / (len(LEVELS) - 1)
 
 
 def unlocked_perks(index):

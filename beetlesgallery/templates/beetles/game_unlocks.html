@@ -4,57 +4,45 @@
 <div class="max-w-3xl mx-auto">
   <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; Beetle ID Game</a>
   <h1 class="page-title">Levels and unlocks</h1>
-  <p class="text-gray-600 mb-6">A level needs <strong>points</strong> (they grow as you play) and <strong>reliability</strong> (how often you are right about beetles we know). Reliability can go down as well as up, so keep your answers careful to keep your level.</p>
+  <p class="text-gray-500 mb-5">Levels need points and reliability (how often you're right).</p>
 
   <!-- Where you are -->
-  <div class="p-5 bg-gray-50 border border-gray-200 rounded-2xl mb-6">
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <div>
-        <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">You are level {{ info.level }}</div>
-        <div class="text-2xl font-bold text-gray-900">{{ info.name }}</div>
-      </div>
-      <div class="text-sm text-gray-600 text-right">
-        <div><span class="font-semibold text-gray-900 tabular-nums">{{ info.score|floatformat:0 }}</span> points</div>
-        <div><span class="font-semibold text-gray-900 tabular-nums">{% widthratio info.rating 1 100 %}%</span> reliability</div>
-      </div>
+  <div class="p-4 bg-gray-50 border border-gray-200 rounded-2xl mb-5">
+    <div class="flex items-center gap-2">
+      {% include "beetles/includes/game_level_badge.html" with level=info.level name=info.name %}
+      <span class="text-xl font-bold text-gray-900">{{ info.name }}</span>
+      <span class="ml-auto text-sm text-gray-600 tabular-nums"><strong class="text-gray-900">{{ info.score|floatformat:0 }}</strong> pts &middot; <strong class="text-gray-900">{% widthratio info.rating 1 100 %}%</strong></span>
     </div>
     {% if info.next %}
-    <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio info.progress 1 100 %}%"></div></div>
-    <p class="mt-2 text-sm text-gray-600">
-      Next: level {{ info.next.level }}, {{ info.next.name }}.
-      {% if info.next.points_needed %}{{ info.next.points_needed }} more points{% endif %}{% if info.next.points_needed and info.next.rating_short %} and {% endif %}{% if info.next.rating_short %}reliability of at least {% widthratio info.next.rating_needed 1 100 %}% (be careful: only answer as far as you are sure){% endif %}{% if not info.next.points_needed and not info.next.rating_short %}almost there{% endif %}.
+    <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio info.progress 1 100 %}%"></div></div>
+    <p class="mt-1.5 text-xs text-gray-500">
+      Level {{ info.next.level }}: {% if info.next.points_needed %}{{ info.next.points_needed }} pts{% endif %}{% if info.next.points_needed and info.next.rating_short %} + {% endif %}{% if info.next.rating_short %}{% widthratio info.next.rating_needed 1 100 %}% reliability{% endif %}{% if not info.next.points_needed and not info.next.rating_short %}almost there{% endif %}
     </p>
     {% endif %}
   </div>
 
-  <!-- Your labels -->
-  <div class="p-5 border rounded-2xl mb-6 {% if info.proposals %}border-green-200 bg-green-50{% else %}border-gray-200 bg-white{% endif %}" data-testid="labels-status">
-    <h2 class="text-lg font-semibold text-gray-900 mb-1">What happens to your labels</h2>
-    {% if info.proposals %}
-    <p class="text-sm text-gray-700">You seem to know your bark beetles well: <strong>your names for beetles nobody has checked yet are sent to the curators as suggestions.</strong></p>
-    {% else %}
-    <p class="text-sm text-gray-700">From level {{ proposal_level }} (with enough reliability), your names for beetles nobody has checked yet are sent to the curators as suggestions. Until then they help the game learn which beetles are hard.</p>
-    {% endif %}
-    <p class="text-sm text-gray-700 mt-2">Only <strong>proven experts</strong> have their labels written into the database without a curator checking first. The bar is high:</p>
-    <ul class="text-sm text-gray-700 mt-1 list-disc pl-5 space-y-0.5" data-testid="expert-rule">
-      <li>You must prove yourself on <strong>beetles experts have already checked</strong>, in that exact taxon: {{ per_species }} images of every species in it (all of them, for a species with fewer), with at least {% widthratio trust_accuracy 1 100 %}% right. A genus with two species needs far fewer answers than one with forty.</li>
-      <li>You must also be among the most reliable players overall.</li>
-      <li>Being good in neighbouring taxa is not enough: it lets your labels reach curators as suggestions, but not skip review.</li>
-      <li>At least {{ min_experts }} such experts must give the same species, and no proven player may disagree.</li>
-    </ul>
-    <p class="text-sm text-gray-700 mt-2">Expertise is earned taxon by taxon (a subfamily, tribe or genus): someone can be an expert on <em>Xyleborus</em> and a beginner on <em>Ips</em>, so their labels may go straight in for one genus and not for another. It is checked again all the time, so it can be lost. See your <a href="{% url 'game_expertise' %}" class="underline hover:text-gray-900">expertise tree</a>.</p>
-  </div>
+  <!-- The ladder -->
+  <ol class="border border-gray-200 rounded-2xl divide-y divide-gray-100 mb-5">
+    {% for row in ladder %}
+    <li class="px-4 py-3 flex items-center gap-3 {% if row.level == info.level %}bg-gray-100{% endif %} {% if row.level > info.level %}text-gray-400{% endif %}">
+      {% include "beetles/includes/game_level_badge.html" with level=row.level name=row.name %}
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold {% if row.level <= info.level %}text-gray-900{% endif %}">{{ row.name }}</div>
+        {% for perk in row.perks %}<div class="text-xs {% if row.level <= info.level %}text-gray-700{% endif %}"><i class="fi {% if row.level <= info.level %}fi-rr-unlock{% else %}fi-rr-lock{% endif %}"></i> {{ perk.title }}</div>{% endfor %}
+      </div>
+      <div class="text-xs text-right tabular-nums whitespace-nowrap">{{ row.points }} pts{% if row.rating %}<br>{% widthratio row.rating 1 100 %}%{% endif %}</div>
+    </li>
+    {% endfor %}
+  </ol>
 
-  <!-- Focus -->
-  <div class="p-5 bg-white border border-gray-200 rounded-2xl mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-1">Focus</h2>
-    <p class="text-sm text-gray-600 mb-3">Choose one part of the tree and the game shows you only its beetles (as long as it has some left). You can change it whenever you like.</p>
-    {% if focus_active %}<p class="text-sm mb-3">Now: <strong>{{ focus_active.0|capfirst }} {{ focus_active.1 }}</strong></p>{% endif %}
-    {% if error %}<p class="text-sm text-red-700 mb-3" role="alert">{{ error }}</p>{% endif %}
+  <!-- Focus (also on the game screen) -->
+  <div class="p-4 bg-white border border-gray-200 rounded-2xl mb-5">
+    <h2 class="text-base font-semibold text-gray-900 mb-2">Focus</h2>
+    {% if error %}<p class="text-sm text-red-700 mb-2" role="alert">{{ error }}</p>{% endif %}
     <form method="post" class="flex flex-col sm:flex-row gap-2" id="focus-form" data-taxa-url="{% url 'game_taxa' %}">
       {% csrf_token %}
       <select name="focus_rank" id="focus-rank" class="h-11 px-3 border border-gray-300 rounded-lg bg-white">
-        <option value="">Everything (no focus)</option>
+        <option value="">Everything</option>
         {% for rank, label, unlocked in focus_ranks %}
         <option value="{{ rank }}" {% if not unlocked %}disabled{% endif %} {% if pref.focus_rank == rank %}selected{% endif %}>{{ label }}{% if not unlocked %} (locked){% endif %}</option>
         {% endfor %}
@@ -64,20 +52,21 @@
     </form>
   </div>
 
-  <!-- The ladder -->
-  <h2 class="text-lg font-semibold text-gray-900 mb-3">All levels</h2>
-  <ol class="border border-gray-200 rounded-2xl divide-y divide-gray-100 mb-8">
-    {% for row in ladder %}
-    <li class="p-4 flex items-start gap-4 {% if row.level == info.level %}bg-gray-100{% endif %}">
-      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold {% if row.level <= info.level %}bg-gray-600 text-white{% else %}bg-gray-100 text-gray-400{% endif %}">{{ row.level }}</div>
-      <div class="flex-1">
-        <div class="font-semibold text-gray-900">{{ row.name }}{% if row.level == info.level %} <span class="text-xs font-medium text-gray-500">(you)</span>{% endif %}</div>
-        <div class="text-xs text-gray-500">{{ row.points }} points{% if row.rating %} &middot; {% widthratio row.rating 1 100 %}% reliability{% endif %}</div>
-        {% for perk in row.perks %}<div class="mt-1 text-sm text-gray-700"><i class="fi fi-rr-unlock text-gray-500"></i> <strong>{{ perk.title }}</strong>: {{ perk.text }}</div>{% endfor %}
-      </div>
-    </li>
-    {% endfor %}
-  </ol>
+  <!-- Your labels: short, with the details for those who want them -->
+  <div id="labels" class="p-4 border rounded-2xl mb-8 {% if info.proposals %}border-green-200 bg-green-50{% else %}border-gray-200 bg-white{% endif %}" data-testid="labels-status">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Your labels</h2>
+    <p class="text-sm text-gray-700">{% if info.proposals %}Your labels go to the curators as suggestions.{% else %}From level {{ proposal_level }}, your labels go to the curators as suggestions.{% endif %} Only proven experts skip review.</p>
+    <details class="mt-2 text-sm text-gray-700" data-testid="expert-rule">
+      <summary class="cursor-pointer text-gray-500 underline">How experts are proven</summary>
+      <ul class="mt-2 list-disc pl-5 space-y-1">
+        <li>Expertise is per taxon: answer {{ per_species }} checked images of every species in it, and get at least {% widthratio trust_accuracy 1 100 %}% right.</li>
+        <li>Be among the most reliable players overall.</li>
+        <li>Being good in neighbouring taxa is not enough to skip review.</li>
+        <li>{{ min_experts }} experts must agree, and no proven player disagree.</li>
+        <li>Expertise can be lost. See your <a href="{% url 'game_expertise' %}" class="underline">expertise tree</a>.</li>
+      </ul>
+    </details>
+  </div>
 </div>
 {% endblock %}
 
