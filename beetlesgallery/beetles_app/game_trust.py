@@ -225,10 +225,11 @@ class TrustContext:
         ).values_list("player_id", "rank", "branch"):
             self.proven[pid].add((rank, branch.lower()))
 
-    def how_trusted(self, player_id, rank, labels):
+    def how_trusted(self, player_id, rank, labels, direct_only=False):
         """
         "direct" if proven in this label's branch, "siblings" if the branch is untestable
-        and the player is proven in enough related branches, else None.
+        and the player is proven in enough related branches, else None. ``direct_only`` refuses the
+        sibling route: the player must have proven themselves in this very branch.
         """
         branch = branch_for(rank, labels).lower()
         if BRANCH_OF[rank] and not branch:
@@ -238,7 +239,7 @@ class TrustContext:
         proven = self.proven.get(player_id, set())
         if (rank, branch) in proven:
             return "direct"
-        if is_testable(rank, branch, self.index):
+        if direct_only or is_testable(rank, branch, self.index):
             return None
         parent = branch_parent(rank, branch, self.index)
         if parent is None:
@@ -249,11 +250,11 @@ class TrustContext:
         ]
         return "siblings" if len(siblings) >= game_setting("GAME_TRUST_SIBLINGS", 2) else None
 
-    def trusted_through(self, player_id, rank, labels):
+    def trusted_through(self, player_id, rank, labels, direct_only=False):
         """Trusted at ``rank`` and at every rank above it."""
         labels = complete_labels(labels, self.index)
         for r in RANKS[: RANKS.index(rank) + 1]:
-            if not labels.get(r) or not self.how_trusted(player_id, r, labels):
+            if not labels.get(r) or not self.how_trusted(player_id, r, labels, direct_only):
                 return False
         return True
 
@@ -380,10 +381,15 @@ def player_report(player):
 def auto_apply_expert_labels(roi_ids=None):
     """
     Write the species that proven experts agree on onto beetles that have no name yet, without waiting for a
-    curator. Only when GAME_AUTO_APPLY_MIN_EXPERTS (2) experts back it down to species with no expert
-    disagreeing, the beetle has no species label and is not validated, and no curator has reviewed a game label
-    for it before. The beetle stays unvalidated so a curator still confirms it; a LabelReview with no reviewer
-    records that it was automatic. Returns the ids of the beetles labelled.
+    curator. This is the strictest rule in the game. Each expert counted must have *proven themselves directly*
+    in every branch the label falls in (its subfamily, tribe within it, genus within that, species within the
+    genus): at least GAME_TRUST_MIN_JUDGED answers on validated beetles there, with the Wilson lower bound of their
+    accuracy at least GAME_TRUST_MIN_LOWER_BOUND (90% by default, at 95% confidence), and be among the most
+    reliable players overall (elite_players). Proof in neighbouring branches, which is enough for a suggestion to
+    curators, is not enough here. GAME_AUTO_APPLY_MIN_EXPERTS (2) such experts must give the same species, no
+    proven player may disagree, the beetle must have no species label, not be validated, and no curator has
+    reviewed a game label for it before. The beetle stays unvalidated so a curator still confirms it; a
+    LabelReview with no reviewer records that it was automatic. Returns the ids of the beetles labelled.
     """
     from django.db import transaction
 
@@ -397,13 +403,18 @@ def auto_apply_expert_labels(roi_ids=None):
     if roi_ids is not None:
         reviewed = reviewed.filter(roi_id__in=list(roi_ids))
     reviewed = set(reviewed.values_list("roi_id", flat=True))
+    entries = [
+        e for e in game.consensus(roi_ids=roi_ids)
+        if not (e["roi"].id in reviewed or e["roi"].bbox_is_validated or e["roi"].is_deleted
+                or e["roi"].depicts_valid_name_id or e["trusted_rank"] != "species" or e["taxon"] is None)
+    ]
+    if not entries:
+        return []
+    trust = TrustContext({pid for e in entries for pid, _ in e["votes"]})
     applied = []
-    for entry in game.consensus(roi_ids=roi_ids):
+    for entry in entries:
         roi, taxon = entry["roi"], entry["taxon"]
-        species = entry["ranks"].get("species") or {}
-        if (roi.id in reviewed or roi.bbox_is_validated or roi.is_deleted or roi.depicts_valid_name_id
-                or entry["trusted_rank"] != "species" or taxon is None
-                or species.get("trusted_votes", 0) < min_experts):
+        if direct_experts(entry, trust) < min_experts:
             continue
         with transaction.atomic():
             roi.depicts_valid_name_id = taxon.valid_species_id
@@ -415,6 +426,18 @@ def auto_apply_expert_labels(roi_ids=None):
             )
         applied.append(roi.id)
     return applied
+
+
+def direct_experts(entry, trust):
+    """Players who give the consensus species (and every rank above it) and are directly proven for all of it."""
+    winners = {r: (entry["ranks"][r] or {}).get("value", "").lower() for r in RANKS}
+    count = set()
+    for pid, labels in entry["votes"]:
+        labels = complete_labels(labels, trust.index)
+        if all((labels.get(r) or "").lower() == winners[r] for r in RANKS) and trust.trusted_through(
+                pid, "species", labels, direct_only=True):
+            count.add(pid)
+    return len(count)
 
 
 # ---------------------------------------------------------------------------

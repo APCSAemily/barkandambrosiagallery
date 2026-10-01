@@ -811,7 +811,7 @@ def consensus(limit=None, roi_ids=None, voters=None):
                 ranks[r].update(verdict["ranks"][r])
         results.append({
             "roi": entry["roi"], "answers": entry["answers"],
-            "players": len(entry["players"]), "ranks": ranks,
+            "players": len(entry["players"]), "ranks": ranks, "votes": entry["votes"],
             "rank_list": [(r, ranks[r]) for r in RANKS],
             "trusted_rank": verdict["trusted_rank"],
             "taxon": verdict["taxon"],
