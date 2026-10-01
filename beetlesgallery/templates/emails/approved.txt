@@ -1,0 +1,19 @@
+{% autoescape off %}Hello {{ name }},
+
+Welcome to the Bark & Ambrosia Beetle Gallery! Your request was approved and your account is ready.
+
+You have {{ role }} access: {{ summary }}.
+{% if note %}
+A note from the reviewer:
+{{ note }}
+{% endif %}
+Sign in here with the username you chose: {{ username }}
+{{ login_url }}
+
+Forgot your password? You can choose a new one at any time:
+{{ reset_url }}
+
+We are happy to have you with us. If you have any questions, just reply to this email.
+
+Warm regards,
+The Bark & Ambrosia Beetle Gallery team{% endautoescape %}

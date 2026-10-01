@@ -1,0 +1,21 @@
+{% autoescape off %}Hello,
+
+{{ name }} would like to join the Bark & Ambrosia Beetle Gallery and has confirmed their email address.
+
+  Name:         {{ name }}
+  Email:        {{ email }}
+  Affiliation:  {{ affiliation|default:"-" }}
+
+Would like to use:
+{% for label in areas %}  - {{ label }}
+{% empty %}  (nothing selected)
+{% endfor %}
+In their own words:
+{{ reason|default:"-" }}
+
+Approve them as a Member or a Curator, or decline the request, here (superuser sign-in needed):
+{{ review_url }}
+
+They cannot sign in until someone decides. Replying to this email writes to {{ name }} directly.
+
+Thank you for looking after the gallery!{% endautoescape %}

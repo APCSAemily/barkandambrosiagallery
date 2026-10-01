@@ -27,9 +27,10 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
 from django.db import IntegrityError, transaction
 from django.db.models.functions import Lower
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -95,6 +96,16 @@ def absolute_url(request, name, *args):
     return request.build_absolute_uri(reverse(name, args=args))
 
 
+def send_email(subject, template, context, to, reply_to=None):
+    """Send templates/emails/<template>.txt with <template>.html as its formatted version. Raises on failure."""
+    context = {**context, "subject": subject}
+    message = EmailMultiAlternatives(
+        subject=subject, body=render_to_string(f"emails/{template}.txt", context), to=to, reply_to=reply_to,
+    )
+    message.attach_alternative(render_to_string(f"emails/{template}.html", context), "text/html")
+    message.send(fail_silently=False)
+
+
 # ---------------------------------------------------------------------------
 # A request arrives
 # ---------------------------------------------------------------------------
@@ -107,18 +118,10 @@ def send_verification_email(access_request, url):
     """Email the applicant a link that proves the address is theirs. Returns an error text, or ''."""
     days = settings.PASSWORD_RESET_TIMEOUT // (24 * 60 * 60)
     try:
-        EmailMessage(
-            subject="Confirm your email for the Bark & Ambrosia Beetle Gallery",
-            body=(
-                f"Hello {access_request.name},\n\n"
-                "Thank you for asking for an account. Please confirm this email address by opening this link "
-                f"(it works for {days} days):\n{url}\n\n"
-                "After that, the people who run the gallery will review your request and email you their decision. "
-                "You can sign in with the username and password you chose once it is approved.\n\n"
-                "If you did not ask for an account, you can ignore this email."
-            ),
-            to=[access_request.email],
-        ).send(fail_silently=False)
+        send_email(
+            "Please confirm your email for the Bark & Ambrosia Beetle Gallery", "verify",
+            {"name": access_request.name, "url": url, "days": days}, [access_request.email],
+        )
     except Exception as exc:
         logger.exception("Could not send the confirmation email for access request %s", access_request.pk)
         return f"{type(exc).__name__}: {exc}"[:255]
@@ -162,7 +165,9 @@ def submit_request(request, data):
             user__is_active=False,
         ).select_related("user").first()
         if waiting:
-            send_verification_email(waiting, verification_url(request, waiting.user))
+            error = send_verification_email(waiting, verification_url(request, waiting.user))
+            waiting.notify_error = f"Confirmation email failed: {error}" if error else ""
+            waiting.save(update_fields=["notify_error"])
         return None
     if signed_in:
         notify_approvers(access_request, review_url)
@@ -220,21 +225,18 @@ def send_reminder(review_url, older_than_hours=24, dry_run=False):
     if not waiting or not recipients or dry_run:
         return waiting, recipients
     now = timezone.now()
-    lines = []
+    rows = []
     for r in waiting:
         hours = int((now - r.email_verified_at).total_seconds() // 3600)
-        waited = f"{hours // 24} days" if hours >= 48 else f"{hours} hours"
-        lines.append(f"  - {r.name} <{r.email}> ({', '.join(area_labels(r.areas)) or 'nothing selected'}), waiting {waited}")
+        rows.append({
+            "name": r.name, "email": r.email, "areas": ", ".join(area_labels(r.areas)) or "nothing selected",
+            "waited": f"{hours // 24} days" if hours >= 48 else f"{hours} hours",
+        })
     count = len(waiting)
-    body = (
-        f"{count} access request{'s are' if count != 1 else ' is'} still waiting for a decision on the "
-        "Bark & Ambrosia Beetle Gallery:\n\n" + "\n".join(lines) +
-        f"\n\nApprove or deny them here (superuser sign-in needed):\n{review_url}\n\n"
-        "These people have confirmed their email address and cannot sign in until you decide."
+    send_email(
+        f"Reminder: {count} access request{'s' if count != 1 else ''} waiting", "reminder",
+        {"count": count, "waiting": rows, "review_url": review_url}, recipients,
     )
-    EmailMessage(
-        subject=f"Reminder: {count} access request{'s' if count != 1 else ''} waiting", body=body, to=recipients,
-    ).send(fail_silently=False)
     return waiting, recipients
 
 
@@ -243,20 +245,15 @@ def notify_approvers(access_request, review_url):
     if not recipients:
         access_request.notify_error = "No approvers are configured (ACCESS_REQUEST_RECIPIENTS)."
     else:
-        wanted = "\n".join(f"  - {label}" for label in area_labels(access_request.areas)) or "  (nothing selected)"
-        body = (
-            f"{access_request.name} <{access_request.email}> asked for access to the Bark & Ambrosia Beetle Gallery.\n\n"
-            f"Affiliation: {access_request.affiliation or '-'}\n\n"
-            f"Wants to use:\n{wanted}\n\n"
-            f"Why:\n{access_request.reason or '-'}\n\n"
-            f"Approve as a Member or a Curator, or deny it (superuser sign-in needed):\n{review_url}\n\n"
-            "Replying to this email writes to the applicant."
-        )
+        context = {
+            "name": access_request.name, "email": access_request.email, "affiliation": access_request.affiliation,
+            "areas": area_labels(access_request.areas), "reason": access_request.reason, "review_url": review_url,
+        }
         try:
-            EmailMessage(
-                subject=f"Access request: {access_request.name}", body=body,
-                to=recipients, reply_to=[access_request.email],
-            ).send(fail_silently=False)
+            send_email(
+                f"New access request from {access_request.name}", "new_request", context,
+                recipients, reply_to=[access_request.email],
+            )
             access_request.notified_at = timezone.now()
         except Exception as exc:  # a mail problem must not lose the request
             logger.exception("Could not email the approvers about access request %s", access_request.pk)
@@ -338,22 +335,11 @@ def decide(request_id, choice, decided_by, note, absolute_uri):
 
 def _email_applicant(decision, login_url, reset_url):
     access_request = decision.access_request
-    note = f"\nA note from the reviewer:\n{access_request.decision_note}\n" if access_request.decision_note else ""
+    context = {"name": access_request.name, "note": access_request.decision_note}
     if access_request.status == AccessRequest.Status.DENIED:
-        subject = "Your access request"
-        body = (
-            f"Hello {access_request.name},\n\n"
-            "Thank you for your interest in the Bark & Ambrosia Beetle Gallery. "
-            "We are not able to give you an account right now.\n"
-            f"{note}"
-        )
-    else:
-        role = ROLE_LABELS[access_request.granted_role]
-        subject = "Your access to the Bark & Ambrosia Beetle Gallery"
-        body = f"Hello {access_request.name},\n\nYour access request was approved. You have {role} access: {ROLE_SUMMARY[access_request.granted_role]}.\n"
-        body += (
-            f"\nSign in at {login_url} with the username you chose: {decision.user.username}\n"
-            f"If you forget your password, you can reset it from the sign-in page: {reset_url}\n"
-        )
-        body += note
-    EmailMessage(subject=subject, body=body, to=[access_request.email]).send(fail_silently=False)
+        send_email("About your Bark & Ambrosia Beetle Gallery request", "denied", context, [access_request.email])
+        return
+    role = access_request.granted_role
+    context.update(role=ROLE_LABELS[role], summary=ROLE_SUMMARY[role], username=decision.user.username,
+                   login_url=login_url, reset_url=reset_url)
+    send_email("Welcome to the Bark & Ambrosia Beetle Gallery!", "approved", context, [access_request.email])

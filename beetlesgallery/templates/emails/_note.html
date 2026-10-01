@@ -1,0 +1,4 @@
+{% if note %}<div style="margin:16px 0;padding:12px 16px;background:#f5f5f5;border-left:3px solid #999999;border-radius:4px;">
+  <div style="font-size:12px;color:#777777;margin-bottom:4px;">A note from {{ reviewer|default:"the reviewer" }}</div>
+  <div style="white-space:pre-line;">{{ note }}</div>
+</div>{% endif %}

@@ -116,7 +116,7 @@ class RequestFormTests(AccessCase):
         self.assertContains(self.send(username="one-more", email="more@example.org"), "too many requests")
 
     def test_the_request_is_kept_when_the_confirmation_email_cannot_be_sent(self):
-        with mock.patch("beetlesgallery.beetles_app.access.EmailMessage.send", side_effect=OSError("no route")):
+        with mock.patch("beetlesgallery.beetles_app.access.EmailMultiAlternatives.send", side_effect=OSError("no route")):
             self.assertRedirects(self.send(), reverse("request_access_sent"))
         self.assertIn("no route", AccessRequest.objects.get().notify_error)
 
@@ -132,6 +132,44 @@ class RequestFormTests(AccessCase):
         saved = AccessRequest.objects.get()
         self.assertEqual((saved.user, saved.email_verified_at is not None), (self.user, True))
         self.assertEqual(sorted(mail.outbox[0].to), sorted(APPROVERS))   # already confirmed: the approvers hear at once
+
+
+    def test_a_resent_link_clears_the_old_email_error(self):
+        with mock.patch("beetlesgallery.beetles_app.access.EmailMultiAlternatives.send", side_effect=OSError("no route")):
+            self.send()
+        self.assertIn("no route", AccessRequest.objects.get().notify_error)
+        self.send(username="ada2")
+        self.assertEqual(AccessRequest.objects.get().notify_error, "")
+
+
+class EmailFormatTests(AccessCase):
+    def html(self, message):
+        [(content, mimetype)] = message.alternatives
+        self.assertEqual(mimetype, "text/html")
+        return content
+
+    def test_every_email_has_a_plain_and_a_formatted_version(self):
+        self.send(name="Ada <b>Lovelace</b>")
+        verify = mail.outbox[-1]
+        self.assertIn("Hello Ada <b>Lovelace</b>", verify.body)          # plain text is not escaped
+        self.assertIn("Ada &lt;b&gt;Lovelace&lt;/b&gt;", self.html(verify))  # the formatted one is
+        self.assertIn("Confirm my email", self.html(verify))
+        waiting = AccessRequest.objects.get()
+        self.confirm()
+        self.assertIn("Review the request", self.html(mail.outbox[-1]))
+        self.decide(waiting, "member", note="Glad to have you")
+        welcome = mail.outbox[-1]
+        self.assertEqual(welcome.subject, "Welcome to the Bark & Ambrosia Beetle Gallery!")
+        for text in ("Sign in", "<strong>ada</strong>", "Glad to have you", reverse("password_reset")):
+            self.assertIn(text, self.html(welcome))
+
+    def test_the_password_reset_email_is_formatted_too(self):
+        self.user.email = "user@example.org"
+        self.user.save()
+        self.client.post(reverse("password_reset"), {"email": "user@example.org"})
+        html = self.html(mail.outbox[-1])
+        self.assertIn("Choose a new password", html)
+        self.assertRegex(html, r'href="http://testserver/accounts/set-password/[^"]+"')
 
 
 class ConfirmEmailTests(AccessCase):
@@ -262,7 +300,7 @@ class ApprovalTests(AccessCase):
 
     def test_if_the_applicant_cannot_be_emailed_the_approver_is_told_the_account_is_ready(self):
         waiting = self.apply_and_confirm()
-        with mock.patch("beetlesgallery.beetles_app.access.EmailMessage.send", side_effect=OSError("no route")):
+        with mock.patch("beetlesgallery.beetles_app.access.EmailMultiAlternatives.send", side_effect=OSError("no route")):
             response = self.decide(waiting, "member")
         self.assertContains(response, "could not be emailed")
         self.assertContains(response, "username ada")
