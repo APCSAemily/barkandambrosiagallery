@@ -21,7 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_board, game_discoveries, game_feedback, game_levels, game_rewards, game_scoring, game_tips, game_trust
+from . import game, game_board, game_discoveries, game_feedback, game_queue, game_levels, game_rewards, game_scoring, game_tips, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -679,6 +679,7 @@ def game_proposal_review(request, roi_id):
     else:
         review.decision = LabelReview.Decision.DISMISSED
     review.save()
+    game_queue.forget()   # the image list's proposal filter and sort
     return JsonResponse({
         "decision": review.decision,
         "depicts_valid_name_id": roi.depicts_valid_name_id,

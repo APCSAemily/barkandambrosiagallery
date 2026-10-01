@@ -450,6 +450,17 @@ class BeetlesViewSet(viewsets.ModelViewSet):
             has_unvalidated_boxes=Exists(unvalidated_rois)
         )
 
+        # Game label proposals waiting for a curator (game_queue): filter to them, or sort them by confidence.
+        from beetlesgallery.beetles_app import game_queue
+        game_filter = request.GET.get('game', '')
+        if ordering == 'game_confidence' and game_filter not in ('any', 'expert'):
+            game_filter = 'any'
+        game_ranked = None
+        queue = game_queue.by_image()
+        if game_filter in ('any', 'expert'):
+            game_ranked = game_queue.ranked_ids(queue, expert_only=game_filter == 'expert')
+            image_qs = image_qs.filter(id__in=game_ranked)
+
         # PERFORMANCE: Only compute heavy aggregate stats on initial page load (page 1)
         stats_data = None
         if page_num == 1:
@@ -483,8 +494,15 @@ class BeetlesViewSet(viewsets.ModelViewSet):
         }
         image_qs = image_qs.order_by(*sorts.get(ordering, sorts['newest']), 'id')
 
-        paginator = Paginator(image_qs, page_size)
-        page_obj = paginator.get_page(page_num)
+        if ordering == 'game_confidence':
+            present = {str(i) for i in image_qs.values_list('id', flat=True)}
+            paginator = Paginator([i for i in game_ranked if i in present], page_size)
+            page_obj = paginator.get_page(page_num)
+            by_id = {str(img.id): img for img in image_qs.filter(id__in=list(page_obj.object_list))}
+            page_obj.object_list = [by_id[i] for i in page_obj.object_list if i in by_id]
+        else:
+            paginator = Paginator(image_qs, page_size)
+            page_obj = paginator.get_page(page_num)
         total_count = paginator.count
 
         ImageLock.cleanup_expired_locks()
@@ -514,6 +532,7 @@ class BeetlesViewSet(viewsets.ModelViewSet):
                 'is_validated': img.is_validated,
                 'created_at': img.created_at.isoformat() if img.created_at else None,
                 'lock': lock_info,
+                'game': game_queue.public(queue[str(img.id)]) if str(img.id) in queue else None,
             })
 
         base_url = request.build_absolute_uri(request.path)
