@@ -7,6 +7,7 @@ label, or whether the item is a check, so the player cannot tell which answers a
 """
 import csv
 import json
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
@@ -17,9 +18,10 @@ from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from . import game, game_feedback, game_trust
+from . import game, game_feedback, game_rewards, game_trust
 from .areas import ANNOTATE, area_required
 from .models import Beetles, GameAnswer, GameReport, GameRound, ImageLock, LabelReview, Taxon
 
@@ -50,10 +52,15 @@ MAX_RESPONSE_MS = 60 * 60 * 1000
 def game_home(request):
     sort = "accuracy" if request.GET.get("sort") == "accuracy" else "labelled"
     game.close_idle_rounds(request.user)   # anything they left open counts now
+    period = "week" if request.GET.get("period") == "week" else "all"
     return render(request, "beetles/game_home.html", {
+        "rewards": game_rewards.progress(request.user),
+        "badges": game_rewards.badge_cards(request.user),
+        "period": period,
+        "week_leaderboard": period == "week",
         "games": [{"mode": m, "name": GAME_NAMES[m], "tagline": GAME_TAGLINES[m]} for m in MODES],
         "summary": game.player_summary(request.user),
-        "leaderboard": game.leaderboard(limit=25, sort=sort),
+        "leaderboard": game.leaderboard(limit=25, sort=sort, since=game.week_start() if period == "week" else None),
         "sort": sort,
     })
 
@@ -221,7 +228,13 @@ def game_start(request):
         return JsonResponse({
             "error": "There are no images ready for this game yet. Please check back later."
         }, status=404)
-    return JsonResponse({"round": str(rnd.id), "item": _item_payload(rnd, index)})
+    return JsonResponse({"round": str(rnd.id), "item": _item_payload(rnd, index), "chip": _chip(request.user)})
+
+
+def _chip(player):
+    """The small counters in the feed's header: today's beetles against the daily goal, and the day streak."""
+    state = game_rewards.progress(player)
+    return {k: state[k] for k in ("today", "goal", "goal_met", "streak")}
 
 
 def _clean_classification(body):
@@ -263,6 +276,7 @@ def game_answer(request, round_id):
 
     item = rnd.items[index]
     roi_a, roi_b = _item_rois(item)
+    before = game_rewards.progress(request.user)
     record = GameAnswer(
         round=rnd, player=request.user, mode=rnd.mode, index=index,
         is_check=bool(item.get("check")), roi=roi_a, roi_b=roi_b,
@@ -300,7 +314,11 @@ def game_answer(request, round_id):
         # The same item was submitted twice (double tap, two tabs).
         return JsonResponse({"error": "That answer was already saved; please reload."}, status=409)
 
-    celebrate = _worth_celebrating(record, scores)
+    extra = {
+        "celebrate": _worth_celebrating(record, scores),
+        "events": game_rewards.play_events(request.user, before),
+        "chip": _chip(request.user),
+    }
     nxt = _next_index(rnd, index + 1)
     if nxt is None:
         # The feed carries straight on into a new batch. It only ends when there is nothing new left to show.
@@ -308,9 +326,9 @@ def game_answer(request, round_id):
         fresh = game.start_round(request.user, rnd.mode, fresh_only=True)
         first = _next_index(fresh, 0) if fresh else None
         if first is not None:
-            return JsonResponse({"round": str(fresh.id), "item": _item_payload(fresh, first), "celebrate": celebrate})
-        return JsonResponse(dict(_finish(rnd), celebrate=celebrate))
-    return JsonResponse({"item": _item_payload(rnd, nxt), "celebrate": celebrate})
+            return JsonResponse(dict(extra, round=str(fresh.id), item=_item_payload(fresh, first)))
+        return JsonResponse(dict(_finish(rnd), **extra))
+    return JsonResponse(dict(extra, item=_item_payload(rnd, nxt)))
 
 
 def _worth_celebrating(record, scores):
@@ -334,7 +352,12 @@ def game_exit(request):
     rnd = GameRound.objects.filter(id=body.get("round"), player=request.user).first() if _is_uuid(body.get("round")) else None
     if rnd is not None and rnd.finished_at is None:
         game.finish_round(rnd)
-    return JsonResponse({"url": reverse("game_home")})
+    # How the sitting went. "since" is when the page was opened (milliseconds since 1970); without it, the last hour.
+    try:
+        since = datetime.fromtimestamp(int(body["since"]) / 1000, tz=dt_timezone.utc)
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        since = timezone.now() - timedelta(hours=1)
+    return JsonResponse({"url": reverse("game_home"), "recap": game_rewards.recap(request.user, since)})
 
 
 # ---------------------------------------------------------------------------

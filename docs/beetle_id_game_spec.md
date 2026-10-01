@@ -206,3 +206,21 @@ Privacy rules for the player report:
   - Family Ties: a vertical ladder from *different subfamily* (top) to *same species* (bottom) that fills like a meter and can be
     tapped or dragged, then **Not sure** / **Next**. On a phone the two photos sit one above the other.
   - Colours: grey, black and white only. Colour appears only for results and errors, and on the confetti.
+
+## Update: keeping people playing (rewards)
+
+All derived from the player's answers (`game_rewards.py`), nothing new is stored, no migration.
+
+- **Daily goal** (`GAME_DAILY_GOAL`, default 20 beetles) and a **day streak** (consecutive days with an answer; still alive
+  until the day after the last one ends). The feed's header shows a small `today/goal` chip; its flame turns amber only when
+  the goal is met, because that is what the colour means.
+- **Levels** from the number of beetles labelled: Egg, Larva, Pupa, Young adult, Beetle scout, Field entomologist,
+  Taxonomist, Beetle master, Coleopterist.
+- **Badges**: first steps, 10 / 100 / 1,000 beetles, 3 / 7 / 30-day streaks, daily goal, both games, first species right,
+  25 species right, trusted expert.
+- **Toasts while playing** for a level up, the daily goal, the first answer of a streak day and count milestones (10, 25, 50,
+  100, 250, 500, 1,000). They never mention accuracy (a test checks the words), so there is still no live score.
+- **Recap when you tap Exit**: beetles labelled this sitting, how many of the known beetles were right (the one place the
+  score appears, after leaving), the streak, any new badge. Then "Keep playing" or the game home.
+- **Game home**: level and progress bar, daily goal, streak, all badges (earned and locked), and a leaderboard that can be
+  *this week* (resets Monday) or all time, by beetles labelled or accuracy.
