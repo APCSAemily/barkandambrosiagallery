@@ -394,3 +394,16 @@ so experts get close relatives and novices distant ones.
 username, level badge and score in the sidebar, linking to the game, and the home page invites everyone to play
 (dismissible). The game has its own palette: level badges by tier (lime 1-3, sky 4-6, violet 7-9, gold 10), badge
 accents, green/red points in recaps. The rest of the site keeps colour for meaning only.
+
+## Update: report from the feed, superuser unlocks
+
+**Report a photo from the feed.** Tapping a photo opens the full image; a faint cog in its corner opens a short
+menu of reasons (name looks wrong, box doesn't fit, photo problem, something else). The report goes to the
+curators like the round-review reports (`GameReport`, shown per ROI on the Image Annotation page, which also has a
+"Reported by players" filter). Until a curator resolves the report, or validates the beetle after it, the beetle is
+out of the game (`game.reported()` in both pools). The player moves on to the next beetle with no points lost
+(`reported: true` holds that answer).
+
+**Superusers can grant unlocks** (`/game/staff/unlocks/`, `GamePreference.granted_perks`): any unlock, or all of
+them, for any player, whatever their level. `game_levels.for_player` adds them to the earned ones, and a granted
+"labels go to curators" also counts for `suggestion_voters`. The level itself is unchanged.

@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from .models import Beetles, GameAnswer, GameRound, RoiDifficulty
@@ -66,6 +66,19 @@ def playable_rois():
     )
 
 
+def reported():
+    """
+    An Exists() for "a player reported this beetle and no curator has dealt with it yet": the report is open and
+    the beetle hasn't been validated since. Such beetles stay out of the game until then.
+    """
+    from .models import GameReport
+
+    return Exists(
+        GameReport.objects.filter(roi_id=OuterRef("pk"), status=GameReport.Status.OPEN)
+        .filter(Q(roi__bbox_validated_at__isnull=True) | Q(roi__bbox_validated_at__lt=F("created_at")))
+    )
+
+
 def check_rois():
     """
     ROIs with a validated, well-formed label to score against. ROIs with an open
@@ -74,13 +87,12 @@ def check_rois():
     return playable_rois().filter(bbox_is_validated=True, taxon__isnull=False).exclude(
         Q(taxon__subfamily="") | Q(taxon__subfamily__isnull=True)
         | Q(taxon__genus="") | Q(taxon__genus__isnull=True)
-        | Q(game_reports__status="open")
-    )
+    ).filter(~reported())
 
 
 def open_rois():
-    """ROIs whose label has not been validated: the ones we collect labels for."""
-    return playable_rois().filter(bbox_is_validated=False)
+    """ROIs whose label has not been validated: the ones we collect labels for. Reported ones wait for a curator."""
+    return playable_rois().filter(bbox_is_validated=False).filter(~reported())
 
 
 def _random_ids(qs, n):

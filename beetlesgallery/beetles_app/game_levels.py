@@ -115,10 +115,26 @@ def describe(score, rating):
     return info
 
 
+def granted(player_or_id):
+    """Unlocks a superuser granted this player, whatever their level (GamePreference.granted_perks)."""
+    from .models import GamePreference
+
+    pid = getattr(player_or_id, "pk", player_or_id)
+    perks = GamePreference.objects.filter(player_id=pid).values_list("granted_perks", flat=True).first() or []
+    return set(PERKS) if "all" in perks else {p for p in perks if p in PERKS}
+
+
 def for_player(player):
+    """describe() for this player, plus any unlocks a superuser granted them."""
     from .game_scoring import score_for
     s = score_for(player)
-    return describe(s.score, s.rating)
+    info = describe(s.score, s.rating)
+    extra = granted(player)
+    if extra:
+        info["perks"] = info["perks"] | extra
+        info["proposals"] = PROPOSALS in info["perks"]
+        info["granted"] = sorted(extra)
+    return info
 
 
 def table():
@@ -152,4 +168,9 @@ def suggestion_voters():
         return None
     from .models import PlayerSkill
     experts = set(PlayerSkill.objects.filter(proven=True).values_list("player_id", flat=True))
-    return players_at_or_above(proposal_level()) | experts
+    from .models import GamePreference
+    granted_ids = {
+        pid for pid, perks in GamePreference.objects.exclude(granted_perks=[]).values_list("player_id", "granted_perks")
+        if "all" in (perks or []) or PROPOSALS in (perks or [])
+    }
+    return players_at_or_above(proposal_level()) | experts | granted_ids

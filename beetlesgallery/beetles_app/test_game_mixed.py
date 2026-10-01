@@ -113,7 +113,8 @@ class ChooseGameTests(MixedFeedCase):
                          [("subfamily", False, 3), ("tribe", False, 4), ("genus", False, 5)])
 
     def test_a_fresh_start_applies_a_new_choice_straight_away(self):
-        self.level(60)
+        # granted rather than a made-up score: finishing the round recomputes the score from real answers
+        GamePreference.objects.create(player=self.user, granted_perks=["choose_game"])
         first = self.post("game_start", {"mode": "mixed"}).json()["round"]
         self.post("game_prefs", {"play_mode": "pair"})
         again = self.post("game_start", {"mode": "mixed", "fresh": True}).json()

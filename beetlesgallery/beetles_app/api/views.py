@@ -460,6 +460,11 @@ class BeetlesViewSet(viewsets.ModelViewSet):
         if game_filter in ('any', 'expert'):
             game_ranked = game_queue.ranked_ids(queue, expert_only=game_filter == 'expert')
             image_qs = image_qs.filter(id__in=game_ranked)
+        elif game_filter == 'reported':
+            # photos players flagged from the game, waiting for a curator (they are out of the game until then)
+            from beetlesgallery.beetles_app.models import GameReport
+            image_qs = image_qs.filter(id__in=GameReport.objects.filter(status=GameReport.Status.OPEN)
+                                       .values('roi__image_asset_id'))
 
         # PERFORMANCE: Only compute heavy aggregate stats on initial page load (page 1)
         stats_data = None
