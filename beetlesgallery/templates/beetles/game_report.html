@@ -8,7 +8,7 @@
       <i class="fi fi-rr-angle-left text-lg"></i>
     </a>
     <div>
-      <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
+      <h1 class="page-title">
         {% if is_self %}My performance{% else %}{{ player.username }}{% endif %}
       </h1>
       <p class="text-sm text-gray-500">Updated when you leave a game.</p>
@@ -44,7 +44,7 @@
       <span class="text-sm text-gray-500 tabular-nums">{% widthratio report.challenge 1 100 %} / 100</span>
     </div>
     <div class="h-2 bg-gray-100 rounded-full overflow-hidden" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{% widthratio report.challenge 1 100 %}" aria-label="Challenge level">
-      <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio report.challenge 1 100 %}%"></div>
+      <div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio report.challenge 1 100 %}%"></div>
     </div>
     <p class="mt-2 text-xs text-gray-500">Images get harder as you play and as your accuracy grows.</p>
   </div>
@@ -85,7 +85,7 @@
           <span class="text-xs text-gray-500 tabular-nums ml-2 shrink-0">{{ s.judged }}/{{ report.needed }} · {% widthratio s.accuracy 1 100 %}% right</span>
         </div>
         <div class="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title="{{ s.judged }} of {{ report.needed }} answers, {{ s.correct }} correct">
-          <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio s.progress 1 100 %}%"></div>
+          <div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio s.progress 1 100 %}%"></div>
         </div>
       </li>
       {% endfor %}
@@ -164,7 +164,7 @@
               {% if m.accuracy is not None %}
               <div class="flex items-center gap-2" title="{{ m.judged }} scored ranks">
                 <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div class="h-full bg-gray-800 rounded-full" style="width: {% widthratio m.accuracy 1 100 %}%"></div>
+                  <div class="h-full bg-gray-600 rounded-full" style="width: {% widthratio m.accuracy 1 100 %}%"></div>
                 </div>
                 <span class="text-xs text-gray-600 tabular-nums w-9 text-right">{% widthratio m.accuracy 1 100 %}%</span>
               </div>

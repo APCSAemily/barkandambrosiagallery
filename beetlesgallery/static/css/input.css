@@ -33,6 +33,23 @@
     }
 }
 
+/* The site's house style. Mostly white and grey: colour is only for meaning (green = done or right,
+   red = a problem or a danger, amber = waiting or needs attention). */
+@layer components {
+    .page-title {
+        @apply text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight;
+        margin: 0 0 1rem;
+    }
+    .page-intro { @apply text-sm sm:text-base text-gray-500; }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gray-600 border border-gray-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-700 hover:border-gray-700 disabled:bg-gray-300 disabled:border-gray-300 disabled:cursor-not-allowed;
+    }
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 hover:text-black;
+    }
+}
+
 @layer utilities {
     .animation-delay-2000 {
         animation-delay: 2s;

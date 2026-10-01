@@ -73,13 +73,13 @@ class EnforcementTests(AreaCase):
     def test_sidebar_and_data_management_show_only_what_is_allowed(self):
         self.client.force_login(self.user)
         page = self.client.get(reverse("data_management")).content.decode()
-        self.assertNotIn("Data Annotation", page)
+        self.assertNotIn("Image Annotation", page)
         self.assertNotIn("openModal('modal-upload-new')", page)
         self.assertNotIn("Review Proposed Interactions", self.client.get(reverse("interactions_preview")).content.decode())
         self.grant(self.user, "annotate", "interactions", "upload")
         self.client.force_login(self.user)
         page = self.client.get(reverse("data_management")).content.decode()
-        self.assertIn("Data Annotation", page)
+        self.assertIn("Image Annotation", page)
         self.assertIn("openModal('modal-upload-new')", page)
         self.assertIn("Review Proposed Interactions", self.client.get(reverse("interactions_preview")).content.decode())
 
