@@ -534,21 +534,24 @@ def play_mode(player):
 def build_mixed_items(player, size, fresh_only=False):
     """
     One feed of both games, mixed at random. Beginners see mostly Family Ties and experts mostly Name That Beetle
-    (game_levels.pair_share); a player who chose one game sees only that one. If one game runs out of beetles the
-    other fills the batch. Every item carries its own "mode".
+    (game_levels.pair_share); a player who chose one game sees only that one. Playing both, if one game runs out of
+    beetles the other fills the batch. Every item carries its own "mode".
     """
     from .game_levels import for_player, pair_share
 
     chosen = play_mode(player)
-    if chosen == "both":
+    if chosen == "pair":
+        pairs, names = build_pair_items(player, size, fresh_only=fresh_only), []
+    elif chosen == "classify":
+        pairs, names = [], build_classify_items(player, size, fresh_only=fresh_only)
+    else:
         share = pair_share(for_player(player)["level"])
         n_pair = sum(random.random() < share for _ in range(size))
-    else:
-        n_pair = size if chosen == "pair" else 0
-    pairs = build_pair_items(player, n_pair, fresh_only=fresh_only) if n_pair else []
-    names = build_classify_items(player, size - len(pairs), fresh_only=fresh_only) if size > len(pairs) else []
-    if not names and chosen == "both" and len(pairs) < size:
-        pairs += build_pair_items(player, size - len(pairs), fresh_only=fresh_only)
+        pairs = build_pair_items(player, n_pair, fresh_only=fresh_only) if n_pair else []
+        # either game fills in when the other runs short of beetles
+        names = build_classify_items(player, size - len(pairs), fresh_only=fresh_only) if size > len(pairs) else []
+        if not names and len(pairs) < size:
+            pairs += build_pair_items(player, size - len(pairs), fresh_only=fresh_only)
     for it in pairs:
         it["mode"] = "pair"
     for it in names:

@@ -36,10 +36,23 @@ class MixTests(MixedFeedCase):
             self.assertEqual(bool(it.get("b")), it["mode"] == "pair")
 
     def test_beginners_get_mostly_family_ties_and_experts_mostly_naming(self):
-        with mock.patch.object(game_levels, "pair_share", return_value=1.0):
-            self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"pair"})
-        with mock.patch.object(game_levels, "pair_share", return_value=0.0):
-            self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"classify"})
+        asked = {}
+
+        def fake(mode):
+            def build(player, n, fresh_only=False):
+                asked[mode] = n
+                return [{"a": f"{mode}{i}", "b": "x" if mode == "pair" else None, "check": False} for i in range(n)]
+            return build
+
+        with mock.patch.object(game, "build_pair_items", fake("pair")), \
+                mock.patch.object(game, "build_classify_items", fake("classify")):
+            with mock.patch.object(game_levels, "pair_share", return_value=1.0):
+                game.build_mixed_items(self.user, 6)
+                self.assertEqual(asked, {"pair": 6})
+            asked.clear()
+            with mock.patch.object(game_levels, "pair_share", return_value=0.0):
+                game.build_mixed_items(self.user, 6)
+                self.assertEqual(asked, {"classify": 6})
 
     def test_answers_are_saved_with_the_game_of_their_item(self):
         self.client.force_login(self.user)
@@ -80,6 +93,14 @@ class ChooseGameTests(MixedFeedCase):
         self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"pair"})
         self.post("game_prefs", {"play_mode": "classify"})
         self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"classify"})
+
+    def test_a_chosen_game_is_never_topped_up_with_the_other(self):
+        self.level(60)
+        self.post("game_prefs", {"play_mode": "pair"})
+        with mock.patch.object(game, "build_pair_items", return_value=[]):
+            self.assertIsNone(game.start_round(self.user, "mixed", size=6))   # no pairs: nothing, not naming instead
+        for _ in range(5):
+            self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=10))), {"pair"})
 
     def test_the_choice_lapses_if_the_level_drops(self):
         GamePreference.objects.create(player=self.user, play_mode="pair")
