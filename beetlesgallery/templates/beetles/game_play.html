@@ -6,7 +6,7 @@
      always exactly where your thumb left them. */
   #game { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #fff;
           height: 100vh; height: 100dvh; }
-  #photos { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  #photos { position: relative; flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
             padding: 0.5rem; background: #f3f4f6; }
   #photos .cell { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; height: 100%; display: flex; align-items: center; justify-content: center; }
   #photos button.frame { position: relative; width: 100%; height: 100%; display: block; padding: 0; border: 0; background: none; }
@@ -169,7 +169,7 @@
     <h2 class="text-2xl font-bold text-gray-900">Nice session!</h2>
     <p class="mt-1 text-gray-500" id="recap-line"></p>
     <div class="grid grid-cols-3 gap-2 my-6">
-      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-labelled">0</div><div class="text-xs text-gray-500">beetles labelled</div></div>
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-points">0</div><div class="text-xs text-gray-500">points</div></div>
       <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-right">&ndash;</div><div class="text-xs text-gray-500">known beetles right</div></div>
       <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-streak">0</div><div class="text-xs text-gray-500">day streak</div></div>
     </div>
@@ -395,6 +395,13 @@
       cell.appendChild(frame);
       holder.appendChild(cell);
     });
+    if (item.again) {
+      // a beetle they got wrong before, back so they can learn it
+      const tag = document.createElement("div");
+      tag.style.cssText = "position:absolute;top:0.5rem;left:50%;transform:translateX(-50%);z-index:2;background:rgba(255,255,255,.95);border:1px solid #d1d5db;border-radius:9999px;padding:0.2rem 0.75rem;font-size:0.75rem;font-weight:600;color:#374151;white-space:nowrap";
+      tag.textContent = "Seen before: have another go";
+      holder.appendChild(tag);
+    }
     showError(images ? "" : "An image failed to load. You can skip this one.");
 
     resetAnswer();
@@ -462,10 +469,10 @@
     } catch (e) { /* the home page closes anything left open */ }
     if (!data || !data.recap || !data.recap.labelled) { location.href = root.dataset.homeUrl; return; }
     const r = data.recap;
-    $("recap-labelled").textContent = r.labelled;
+    $("recap-points").textContent = (r.points > 0 ? "+" : "") + Math.round(r.points);
     $("recap-right").textContent = r.scored ? r.right + "/" + r.scored : "–";
     $("recap-streak").textContent = r.streak;
-    $("recap-line").textContent = "Level " + r.level + ", " + r.level_name + ". " + r.today + " of " + r.goal + " beetles today.";
+    $("recap-line").textContent = r.labelled + " beetles labelled. Level " + r.level + ", " + r.level_name + ". " + r.today + " of " + r.goal + " beetles today.";
     const holder = $("recap-badges");
     holder.innerHTML = "";
     r.badges.forEach((b) => {

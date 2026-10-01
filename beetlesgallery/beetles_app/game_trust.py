@@ -86,7 +86,7 @@ def skill_counts(player):
     stats = {}
     seen = set()
     answers = (
-        GameAnswer.objects.filter(player=player, mode="classify", is_check=True, skipped=False, score_hold=False)
+        GameAnswer.objects.filter(player=player, mode="classify", is_check=True, is_retry=False, skipped=False, score_hold=False)
         .order_by("answered_at")
         .values("roi_id", "ref_subfamily", "ref_tribe", "ref_genus",
                 *[f"correct_{r}" for r in RANKS])

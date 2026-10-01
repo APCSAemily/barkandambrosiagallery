@@ -226,7 +226,7 @@ def check_ratio(player, mode):
     so most of their effort goes into new labels.
     """
     scored = GameAnswer.objects.filter(
-        player=player, mode=mode, is_check=True, skipped=False
+        player=player, mode=mode, is_check=True, skipped=False, is_retry=False
     ).count()
     if scored < game_setting("GAME_CALIBRATION_CHECKS", 20):
         return game_setting("GAME_CHECK_RATIO_NEW", 0.6)
@@ -288,7 +288,40 @@ def build_classify_items(player, size, fresh_only=False):
         return [{"a": str(i), "b": None, "check": False} for i in ids]
 
     checks, opens = _fill(n_checks, n_open, pick_checks, pick_open)
+    # Beetles they got wrong before come back now and then, so they can learn them (see retry_ids)
+    retries = [{"a": str(i), "b": None, "check": True, "retry": True} for i in retry_ids(player, len(checks))]
+    if retries:
+        checks = retries + checks[len(retries):] if len(checks) > len(retries) else retries
     return checks + opens
+
+
+def retry_ids(player, room):
+    """
+    Validated beetles this player got wrong, ready to be shown again: last seen at least GAME_RETRY_AFTER_DAYS
+    ago, not yet answered right since, and shown again at most GAME_RETRY_MAX times. At most
+    GAME_RETRY_PER_BATCH of them, never more than ``room``.
+    """
+    want = min(game_setting("GAME_RETRY_PER_BATCH", 1), room)
+    if want <= 0:
+        return []
+    cutoff = timezone.now() - timedelta(days=game_setting("GAME_RETRY_AFTER_DAYS", 2))
+    last, retries = {}, defaultdict(int)
+    rows = (
+        GameAnswer.objects.filter(player=player, mode="classify", is_check=True, skipped=False, score_hold=False)
+        .order_by("answered_at").values("roi_id", "answered_at", "is_retry", *[f"correct_{r}" for r in RANKS])
+    )
+    for row in rows:   # the latest answer on each beetle wins
+        last[row["roi_id"]] = (row["answered_at"], any(row[f"correct_{r}"] is False for r in RANKS))
+        retries[row["roi_id"]] += int(row["is_retry"])
+    candidates = [
+        roi_id for roi_id, (when, wrong) in last.items()
+        if wrong and when <= cutoff and retries[roi_id] < game_setting("GAME_RETRY_MAX", 3)
+    ]
+    if not candidates:
+        return []
+    usable = list(check_rois().filter(id__in=candidates).values_list("id", flat=True))
+    random.shuffle(usable)
+    return usable[:want]
 
 
 def _partner_for(anchor, target, exclude=()):
@@ -434,11 +467,14 @@ def finish_round(rnd):
     """Close a round and refresh everything derived from its answers."""
     from .game_trust import recompute_skills
 
+    from .game_scoring import recompute
+
     if rnd.finished_at is None:
         rnd.finished_at = timezone.now()
         rnd.save(update_fields=["finished_at"])
     recompute_skills(rnd.player)
     update_difficulty(rnd.answers.values_list("roi_id", flat=True))
+    recompute([rnd.player_id])
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +572,7 @@ def _accuracy(row):
 def player_summary(player):
     """Items labelled and overall accuracy (share of judged ranks correct on checks)."""
     labelled = GameAnswer.objects.filter(player=player, skipped=False).count()
-    row = GameAnswer.objects.filter(player=player, is_check=True).aggregate(**_rank_counts())
+    row = GameAnswer.objects.filter(player=player, is_check=True, is_retry=False).aggregate(**_rank_counts())
     accuracy, judged = _accuracy(row)
     min_judged = game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10)
     return {
@@ -566,7 +602,7 @@ def leaderboard(limit=50, sort="labelled", since=None):
     min_judged = game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10)
     accuracy = {}
     for row in (
-        in_period.filter(is_check=True)
+        in_period.filter(is_check=True, is_retry=False)
         .values("player").annotate(**_rank_counts())
     ):
         acc, judged = _accuracy(row)
@@ -596,7 +632,7 @@ def player_reliability(player_ids=None):
     accuracy as they answer more checks.
     """
     out = defaultdict(dict)
-    qs = GameAnswer.objects.filter(is_check=True)
+    qs = GameAnswer.objects.filter(is_check=True, is_retry=False)
     if player_ids is not None:
         qs = qs.filter(player_id__in=list(player_ids))
     for row in qs.values("player", "mode").annotate(**_rank_counts()):

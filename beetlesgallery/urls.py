@@ -81,6 +81,7 @@ urlpatterns = [
     path('game/api/start/', game_views.game_start, name='game_start'),
     path('game/api/exit/', game_views.game_exit, name='game_exit'),
     path('game/me/', game_views.game_report, name='game_report'),
+    path('game/how-it-works/', game_views.game_how, name='game_how'),
     path('game/rounds/<uuid:round_id>/', game_views.game_round_review, name='game_round_review'),
     path('game/api/report/', game_views.game_report_roi, name='game_report_roi'),
     path('game/api/reports/<uuid:roi_id>/resolve/', game_views.game_resolve_reports, name='game_resolve_reports'),

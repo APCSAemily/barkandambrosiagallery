@@ -106,7 +106,7 @@ def earned_badges(player, before=None):
     best = _best_streak(days)
     per_day = done.annotate(day=TruncDate("answered_at", tzinfo=timezone.get_current_timezone())).values("day").annotate(n=Count("id"))
     goal_days = any(row["n"] >= daily_goal() for row in per_day)
-    right_species = answers.filter(is_check=True, correct_species=True, score_hold=False).count()
+    right_species = answers.filter(is_check=True, is_retry=False, correct_species=True, score_hold=False).count()
     have = set()
     for key, needed in (("first", 1), ("ten", 10), ("hundred", 100), ("thousand", 1000)):
         if total >= needed:
@@ -187,7 +187,11 @@ def recap(player, since):
         for key in BADGES if key in earned_badges(player) and key not in earned_badges(player, before=since)
     ]
     state = progress(player)
+    from django.db.models import Sum
+    from .models import AnswerPoints
+    points = AnswerPoints.objects.filter(answer__in=sitting).aggregate(s=Sum("points"))["s"] or 0.0
     return {
+        "points": round(points, 1),
         "labelled": done.count(), "skipped": sitting.filter(skipped=True).count(),
         "scored": scored.count(), "right": right,
         "streak": state["streak"], "level": state["level"], "level_name": state["level_name"],

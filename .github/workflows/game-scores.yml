@@ -1,0 +1,28 @@
+name: Nightly game scores
+
+# Every night, re-score the Beetle ID game: answers on beetles validated or corrected since they were given
+# are scored against the truth, and agreement points follow everyone's latest answers.
+# Run it by hand from the Actions tab after a big round of validation.
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rescore:
+    name: Re-score the game
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 60m
+          script: |
+            cd /opt/barkandambrosiagallery || exit 1
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T web pixi run game-scores
