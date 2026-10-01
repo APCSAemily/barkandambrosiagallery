@@ -211,6 +211,16 @@
         transition-delay: 75ms;
       }
 
+      /* The level badge sits in the icon column like the other icons: the label rule above must not widen or push it */
+      #sidenav:hover .sidebar-icon,
+      #sidenav:hover .sidebar-icon span {
+        width: 2rem;
+        margin-left: 0;
+      }
+      #sidenav:hover .sidebar-icon span {
+        width: auto;
+      }
+
       /* Rotate 90deg and scale so the beetle spans the expanded sidebar
          (6rem x 2.5 = 15rem = 16rem panel minus its padding) */
       #sidenav:hover #image_browser-icon {
@@ -427,7 +437,7 @@
           {% if game_player %}
           <a href="{% url 'game_home' %}" data-testid="sidebar-player" title="{{ user.username }}: level {{ game_player.level }}, {{ game_player.score }} pts"
             class="flex items-center w-full min-h-[3.5rem] rounded-lg px-5 hover:bg-gray-200 transition-all group overflow-hidden whitespace-nowrap">
-            <span class="w-8 shrink-0 flex justify-center">{% include "beetles/includes/game_level_badge.html" with level=game_player.level name=game_player.name %}</span>
+            <span class="sidebar-icon w-8 shrink-0 flex justify-center">{% include "beetles/includes/game_level_badge.html" with level=game_player.level name=game_player.name %}</span>
             <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 min-w-0 leading-tight">
               <span class="block font-semibold text-gray-800 truncate">{{ user.username }}</span><span class="block text-xs text-gray-500">{{ game_player.name }} &middot; {{ game_player.score }} pts</span>
             </span>
