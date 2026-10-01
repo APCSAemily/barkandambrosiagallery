@@ -70,6 +70,9 @@
       <i class="fi fi-rr-angle-left text-lg"></i><span>Exit</span>
     </button>
     <h1 class="flex-1 text-center font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
+    <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
+      <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
+    </span>
     {% if mode == 'classify' %}
     <button type="button" id="open-search" class="icon-btn" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
     {% else %}
@@ -156,6 +159,28 @@
   </div>
 </div>
 
+<!-- Little celebrations (levels, goals, streaks): they never mention the score -->
+<div id="toasts" style="position:fixed;top:4rem;left:0;right:0;z-index:96;display:flex;flex-direction:column;align-items:center;gap:0.5rem;pointer-events:none"></div>
+
+<!-- When you leave: how the sitting went -->
+<div id="recap" class="hidden fixed inset-0 z-[97] bg-white overflow-y-auto">
+  <div class="max-w-md mx-auto px-6 py-10 text-center">
+    <div class="inline-flex p-4 bg-gray-100 rounded-full mb-4"><i class="fi fi-rr-trophy text-3xl text-gray-700"></i></div>
+    <h2 class="text-2xl font-bold text-gray-900">Nice session!</h2>
+    <p class="mt-1 text-gray-500" id="recap-line"></p>
+    <div class="grid grid-cols-3 gap-2 my-6">
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-labelled">0</div><div class="text-xs text-gray-500">beetles labelled</div></div>
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-right">&ndash;</div><div class="text-xs text-gray-500">known beetles right</div></div>
+      <div class="p-3 bg-gray-50 rounded-2xl"><div class="text-2xl font-bold text-gray-900" id="recap-streak">0</div><div class="text-xs text-gray-500">day streak</div></div>
+    </div>
+    <div id="recap-badges" class="mb-6 space-y-2"></div>
+    <div class="flex flex-col gap-3">
+      <button type="button" id="recap-more" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-xl">Keep playing</button>
+      <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">See my stats and the leaderboard</a>
+    </div>
+  </div>
+</div>
+
 <canvas id="confetti" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:95"></canvas>
 
 <!-- Full image viewer -->
@@ -183,6 +208,7 @@
   let busy = false;
   let shownAt = 0;
   let answered = 0;
+  let openedAt = Date.now();
   const prefetched = [];
 
   // ---------- helpers ----------
@@ -296,6 +322,34 @@
     })(start);
   }
 
+  // ---------- the chip and the toasts: counts and celebrations, never the score ----------
+  function updateChip(chip) {
+    if (!chip) return;
+    const el = $("chip");
+    el.classList.remove("hidden");
+    el.classList.add("inline-flex");
+    $("chip-text").textContent = chip.today + "/" + chip.goal;
+    // amber only means something: the daily goal is done and the streak is alive
+    $("chip-flame").classList.toggle("text-amber-600", !!chip.goal_met);
+    el.title = chip.streak + "-day streak. " + chip.today + " of " + chip.goal + " beetles today.";
+  }
+
+  function toast(event) {
+    const box = document.createElement("div");
+    box.style.cssText = "background:#374151;color:#fff;padding:0.625rem 1rem;border-radius:0.75rem;box-shadow:0 4px 12px rgba(0,0,0,.2);max-width:90vw;text-align:center;transition:opacity .4s,transform .4s;opacity:0;transform:translateY(-8px)";
+    const title = document.createElement("div");
+    title.style.cssText = "font-weight:600;font-size:0.9375rem";
+    title.textContent = event.title;
+    const text = document.createElement("div");
+    text.style.cssText = "font-size:0.8125rem;color:#d1d5db";
+    text.textContent = event.text;
+    box.append(title, text);
+    $("toasts").appendChild(box);
+    requestAnimationFrame(() => { box.style.opacity = "1"; box.style.transform = "none"; });
+    setTimeout(() => { box.style.opacity = "0"; setTimeout(() => box.remove(), 450); }, 3200);
+    if (event.kind === "level" || event.kind === "goal") confetti();
+  }
+
   // ---------- the feed ----------
   async function startFeed() {
     show("loading");
@@ -303,6 +357,7 @@
     try {
       const data = await api(root.dataset.startUrl, { mode: MODE });
       roundId = data.round;
+      updateChip(data.chip);
       await showItem(data.item);
     } catch (e) {
       $("loading").classList.add("hidden");
@@ -361,6 +416,8 @@
       );
       answered += 1;
       if (data.celebrate) confetti();
+      updateChip(data.chip);
+      (data.events || []).forEach(toast);
       if (data.done) {
         $("review-link").href = data.review_url;
         $("sum-round").textContent = answered;
@@ -391,18 +448,42 @@
   });
   $("submit").addEventListener("click", () => send(currentAnswer()));
 
-  // Leave: close the feed so the answers count, then go to the game home where the score is.
+  // Leave: close the feed so the answers count, show how the sitting went, then the game home has the score.
   let leaving = false;
   $("exit").addEventListener("click", async () => {
     if (leaving) return;
     leaving = true;
+    let data = null;
     try {
-      await Promise.race([
-        api(root.dataset.exitUrl, { round: roundId }),
-        new Promise((resolve) => setTimeout(resolve, 2500)),
+      data = await Promise.race([
+        api(root.dataset.exitUrl, { round: roundId, since: openedAt }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
       ]);
     } catch (e) { /* the home page closes anything left open */ }
-    location.href = root.dataset.homeUrl;
+    if (!data || !data.recap || !data.recap.labelled) { location.href = root.dataset.homeUrl; return; }
+    const r = data.recap;
+    $("recap-labelled").textContent = r.labelled;
+    $("recap-right").textContent = r.scored ? r.right + "/" + r.scored : "–";
+    $("recap-streak").textContent = r.streak;
+    $("recap-line").textContent = "Level " + r.level + ", " + r.level_name + ". " + r.today + " of " + r.goal + " beetles today.";
+    const holder = $("recap-badges");
+    holder.innerHTML = "";
+    r.badges.forEach((b) => {
+      const row = document.createElement("div");
+      row.className = "flex items-center gap-3 p-3 border border-gray-300 rounded-2xl text-left";
+      row.innerHTML = '<i class="fi ' + b.icon + ' text-2xl text-gray-700"></i><div><div class="text-sm font-semibold text-gray-900"></div><div class="text-xs text-gray-500"></div></div>';
+      row.querySelector(".text-sm").textContent = "New badge: " + b.name;
+      row.querySelector(".text-xs").textContent = b.how;
+      holder.appendChild(row);
+    });
+    $("recap").classList.remove("hidden");
+    if (r.badges.length) confetti();
+    leaving = false;
+  });
+  $("recap-more").addEventListener("click", () => {
+    $("recap").classList.add("hidden");
+    openedAt = Date.now();   // the next sitting is counted from here
+    startFeed();
   });
 
   // ---------- Family Ties: the relatedness ladder ----------

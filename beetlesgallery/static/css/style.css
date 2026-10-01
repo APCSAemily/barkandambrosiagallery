@@ -813,6 +813,10 @@ video {
   z-index: 100;
 }
 
+.z-\[97\] {
+  z-index: 97;
+}
+
 .order-1 {
   order: 1;
 }
@@ -3420,6 +3424,10 @@ video {
 }
 
 @media (min-width: 640px) {
+  .sm\:col-span-1 {
+    grid-column: span 1 / span 1;
+  }
+
   .sm\:col-span-2 {
     grid-column: span 2 / span 2;
   }

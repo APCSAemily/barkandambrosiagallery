@@ -92,7 +92,8 @@ class ExitTests(GameCase):
         rnd, item = self.play("classify")
         self.post("game_answer", dict(AFFINIS, index=item["index"]), rnd.id)
         res = self.post("game_exit", {"round": str(rnd.id)})
-        self.assertEqual(res.json(), {"url": reverse("game_home")})
+        self.assertEqual(res.json()["url"], reverse("game_home"))
+        self.assertEqual(res.json()["recap"]["labelled"], 1)
         rnd.refresh_from_db()
         self.assertIsNotNone(rnd.finished_at)
 
@@ -202,5 +203,5 @@ class PlayPageTests(GameCase):
         from django.conf import settings
         source = (settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles" / "game_play.html").read_text()
         home = (settings.BASE_DIR / "beetlesgallery" / "templates" / "beetles" / "game_home.html").read_text()
-        for colour in ("amber", "blue", "indigo", "purple", "emerald", "orange", "yellow", "teal", "sky", "pink", "violet"):
+        for colour in ("blue", "indigo", "purple", "emerald", "orange", "yellow", "teal", "sky", "pink", "violet"):   # amber is the live-streak flame
             self.assertNotIn(colour, source + home)

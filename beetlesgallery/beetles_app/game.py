@@ -21,7 +21,7 @@ import math
 import random
 import uuid
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -545,10 +545,19 @@ def player_summary(player):
     }
 
 
-def leaderboard(limit=50, sort="labelled"):
+def week_start(now=None):
+    """Midnight on the Monday of the current week (server time): the leaderboard's "this week" begins here."""
+    today = (now or timezone.now()).astimezone(timezone.get_current_timezone()).date()
+    monday = today - timedelta(days=today.weekday())
+    return timezone.make_aware(datetime(monday.year, monday.month, monday.day))
+
+
+def leaderboard(limit=50, sort="labelled", since=None):
+    """The players ranked by beetles labelled (or accuracy). ``since`` limits it to answers from then on."""
+    in_period = GameAnswer.objects.all() if since is None else GameAnswer.objects.filter(answered_at__gte=since)
     labelled = {
         row["player"]: row["n"]
-        for row in GameAnswer.objects.filter(skipped=False)
+        for row in in_period.filter(skipped=False)
         .values("player").annotate(n=Count("id"))
     }
     names = dict(
@@ -557,7 +566,7 @@ def leaderboard(limit=50, sort="labelled"):
     min_judged = game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10)
     accuracy = {}
     for row in (
-        GameAnswer.objects.filter(is_check=True)
+        in_period.filter(is_check=True)
         .values("player").annotate(**_rank_counts())
     ):
         acc, judged = _accuracy(row)
