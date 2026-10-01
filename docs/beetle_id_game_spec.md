@@ -273,3 +273,15 @@ Full rules for players are on the "How scoring works" page (`/game/how-it-works/
   each coloured by accuracy (grey too few, red <60%, amber 60-85%, green 85%+, glowing green proven expert).
 - **Unlocks page** (`/game/unlocks/`): the ladder, what is missing for the next level, what happens to your labels,
   and the focus picker.
+
+## Update: the quick loop
+
+- **After each Name That Beetle answer** a small card says what other players said about that beetle (their latest
+  answer each, never the truth): the most common name at the most specific rank most of them reached, how many,
+  and whether you agree (green only when you do). The first to name a beetle is told so.
+- **Before answering** a beetle others have named shows "Named by N other players" (the count only, so nobody is led).
+- **Beetles others named come first**: about half (`GAME_PEER_SHARE`) of the unvalidated beetles in a batch are ones
+  1 to `GAME_PEER_MAX_OTHERS` (4) other players have named and you have not, so names get second and third opinions.
+- **Combo**: answers in a row without skipping show as x3, x4... in the header, with a toast at 10, 25, 50, 100.
+- **Participation**: every real answer earns `GAME_POINTS_PARTICIPATION` (0.5) on top of its accuracy points, so the
+  score grows with play. Skips do not.

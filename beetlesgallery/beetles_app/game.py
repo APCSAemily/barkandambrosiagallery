@@ -299,6 +299,19 @@ def pools(player):
     return checks, opens
 
 
+def peer_rois(player, pool):
+    """
+    Beetles in ``pool`` that a few other players have already named (1 to GAME_PEER_MAX_OTHERS of them) and this
+    player has not: showing them to more people is how a name gets agreed on.
+    """
+    counts = (
+        GameAnswer.objects.filter(skipped=False, roi__in=pool).exclude(player=player)
+        .values("roi_id").annotate(n=Count("player", distinct=True))
+        .filter(n__lte=game_setting("GAME_PEER_MAX_OTHERS", 4)).values("roi_id")
+    )
+    return pool.filter(id__in=counts).exclude(id__in=GameAnswer.objects.filter(player=player).values("roi_id"))
+
+
 def build_classify_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "classify", size)
     check_pool, open_pool = pools(player)
@@ -317,7 +330,10 @@ def build_classify_items(player, size, fresh_only=False):
         return [{"a": str(i), "b": None, "check": True} for i in ids]
 
     def pick_open(n):
-        ids = _sample(open_pool, n, target, seen_open, allow_seen=not fresh_only)
+        # about half of them beetles others have named, so names get a second and third opinion
+        n_peer = round(n * game_setting("GAME_PEER_SHARE", 0.5))
+        ids = _sample(peer_rois(player, open_pool), n_peer, target, allow_seen=False) if n_peer else []
+        ids += _sample(open_pool, n - len(ids), target, seen_open, exclude=ids, allow_seen=not fresh_only)
         return [{"a": str(i), "b": None, "check": False} for i in ids]
 
     checks, opens = _fill(n_checks, n_open, pick_checks, pick_open)

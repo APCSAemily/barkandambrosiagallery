@@ -13,6 +13,7 @@ from beetlesgallery.beetles_app.test_game import AFFINIS, FERR, FeedbackCase
 PLAT = {"subfamily": "Platypodinae", "tribe": "Platypodini", "genus": "Platypus", "species": "cylindrus"}
 
 
+@override_settings(GAME_POINTS_PARTICIPATION=0)   # the rules below are easier to read without it; it has its own test
 class ScoringCase(FeedbackCase):
     def player(self, name):
         return get_user_model().objects.create_user(name, password="pw")

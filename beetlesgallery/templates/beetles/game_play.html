@@ -73,6 +73,7 @@
       <h1 class="font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
       <div id="focus-line" class="hidden text-[11px] text-gray-500 truncate"></div>
     </div>
+    <span id="combo" class="hidden items-center px-2 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Beetles answered in a row without skipping"></span>
     <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
       <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
     </span>
@@ -353,6 +354,39 @@
     if (event.kind === "level" || event.kind === "goal") confetti();
   }
 
+  // ---------- after each answer: what others said, and the combo ----------
+  let combo = 0;
+  function showCommunity(c) {
+    if (!c) return;
+    let text;
+    let mark = "";
+    if (!c.players) {
+      text = "Last beetle: you're the first to name it.";
+    } else if (!c.name) {
+      text = "Last beetle: " + c.players + " other player" + (c.players === 1 ? "" : "s") + " named it, no clear majority yet.";
+    } else {
+      text = "Last beetle: others said " + c.name + " (" + c.count + " of " + c.of + ").";
+      if (c.agree === true) { mark = "agree"; text += " You agree."; }
+      else if (c.agree === false) { mark = "differ"; text += " You said something else."; }
+    }
+    const card = document.createElement("div");
+    // green only when it means something: you agree with most players
+    card.style.cssText = "position:fixed;left:50%;top:4.25rem;transform:translate(-50%,-6px);z-index:94;max-width:92vw;padding:0.5rem 0.875rem;border-radius:0.75rem;font-size:0.8125rem;box-shadow:0 2px 8px rgba(0,0,0,.12);transition:opacity .3s,transform .3s;opacity:0;pointer-events:none;" +
+      (mark === "agree" ? "background:#f0fdf4;border:1px solid #bbf7d0;color:#166534" : "background:#fff;border:1px solid #e5e7eb;color:#374151");
+    card.textContent = text;
+    document.body.appendChild(card);
+    requestAnimationFrame(() => { card.style.opacity = "1"; card.style.transform = "translate(-50%,0)"; });
+    setTimeout(() => { card.style.opacity = "0"; setTimeout(() => card.remove(), 350); }, 2200);
+  }
+  function bumpCombo(answered) {
+    combo = answered ? combo + 1 : 0;
+    const el = $("combo");
+    el.classList.toggle("hidden", combo < 3);
+    el.classList.toggle("inline-flex", combo >= 3);
+    el.textContent = "\u00d7" + combo;   // e.g. x6: answered six in a row
+    if ([10, 25, 50, 100].includes(combo)) toast({ kind: "combo", title: combo + " in a row!", text: "No skips. Keep it going." });
+  }
+
   // ---------- the feed ----------
   async function startFeed() {
     show("loading");
@@ -399,6 +433,12 @@
       cell.appendChild(frame);
       holder.appendChild(cell);
     });
+    if (item.others) {
+      const peers = document.createElement("div");
+      peers.style.cssText = "position:absolute;bottom:0.5rem;left:50%;transform:translateX(-50%);z-index:2;background:rgba(255,255,255,.95);border:1px solid #d1d5db;border-radius:9999px;padding:0.2rem 0.75rem;font-size:0.75rem;color:#4b5563;white-space:nowrap";
+      peers.textContent = "Named by " + item.others + " other player" + (item.others === 1 ? "" : "s") + ". What do you think?";
+      holder.appendChild(peers);
+    }
     if (item.again) {
       // a beetle they got wrong before, back so they can learn it
       const tag = document.createElement("div");
@@ -429,6 +469,8 @@
       if (data.celebrate) confetti();
       updateChip(data.chip);
       (data.events || []).forEach(toast);
+      showCommunity(data.community);
+      bumpCombo(!extra.skipped && extra.pair_answer !== "unsure");
       if (data.done) {
         $("review-link").href = data.review_url;
         $("sum-round").textContent = answered;

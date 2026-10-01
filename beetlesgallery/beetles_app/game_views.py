@@ -257,6 +257,11 @@ def _item_payload(rnd, index):
     }
     if rnd.items[index].get("retry"):
         payload["again"] = True   # a beetle they got wrong before, shown again so they can learn it
+    if rnd.mode == GameRound.Mode.CLASSIFY:
+        others = (GameAnswer.objects.filter(roi_id=rnd.items[index]["a"], skipped=False)
+                  .exclude(player=rnd.player).values("player").distinct().count())
+        if others:
+            payload["others"] = others   # how many other players named it (not what they said, until you answer)
     # Let the browser start downloading the next photos while this item is answered.
     following = _next_index(rnd, index + 1)
     if following is not None:
@@ -383,6 +388,7 @@ def game_answer(request, round_id):
 
     game_scoring.score_new_answer(record)
     extra = {
+        "community": None if record.skipped else _community(record),
         "celebrate": _worth_celebrating(record, scores),
         "events": game_rewards.play_events(request.user, before),
         "chip": _chip(request.user),
@@ -397,6 +403,37 @@ def game_answer(request, round_id):
             return JsonResponse(dict(extra, round=str(fresh.id), item=_item_payload(fresh, first)))
         return JsonResponse(dict(_finish(rnd), **extra))
     return JsonResponse(dict(extra, item=_item_payload(rnd, nxt)))
+
+
+def _community(record):
+    """
+    What other players said about the beetle just answered (Name That Beetle): the most common name at the most
+    specific rank most of them gave, and whether this player agrees. Their latest answer each, never the truth.
+    """
+    if record.mode != GameRound.Mode.CLASSIFY:
+        return None
+    latest = {}
+    for ans in (GameAnswer.objects.filter(roi=record.roi, skipped=False).exclude(player=record.player)
+                .order_by("answered_at")):
+        latest[ans.player_id] = ans
+    if not latest:
+        return {"players": 0}
+    mine = game.answer_values({r: getattr(record, r) for r in game.RANKS})
+    for rank in reversed(game.RANKS):
+        names = {}
+        for ans in latest.values():
+            value = game.answer_values({r: getattr(ans, r) for r in game.RANKS})[rank]
+            if value:
+                display = f"{ans.genus} {ans.species}" if rank == "species" else getattr(ans, rank)
+                names.setdefault(value, [display, 0])[1] += 1
+        answered = sum(n for _, n in names.values())
+        if answered >= max(1, (len(latest) + 1) // 2):   # most of them went at least this far
+            value, (display, count) = max(names.items(), key=lambda kv: kv[1][1])
+            return {
+                "players": len(latest), "rank": rank, "name": display, "count": count, "of": answered,
+                "agree": (mine[rank] == value) if mine[rank] else None,
+            }
+    return {"players": len(latest)}
 
 
 def _worth_celebrating(record, scores):
