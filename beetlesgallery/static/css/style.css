@@ -933,6 +933,10 @@ video {
   margin-left: -0.5rem;
 }
 
+.-mt-2 {
+  margin-top: -0.5rem;
+}
+
 .mb-0\.5 {
   margin-bottom: 0.125rem;
 }
@@ -1520,6 +1524,10 @@ video {
 
 .resize {
   resize: both;
+}
+
+.list-decimal {
+  list-style-type: decimal;
 }
 
 .list-disc {
