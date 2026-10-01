@@ -14,7 +14,10 @@ class LevelTests(ScoringCase):
         self.assertEqual(levels.describe(60, 0)["level"], 2)
         self.assertEqual(levels.describe(200, 0.2)["level"], 2)     # enough points for 3, not reliable enough
         self.assertEqual(levels.describe(200, 0.4)["level"], 3)
-        self.assertEqual(levels.describe(99999, 0.99)["name"], "Coleopterist")
+        self.assertEqual(levels.describe(20000, 0.99)["name"], "Coleopterist")
+        self.assertEqual(levels.describe(30000, 0.9)["name"], "Coleopterist")   # the top needs 92% reliability
+        self.assertEqual(levels.describe(30000, 0.95)["name"], "King of Bark and Ambrosia")
+        self.assertEqual(levels.describe(30000, 0.95)["level"], 10)
 
     def test_it_says_what_is_missing_for_the_next_level(self):
         nxt = levels.describe(200, 0.2)["next"]
@@ -23,10 +26,16 @@ class LevelTests(ScoringCase):
 
     def test_perks_build_up(self):
         self.assertEqual(levels.describe(0, 0)["perks"], set())
-        self.assertEqual(levels.describe(60, 0)["perks"], {"focus_subfamily"})
-        self.assertTrue(levels.describe(900, 0.65)["proposals"])
-        self.assertFalse(levels.describe(900, 0.55)["proposals"])   # reliability matters for it
-        self.assertEqual(levels.proposal_level(), 5)
+        self.assertEqual(levels.describe(60, 0)["perks"], {"choose_game"})   # level 2: choose your game
+        self.assertEqual(levels.describe(200, 0.4)["perks"], {"choose_game", "focus_subfamily"})
+        self.assertTrue(levels.describe(1600, 0.75)["proposals"])
+        self.assertFalse(levels.describe(1600, 0.65)["proposals"])   # reliability matters for it
+        self.assertEqual(levels.proposal_level(), 6)
+
+    def test_beginners_get_more_family_ties_and_experts_more_naming(self):
+        self.assertAlmostEqual(levels.pair_share(1), 0.7)
+        self.assertAlmostEqual(levels.pair_share(10), 0.15)
+        self.assertGreater(levels.pair_share(3), levels.pair_share(7))
 
 
 class SuggestionTests(ScoringCase):
@@ -34,7 +43,7 @@ class SuggestionTests(ScoringCase):
         target = self.roi(self.t_affinis, validated=False)
         beginner = self.player("beginner")
         good = self.player("good")
-        PlayerScore.objects.create(player=good, score=900, rating=0.7)
+        PlayerScore.objects.create(player=good, score=1600, rating=0.75)
         self.answer(beginner, target, FERR)
         self.answer(good, target, AFFINIS)
         voters = levels.suggestion_voters()
@@ -177,13 +186,13 @@ class FocusTests(ScoringCase):
         return self.client.post("/game/unlocks/", {"focus_rank": rank, "focus_value": value})
 
     def test_a_locked_focus_is_refused(self):
-        self.level(10)
+        self.level(60)   # level 2 chooses the game; focus comes at level 3
         self.assertContains(self.set_focus("subfamily", "Scolytinae"), "not unlocked yet")
 
     def test_an_unlocked_focus_is_saved_and_narrows_the_feed(self):
         from beetlesgallery.beetles_app import game
         from beetlesgallery.beetles_app.models import GamePreference
-        self.level(60)
+        self.level(200, 0.4)
         for _ in range(3):
             self.roi(self.t_plat)
             self.roi(self.t_plat, validated=False)
@@ -198,25 +207,25 @@ class FocusTests(ScoringCase):
         self.assertEqual(subfamilies, {"Platypodinae"})
 
     def test_a_focus_needs_a_real_group(self):
-        self.level(60)
+        self.level(200, 0.4)
         self.assertContains(self.set_focus("subfamily", "Nonsense"), "Choose a subfamily")
 
     def test_a_focus_lapses_if_the_level_drops_and_with_no_beetles_left_it_shows_everything(self):
         from beetlesgallery.beetles_app import game
         from beetlesgallery.beetles_app.models import GamePreference
         GamePreference.objects.create(player=self.user, focus_rank="genus", focus_value="Xyleborus")
-        self.level(500, 0.6)
+        self.level(900, 0.65)
         self.assertEqual(game.player_focus(self.user), ("genus", "Xyleborus"))
-        self.level(500, 0.4)    # reliability fell below the genus-focus level
+        self.level(900, 0.55)    # reliability fell below the genus-focus level
         self.assertIsNone(game.player_focus(self.user))
-        self.level(500, 0.6)
+        self.level(900, 0.65)
         self.roi(self.t_plat)
         checks, _ = game.pools(self.user)   # no Xyleborus beetles at all: everything instead
         self.assertTrue(checks.exists())
 
     def test_clearing_it(self):
         from beetlesgallery.beetles_app.models import GamePreference
-        self.level(60)
+        self.level(200, 0.4)
         self.set_focus("subfamily", "Scolytinae")
         self.set_focus("", "")
         self.assertEqual(GamePreference.objects.get(player=self.user).focus_rank, "")
@@ -230,9 +239,9 @@ class PageTests(ScoringCase):
             self.assertIn(text, page)
 
     def test_it_says_when_your_labels_go_to_curators(self):
-        PlayerScore.objects.create(player=self.user, score=900, rating=0.7)
+        PlayerScore.objects.create(player=self.user, score=1600, rating=0.75)
         self.client.force_login(self.user)
-        self.assertContains(self.client.get("/game/unlocks/"), "your names for beetles nobody has checked yet are sent to the curators")
+        self.assertContains(self.client.get("/game/unlocks/"), "Your labels go to the curators as suggestions")
         self.assertContains(self.client.get("/game/"), 'data-testid="proposals-banner"')
 
     def test_the_expertise_tree_colours_branches_by_accuracy(self):

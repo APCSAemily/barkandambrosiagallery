@@ -415,6 +415,18 @@ def _partner_for(anchor, target, exclude=()):
     return one(pool)
 
 
+def stuck_rois(player, pool):
+    """
+    Beetles in ``pool`` that players tried to name but nobody could take to species (they stopped early or
+    skipped), and this player hasn't paired yet. Family Ties against known beetles at least narrows down what
+    they are not.
+    """
+    tried = GameAnswer.objects.filter(mode="classify", roi__in=pool).values("roi_id")
+    named = GameAnswer.objects.filter(mode="classify", roi__in=pool, skipped=False).exclude(species="").values("roi_id")
+    paired = GameAnswer.objects.filter(player=player, mode="pair").values("roi_id")
+    return pool.filter(id__in=tried).exclude(id__in=named).exclude(id__in=paired)
+
+
 def build_pair_items(player, size, fresh_only=False):
     n_checks, n_open = _split_round(player, "pair", size)
     check_pool, open_pool = pools(player)
@@ -428,7 +440,11 @@ def build_pair_items(player, size, fresh_only=False):
         if is_check:
             anchor_ids = _sample(anchor_qs, n, target, exclude=exclude + revealed, allow_seen=False)
         else:
-            anchor_ids = _sample(anchor_qs, n, target, seen, exclude, allow_seen=not fresh_only)
+            # about half of them beetles nobody could name, so Family Ties narrows down what they are not
+            n_stuck = round(n * game_setting("GAME_STUCK_SHARE", 0.5))
+            anchor_ids = _sample(stuck_rois(player, anchor_qs), n_stuck, target, allow_seen=False) if n_stuck else []
+            anchor_ids += _sample(anchor_qs, n - len(anchor_ids), target, seen, list(exclude) + anchor_ids,
+                                  allow_seen=not fresh_only)
         for anchor in Beetles.objects.select_related("taxon").filter(id__in=anchor_ids):
             # A scored pair must not lean on a partner whose label the player has been shown.
             partner = _partner_for(anchor, target, revealed if is_check else ())
@@ -494,11 +510,53 @@ def start_round(player, mode, size=None, fresh_only=False):
     into the next, where running out of new beetles should end the feed rather than repeat what they've seen.
     """
     size = size or game_setting("GAME_ROUND_SIZE", 10)
-    builder = build_classify_items if mode == GameRound.Mode.CLASSIFY else build_pair_items
-    items = builder(player, size, fresh_only=fresh_only)
+    if mode == GameRound.Mode.MIXED:
+        items = build_mixed_items(player, size, fresh_only=fresh_only)
+    else:
+        builder = build_classify_items if mode == GameRound.Mode.CLASSIFY else build_pair_items
+        items = builder(player, size, fresh_only=fresh_only)
     if not items:
         return None
     return GameRound.objects.create(player=player, mode=mode, items=spread(items))
+
+
+def play_mode(player):
+    """Which game the player plays: "both", or "classify" / "pair" once they have unlocked choosing."""
+    from .game_levels import CHOOSE_GAME, for_player
+    from .models import GamePreference
+
+    pref = GamePreference.objects.filter(player=player).values_list("play_mode", flat=True).first()
+    if not pref or pref == "both" or CHOOSE_GAME not in for_player(player)["perks"]:
+        return "both"
+    return pref
+
+
+def build_mixed_items(player, size, fresh_only=False):
+    """
+    One feed of both games, mixed at random. Beginners see mostly Family Ties and experts mostly Name That Beetle
+    (game_levels.pair_share); a player who chose one game sees only that one. Playing both, if one game runs out of
+    beetles the other fills the batch. Every item carries its own "mode".
+    """
+    from .game_levels import for_player, pair_share
+
+    chosen = play_mode(player)
+    if chosen == "pair":
+        pairs, names = build_pair_items(player, size, fresh_only=fresh_only), []
+    elif chosen == "classify":
+        pairs, names = [], build_classify_items(player, size, fresh_only=fresh_only)
+    else:
+        share = pair_share(for_player(player)["level"])
+        n_pair = sum(random.random() < share for _ in range(size))
+        pairs = build_pair_items(player, n_pair, fresh_only=fresh_only) if n_pair else []
+        # either game fills in when the other runs short of beetles
+        names = build_classify_items(player, size - len(pairs), fresh_only=fresh_only) if size > len(pairs) else []
+        if not names and len(pairs) < size:
+            pairs += build_pair_items(player, size - len(pairs), fresh_only=fresh_only)
+    for it in pairs:
+        it["mode"] = "pair"
+    for it in names:
+        it["mode"] = "classify"
+    return pairs + names
 
 
 def close_idle_rounds(player, idle_minutes=10):

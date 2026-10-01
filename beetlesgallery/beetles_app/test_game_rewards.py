@@ -132,12 +132,12 @@ class PlayEventsTests(RewardsCase):
         kinds = [e["kind"] for e in events]
         self.assertIn("level", kinds)
         self.assertIn("milestone", kinds)
-        self.assertIn("focus on a subfamily", next(e for e in events if e["kind"] == "level")["text"])
+        self.assertIn("choose your game", next(e for e in events if e["kind"] == "level")["text"])
 
     def test_reaching_the_suggestions_level_says_so(self):
-        self.set_score(790, 0.65)
+        self.set_score(1490, 0.75)
         before = rewards.progress(self.user)
-        self.set_score(805, 0.65)
+        self.set_score(1510, 0.75)
         events = rewards.play_events(self.user, before)
         self.assertIn("proposals", [e["kind"] for e in events])
         self.assertIn("curators", next(e for e in events if e["kind"] == "proposals")["text"])
@@ -200,8 +200,11 @@ class FeedAndHomeTests(RewardsCase):
         PlayerScore.objects.update_or_create(player=self.user, defaults={"score": 60})
         self.client.force_login(self.user)
         page = self.client.get(reverse("game_home")).content.decode()
-        for text in ("Larva", "Level 2", "day streak", "Daily goal", "Warming up", "First steps"):
+        for text in ("Larva", "Level 2", "day streak", "/20 today"):
             self.assertIn(text, page)
+        profile = self.client.get(reverse("game_profile", args=[self.user.id])).content.decode()
+        for text in ("Warming up", "First steps"):
+            self.assertIn(text, profile)
 
     def test_the_leaderboard_can_be_this_week(self):
         self.answers(2)

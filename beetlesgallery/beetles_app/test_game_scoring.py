@@ -258,7 +258,7 @@ class PagesTests(ScoringCase):
         self.answer(self.user, self.roi(self.t_affinis), AFFINIS)
         self.client.force_login(self.user)
         page = self.client.get("/game/").content.decode()
-        self.assertIn('data-testid="score">15<', page)
+        self.assertIn('data-testid="score">15 pts<', page)
         self.assertIn("/game/how-it-works/", page)
 
     def test_the_recap_shows_the_points_of_the_sitting(self):

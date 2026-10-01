@@ -47,7 +47,7 @@ class FeedTests(GameCase):
     def test_the_item_payload_still_hides_what_is_scored(self):
         self.roi(self.t_affinis)
         rnd, item = self.play("classify")
-        self.assertEqual(set(item), {"index", "position", "total", "images", "prefetch"})
+        self.assertEqual(set(item), {"index", "mode", "position", "total", "images", "prefetch"})
 
 
 class ConfettiTests(GameCase):
@@ -172,10 +172,16 @@ class PlayPageTests(GameCase):
     def test_the_games_have_catchy_names(self):
         self.assertIn("Name That Beetle", self.page("classify"))
         self.assertIn("Family Ties", self.page("pair"))
+        mixed = self.page("mixed")
+        self.assertIn("Name That Beetle", mixed)
+        self.assertIn("Family Ties", mixed)
+        self.assertNotIn("Spot the relatives", mixed + self.page("pair"))
+
+    def test_the_home_page_has_one_play_button_for_the_mixed_game(self):
+        self.client.force_login(self.user)
         home = self.client.get(reverse("game_home")).content.decode()
-        self.assertIn("Name That Beetle", home)
-        self.assertIn("Family Ties", home)
-        self.assertNotIn("Spot the relatives", home + self.page("pair"))
+        self.assertEqual(home.count('data-testid="play"'), 1)
+        self.assertIn(reverse("game_play", args=["mixed"]), home)
 
     def test_there_is_an_exit_and_no_progress_or_live_score(self):
         for mode in ("classify", "pair"):
@@ -197,7 +203,7 @@ class PlayPageTests(GameCase):
         order = [page.index(f'data-choice="{c}"') for c in ("different", "subfamily", "tribe", "genus", "species")]
         self.assertEqual(order, sorted(order))
         self.assertNotIn('data-choice="unsure"', page)        # "Not sure" is the fixed button next to Next
-        self.assertIn('id="skip">Not sure<', page)
+        self.assertIn('mode === "pair" ? "Not sure" : "Skip"', page)   # the fixed button reads "Not sure" in Family Ties
 
     def test_the_game_uses_no_colours_except_for_errors_and_the_one_success_piece(self):
         from django.conf import settings

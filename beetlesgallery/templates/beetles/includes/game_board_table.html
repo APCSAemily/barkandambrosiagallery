@@ -1,4 +1,4 @@
-{# rows from game_board.board: position, username, level, score, accuracy, viewed, is_expert #}
+{# rows from game_board.board: position, username, level, score, accuracy, viewed, is_expert, discoveries #}
 <div class="border border-gray-200 rounded-lg overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
@@ -15,9 +15,12 @@
       <tr class="border-t border-gray-100 {% if row.player_id == user.id %}bg-gray-100 font-semibold{% endif %}">
         <td class="py-2.5 pl-3 pr-1 text-gray-400 tabular-nums">{{ row.position }}</td>
         <td class="py-2.5 px-2">
-          <a href="{% url 'game_profile' row.player_id %}" class="text-gray-900 underline decoration-gray-300 hover:decoration-gray-900">{{ row.username }}</a>
-          <span class="ml-1 text-xs text-gray-400 whitespace-nowrap">L{{ row.level }}</span>
-          {% if row.is_expert %}<i class="fi fi-rr-shield-check text-green-600 ml-0.5" title="Proven expert in part of the tree"></i>{% endif %}
+          <span class="inline-flex items-center gap-1 flex-wrap">
+            {% include "beetles/includes/game_level_badge.html" with level=row.level name=row.level_name %}
+            <a href="{% url 'game_profile' row.player_id %}" class="text-gray-900 underline decoration-gray-300 hover:decoration-gray-900">{{ row.username }}</a>
+            {% if row.is_expert %}<i class="fi fi-rr-shield-check text-green-600" title="Proven expert in a taxon"></i>{% endif %}
+            {% if row.discoveries %}<i class="fi fi-rr-sparkles text-amber-600" title="New species finder: {{ row.discoveries }}" data-testid="finder-badge"></i>{% endif %}
+          </span>
         </td>
         <td class="py-2.5 px-2 text-right tabular-nums">{{ row.score }}</td>
         <td class="py-2.5 px-2 text-right tabular-nums">{% if row.accuracy is not None %}{% widthratio row.accuracy 1 100 %}%{% else %}<span class="text-gray-300">&ndash;</span>{% endif %}</td>

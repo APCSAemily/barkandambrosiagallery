@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
 
 from . import game, game_levels, game_rewards
-from .models import AnswerPoints, GameAnswer, PlayerScore, PlayerSkill
+from .models import AnswerPoints, GameAnswer, PlayerScore, PlayerSkill, SpeciesDiscovery
 
 SORTS = {"score": "Score", "accuracy": "Accuracy", "viewed": "Beetles seen"}
 # a branch of the tree -> the skill that measures it (see game_trust.BRANCH_OF)
@@ -17,10 +17,11 @@ BRANCH_SKILL = {"subfamily": "tribe", "tribe": "genus", "genus": "species"}
 
 
 def board(sort="score", period="all", q="", limit=50):
-    """Rows: position, player_id, username, level, level_name, score, accuracy, viewed, is_expert."""
+    """Rows: position, player_id, username, level, level_name, score, accuracy, viewed, is_expert, discoveries."""
     scores = {s.player_id: s for s in PlayerScore.objects.all()}
     names = dict(get_user_model().objects.filter(id__in=scores).values_list("id", "username"))
     experts = set(PlayerSkill.objects.filter(proven=True).values_list("player_id", flat=True))
+    finds = dict(SpeciesDiscovery.objects.values("player").annotate(n=Count("id")).values_list("player", "n"))
     if period == "week":
         since = game.week_start()
         week_points = dict(
@@ -43,7 +44,7 @@ def board(sort="score", period="all", q="", limit=50):
         rows.append({
             "player_id": pid, "username": names[pid], "level": level["level"], "level_name": level["name"],
             "score": round(score), "accuracy": s.accuracy if s.judged >= game.game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10) else None,
-            "viewed": viewed, "is_expert": pid in experts,
+            "viewed": viewed, "is_expert": pid in experts, "discoveries": finds.get(pid, 0),
         })
     if sort == "accuracy":
         rows.sort(key=lambda r: (r["accuracy"] is None, -(r["accuracy"] or 0), -r["score"]))
