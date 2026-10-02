@@ -131,12 +131,13 @@ class BackgroundTests(ScoringCase):
 
 
 class LayoutTests(ScoringCase):
-    def test_checked_beetles_are_linked_from_the_leaderboard_not_the_profile(self):
+    def test_checked_beetles_live_in_the_history_linked_from_the_game_home(self):
         self.client.force_login(self.user)
-        board = self.client.get(reverse("game_leaderboard")).content.decode()
-        profile = self.client.get(reverse("game_profile", args=[self.user.id])).content.decode()
-        self.assertIn(reverse("game_checked"), board)
-        self.assertNotIn(reverse("game_checked"), profile)
+        home = self.client.get(reverse("game_home")).content.decode()
+        self.assertIn('data-testid="history-link"', home)
+        self.assertIn(reverse("game_history"), home)
+        self.assertNotIn(reverse("game_checked"), self.client.get(reverse("game_leaderboard")).content.decode())
+        self.assertRedirects(self.client.get(reverse("game_checked")), reverse("game_history") + "?tab=checked")
 
     def test_game_buttons_use_the_lighter_house_grey(self):
         from django.conf import settings
