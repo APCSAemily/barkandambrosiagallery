@@ -100,10 +100,13 @@ class GamePageTests(GameCase):
     def test_landing_links_to_game(self):
         self.assertContains(self.client.get(reverse("image_browser")), reverse("game_home"))
 
-    def test_review_is_staff_only(self):
-        self.client.force_login(self.user)
+    def test_review_is_superuser_only(self):
         self.assertRedirectsToLogin(self.client.get(reverse("game_review")))
-        self.client.force_login(self.staff)
+        for account in (self.user, self.staff):
+            self.client.force_login(account)
+            self.assertEqual(self.client.get(reverse("game_review")).status_code, 404)
+            self.assertEqual(self.client.get(reverse("game_export", args=["labels"])).status_code, 404)
+        self.client.force_login(self.superuser)
         self.assertEqual(self.client.get(reverse("game_review")).status_code, 200)
         for kind in ["labels", "players"]:
             res = self.client.get(reverse("game_export", args=[kind]))
@@ -315,7 +318,7 @@ class ConsensusTests(GameCase):
         self.assertEqual(entry["ranks"]["genus"]["value"], "Xyleborus")
         self.assertGreater(entry["ranks"]["genus"]["support"], 0.8)
 
-        self.client.force_login(self.staff)
+        self.client.force_login(self.superuser)
         csv_text = self.client.get(reverse("game_export", args=["labels"])).content.decode()
         self.assertIn(str(target.id), csv_text)
 
@@ -613,6 +616,7 @@ class ReportTests(GameCase):
         self.client.force_login(self.staff)
         res = self.client.get(reverse("game_player_report", args=[self.user.id]))
         self.assertContains(res, self.user.username)
+        self.client.force_login(self.superuser)
         self.assertEqual(self.client.get(reverse("game_export", args=["skills"]))["Content-Type"], "text/csv")
 
 
@@ -795,4 +799,5 @@ class PlayerReportTests(FeedbackCase):
         page = self.client.get(reverse("tool_annotate"))
         self.assertContains(page, "gameReportsHtml")
         self.assertContains(page, "get('image')")  # ?image= deep link
+        self.client.force_login(self.superuser)
         self.assertContains(self.client.get(reverse("game_review")), "Open in annotator")

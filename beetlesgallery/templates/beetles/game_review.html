@@ -42,11 +42,11 @@
     <table class="w-full text-sm">
       <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
         <tr>
-          <th class="px-3 py-2 text-left">ROI</th>
-          <th class="px-3 py-2 text-left">Current label</th>
-          <th class="px-3 py-2 text-left">Reason</th>
-          <th class="px-3 py-2 text-left">Reported by</th>
-          <th class="px-3 py-2 text-left"></th>
+          <th class="px-3 py-2 text-left">{% sort_link "reports_sort" "roi" "ROI" "reports" %}</th>
+          <th class="px-3 py-2 text-left">{% sort_link "reports_sort" "label" "Current label" "reports" %}</th>
+          <th class="px-3 py-2 text-left">{% sort_link "reports_sort" "reason" "Reason" "reports" %}</th>
+          <th class="px-3 py-2 text-left">{% sort_link "reports_sort" "reporter" "Reported by" "reports" %}</th>
+          <th class="px-3 py-2 text-left">{% sort_link "reports_sort" "date" "Date" "reports" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -68,22 +68,22 @@
   {% include "beetles/includes/pager.html" with page=open_reports param="reports_page" anchor="reports" %}
   </details>
 
-  <details class="group mb-8" data-testid="section" id="players" {% if request.GET.players_page %}open{% endif %}>
+  <details class="group mb-8" data-testid="section" id="players" {% if request.GET.players_page or request.GET.players_sort %}open{% endif %}>
   <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Players <span class="text-sm font-normal text-gray-400">({{ players.paginator.count|digit_groups }})</span></h2></summary>
   <p class="text-xs text-gray-500 mb-3">Correct / judged per rank on validated items. Click a player for their full report.</p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg mb-10">
     <table class="w-full text-sm whitespace-nowrap">
       <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
         <tr>
-          <th class="px-3 py-2 text-left" rowspan="2">Player</th>
-          <th class="px-3 py-2 text-right" rowspan="2">Labelled</th>
+          <th class="px-3 py-2 text-left" rowspan="2">{% sort_link "players_sort" "player" "Player" "players" %}</th>
+          <th class="px-3 py-2 text-right" rowspan="2">{% sort_link "players_sort" "labelled" "Labelled" "players" %}</th>
           <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Identification</th>
           <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4">Similarity</th>
-          <th class="px-3 py-2 text-left border-l border-gray-200" rowspan="2">Expert in</th>
+          <th class="px-3 py-2 text-left border-l border-gray-200" rowspan="2">{% sort_link "players_sort" "expert" "Expert in" "players" %}</th>
         </tr>
         <tr>
-          {% for r in ranks %}<th class="px-3 py-1 text-right {% if forloop.first %}border-l border-gray-200{% endif %}">{{ r }}</th>{% endfor %}
-          {% for r in ranks %}<th class="px-3 py-1 text-right {% if forloop.first %}border-l border-gray-200{% endif %}">{{ r }}</th>{% endfor %}
+          {% for r in ranks %}<th class="px-3 py-1 text-right {% if forloop.first %}border-l border-gray-200{% endif %}">{% with "id_"|add:r as key %}{% sort_link "players_sort" key r "players" %}{% endwith %}</th>{% endfor %}
+          {% for r in ranks %}<th class="px-3 py-1 text-right {% if forloop.first %}border-l border-gray-200{% endif %}">{% with "sim_"|add:r as key %}{% sort_link "players_sort" key r "players" %}{% endwith %}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>
@@ -114,7 +114,7 @@
   {% include "beetles/includes/pager.html" with page=players param="players_page" anchor="players" %}
   </details>
 
-  <details class="group mb-8" data-testid="section" id="labels" {% if only_trusted or request.GET.labels_page %}open{% endif %}>
+  <details class="group mb-8" data-testid="section" id="labels" {% if only_trusted or request.GET.labels_page or request.GET.labels_sort %}open{% endif %}>
   <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Label proposals for unvalidated ROIs <span class="text-sm font-normal text-gray-400">({{ consensus_total|digit_groups }})</span></h2></summary>
   <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-2">
     <span></span>
@@ -127,16 +127,16 @@
     Votes from both modes, weighted by each player's reliability at that rank. A pair answer such as
     &ldquo;same genus&rdquo; votes for the validated partner's subfamily, tribe and genus.
     Percent = the winning name's share of the weighted vote; <i class="fi fi-rr-shield-check text-green-700"></i> = expert-backed.
-    Most answered first; the CSV has all of them.
+    Most answered first unless you sort by a column; the CSV has all of them.
   </p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg">
     <table class="w-full text-sm whitespace-nowrap">
       <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
         <tr>
-          <th class="px-3 py-2 text-left">ROI</th>
-          <th class="px-3 py-2 text-left">Current label</th>
-          <th class="px-3 py-2 text-right">Answers</th>
-          {% for r in ranks %}<th class="px-3 py-2 text-left">{{ r }}</th>{% endfor %}
+          <th class="px-3 py-2 text-left">{% sort_link "labels_sort" "roi" "ROI" "labels" %}</th>
+          <th class="px-3 py-2 text-left">{% sort_link "labels_sort" "label" "Current label" "labels" %}</th>
+          <th class="px-3 py-2 text-right">{% sort_link "labels_sort" "answers" "Answers" "labels" %}</th>
+          {% for r in ranks %}<th class="px-3 py-2 text-left">{% sort_link "labels_sort" r r "labels" %}</th>{% endfor %}
         </tr>
       </thead>
       <tbody>

@@ -100,3 +100,22 @@ def level_icon(level):
     from beetlesgallery.beetles_app.game_levels import level_icon as icon
 
     return icon(level)
+
+
+@register.simple_tag(takes_context=True)
+def sort_link(context, param, key, label, anchor=""):
+    """
+    A table header that sorts by its column: click once for ascending, again for descending. Keeps the rest of the
+    query, goes back to the first page of that table (``<table>_sort`` -> ``<table>_page``).
+    """
+    from django.utils.html import format_html
+
+    query = context["request"].GET.copy()
+    current = query.get(param) or context.get(param, "")
+    active = current.lstrip("-") == key
+    descending = current.startswith("-")
+    query[param] = f"-{key}" if active and not descending else key
+    query.pop(param.replace("_sort", "_page"), None)
+    arrow = (" \u2193" if descending else " \u2191") if active else ""
+    return format_html('<a href="?{}{}" class="hover:text-gray-900 {}" data-sort="{}">{}{}</a>', query.urlencode(),
+                       f"#{anchor}" if anchor else "", "text-gray-900" if active else "", key, label, arrow)
