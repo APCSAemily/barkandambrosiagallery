@@ -3,13 +3,13 @@
 
 {% block extra_css %}
 <style>
-  /* Colour means accuracy here: grey not enough answers yet, red still learning, amber getting there, green good,
-     and a glowing blue dot for proven expert. */
+  /* The same rarity colours as the levels: an empty ring for too few answers yet, grey still learning, green
+     getting there, blue good, and a glowing, pulsing blue dot for proven expert. */
   .tree-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
-  .st-unknown .tree-dot { background: #e5e7eb; }
-  .st-learning .tree-dot { background: #ef4444; }
-  .st-fair .tree-dot { background: #f59e0b; }
-  .st-good .tree-dot { background: #22c55e; }
+  .st-unknown .tree-dot { background: #fff; box-shadow: inset 0 0 0 2px #d1d5db; }
+  .st-learning .tree-dot { background: #9ca3af; }
+  .st-fair .tree-dot { background: #16a34a; }
+  .st-good .tree-dot { background: #2563eb; }
   .st-expert .tree-dot { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.25), 0 0 10px rgba(37,99,235,.7); animation: expert-glow 2.4s ease-in-out infinite; }
   @keyframes expert-glow { 50% { box-shadow: 0 0 0 4px rgba(37,99,235,.18), 0 0 16px rgba(37,99,235,.9); } }
   @media (prefers-reduced-motion: reduce) { .st-expert .tree-dot { animation: none; } }

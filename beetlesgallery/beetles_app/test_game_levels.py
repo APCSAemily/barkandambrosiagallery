@@ -283,3 +283,32 @@ class LevelIconTests(SimpleTestCase):
         rule = re.search(r"\.st-expert \.tree-dot \{([^}]*)\}", css).group(1)
         self.assertIn("#2563eb", rule)        # blue
         self.assertIn("box-shadow", rule)     # glowing
+
+
+class RarityColourTests(SimpleTestCase):
+    """Badges, levels and the expertise tree share one colour scale: grey, green, blue, purple, orange, gold."""
+
+    def test_every_badge_has_exactly_one_tier(self):
+        from beetlesgallery.beetles_app import game_rewards
+        listed = [k for keys in game_rewards.BADGE_TIERS.values() for k in keys]
+        self.assertEqual(sorted(listed), sorted(game_rewards.BADGES))
+        self.assertEqual(len(listed), len(set(listed)))
+        self.assertEqual(game_rewards.badge_tier("first"), "common")
+        self.assertEqual(game_rewards.badge_tier("king"), "mythic")
+
+    def test_an_earned_badge_takes_its_tiers_colour(self):
+        from django.template.loader import render_to_string
+        easy = render_to_string("beetles/includes/game_badge.html", {"b": {"key": "hundred", "name": "x", "how": "", "icon": "fi-rr-medal", "earned": True, "tier": "uncommon"}})
+        self.assertIn("text-green-600", easy)      # the colour of levels 3-4
+        top = render_to_string("beetles/includes/game_badge.html", {"b": {"key": "king", "name": "x", "how": "", "icon": "fi-rr-crown", "earned": True, "tier": "mythic"}})
+        self.assertIn("box-shadow", top)            # the top badge glows, like the top level
+
+    def test_levels_not_reached_are_grey_and_the_king_glows(self):
+        from django.template.loader import render_to_string
+        locked = render_to_string("beetles/includes/game_level_badge.html", {"level": 5, "locked": True, "size": "lg"})
+        self.assertIn("bg-gray-100", locked)
+        self.assertNotIn("bg-blue-600", locked)
+        self.assertIn("height: 1.75rem", locked)
+        king = render_to_string("beetles/includes/game_level_badge.html", {"level": 10})
+        self.assertIn("box-shadow", king)
+        self.assertNotIn("box-shadow", render_to_string("beetles/includes/game_level_badge.html", {"level": 9}))

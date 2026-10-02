@@ -10,7 +10,7 @@
   <!-- Where you are -->
   <div class="p-4 bg-gray-50 border border-gray-200 rounded-2xl mb-5">
     <div class="flex items-center gap-2">
-      {% include "beetles/includes/game_level_badge.html" with level=info.level name=info.name %}
+      {% include "beetles/includes/game_level_badge.html" with level=info.level name=info.name size="lg" %}
       <span class="text-xl font-bold text-gray-900">{{ info.name }}</span>
       <span class="ml-auto text-sm text-gray-600 tabular-nums"><strong class="text-gray-900">{{ info.score|digit_groups }}</strong> pts &middot; <strong class="text-gray-900">{% widthratio info.rating 1 100 %}%</strong></span>
     </div>
@@ -26,7 +26,7 @@
   <ol class="border border-gray-200 rounded-2xl divide-y divide-gray-100 mb-5">
     {% for row in ladder %}
     <li class="px-4 py-3 flex items-center gap-3 {% if row.level == info.level %}bg-gray-100{% endif %} {% if row.level > info.level %}text-gray-400{% endif %}">
-      {% include "beetles/includes/game_level_badge.html" with level=row.level name=row.name %}
+      {% if row.level > info.level %}{% include "beetles/includes/game_level_badge.html" with level=row.level name=row.name locked=True size="lg" %}{% else %}{% include "beetles/includes/game_level_badge.html" with level=row.level name=row.name size="lg" %}{% endif %}
       <div class="flex-1 min-w-0">
         <div class="font-semibold {% if row.level <= info.level %}text-gray-900{% endif %}">{{ row.name }}</div>
         {% for perk in row.perks %}<div class="text-xs {% if row.level <= info.level %}text-gray-700{% endif %}"><i class="fi {% if row.level <= info.level %}fi-rr-unlock{% else %}fi-rr-lock{% endif %}"></i> {{ perk.title }}</div>{% endfor %}
