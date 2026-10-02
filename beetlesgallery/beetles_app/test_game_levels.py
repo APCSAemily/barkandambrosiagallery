@@ -275,13 +275,13 @@ class LevelIconTests(SimpleTestCase):
         self.assertIn("fi-rr-worm", html)
         self.assertIn(">2</span>", html)
 
-    def test_a_proven_expert_is_a_glowing_blue_dot(self):
+    def test_a_proven_expert_is_a_glowing_gold_dot_like_the_top_level(self):
         import re
         from pathlib import Path
         from django.conf import settings
         css = (Path(settings.BASE_DIR) / "beetlesgallery/templates/beetles/game_expertise.html").read_text()
         rule = re.search(r"\.st-expert \.tree-dot \{([^}]*)\}", css).group(1)
-        self.assertIn("#2563eb", rule)        # blue
+        self.assertIn("#facc15", rule)        # gold, as the level 10 badge
         self.assertIn("box-shadow", rule)     # glowing
 
 
@@ -312,3 +312,17 @@ class RarityColourTests(SimpleTestCase):
         king = render_to_string("beetles/includes/game_level_badge.html", {"level": 10})
         self.assertIn("box-shadow", king)
         self.assertNotIn("box-shadow", render_to_string("beetles/includes/game_level_badge.html", {"level": 9}))
+
+    @override_settings(GAME_TRUST_MIN_ACCURACY=0.9)
+    def test_expertise_bands_run_from_50_percent_to_what_an_expert_needs(self):
+        from types import SimpleNamespace
+        from beetlesgallery.beetles_app import game_trust
+
+        def status(right, judged=100, proven=False):
+            return game_trust.node_status(SimpleNamespace(correct=right, judged=judged, proven=proven), 5)
+        self.assertEqual([status(n) for n in (49, 50, 60, 70, 80, 95)],
+                         ["common", "uncommon", "rare", "epic", "legendary", "legendary"])
+        self.assertEqual(status(95, proven=True), "expert")
+        self.assertEqual(status(4, judged=4), "unknown")
+        self.assertEqual([label for _, label in game_trust.expertise_legend()],
+                         ["under 50%", "50\u201360%", "60\u201370%", "70\u201380%", "80%+", "proven expert"])

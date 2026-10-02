@@ -3,15 +3,18 @@
 
 {% block extra_css %}
 <style>
-  /* The same rarity colours as the levels: an empty ring for too few answers yet, grey still learning, green
-     getting there, blue good, and a glowing, pulsing blue dot for proven expert. */
+  /* The same rarity colours as the levels (game_trust.expertise_bands): an empty ring for too few answers yet, grey
+     under 50%, then green, blue, purple and orange up to what an expert needs, and a glowing gold dot for a proven
+     expert, like the top level. */
   .tree-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
   .st-unknown .tree-dot { background: #fff; box-shadow: inset 0 0 0 2px #d1d5db; }
-  .st-learning .tree-dot { background: #9ca3af; }
-  .st-fair .tree-dot { background: #16a34a; }
-  .st-good .tree-dot { background: #2563eb; }
-  .st-expert .tree-dot { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.25), 0 0 10px rgba(37,99,235,.7); animation: expert-glow 2.4s ease-in-out infinite; }
-  @keyframes expert-glow { 50% { box-shadow: 0 0 0 4px rgba(37,99,235,.18), 0 0 16px rgba(37,99,235,.9); } }
+  .st-common .tree-dot { background: #d1d5db; }
+  .st-uncommon .tree-dot { background: #16a34a; }
+  .st-rare .tree-dot { background: #2563eb; }
+  .st-epic .tree-dot { background: #9333ea; }
+  .st-legendary .tree-dot { background: #f97316; }
+  .st-expert .tree-dot { background: #facc15; box-shadow: 0 0 0 1px #ca8a04, 0 0 10px rgba(250,204,21,.9); animation: expert-glow 2.4s ease-in-out infinite; }
+  @keyframes expert-glow { 50% { box-shadow: 0 0 0 1px #ca8a04, 0 0 18px rgba(250,204,21,1); } }
   @media (prefers-reduced-motion: reduce) { .st-expert .tree-dot { animation: none; } }
   .st-expert > summary .tree-name, .st-expert > .row .tree-name { font-weight: 700; }
   details > summary { list-style: none; cursor: pointer; }
@@ -27,10 +30,7 @@
 
   <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 mb-6" aria-label="Legend">
     <span class="st-unknown flex items-center gap-1.5"><span class="tree-dot"></span>fewer than {{ tree.min_shown }} answers</span>
-    <span class="st-learning flex items-center gap-1.5"><span class="tree-dot"></span>under 60% right</span>
-    <span class="st-fair flex items-center gap-1.5"><span class="tree-dot"></span>60&ndash;85%</span>
-    <span class="st-good flex items-center gap-1.5"><span class="tree-dot"></span>85% or more</span>
-    <span class="st-expert flex items-center gap-1.5"><span class="tree-dot"></span>proven expert</span>
+    {% for status, label in tree.legend %}<span class="st-{{ status }} flex items-center gap-1.5" data-testid="legend-{{ status }}"><span class="tree-dot"></span>{{ label }}</span>{% endfor %}
   </div>
 
   <div class="st-{{ tree.root.status }} flex items-center gap-2 p-3 mb-3 bg-gray-50 border border-gray-200 rounded-xl">

@@ -501,18 +501,41 @@ def direct_experts(entry, trust):
 # ---------------------------------------------------------------------------
 # The expertise tree a player sees
 # ---------------------------------------------------------------------------
+EXPERTISE_FLOOR = 0.5
+# Accuracy bands in the levels' rarity colours: under 50% grey, then four equal steps from 50% up to what an expert
+# needs (green, blue, purple, orange), and a proven expert glowing gold like the top level.
+EXPERTISE_TIERS = ("uncommon", "rare", "epic", "legendary")
+
+
+def expertise_bands():
+    """[(status, lowest accuracy)] from the top band down, e.g. legendary 0.8, epic 0.7, rare 0.6, uncommon 0.5."""
+    top = max(min_accuracy(), EXPERTISE_FLOOR + 0.04)
+    step = (top - EXPERTISE_FLOOR) / len(EXPERTISE_TIERS)
+    return [(tier, round(EXPERTISE_FLOOR + i * step, 4)) for i, tier in reversed(list(enumerate(EXPERTISE_TIERS)))]
+
+
 def node_status(skill, min_shown):
-    """How a branch is shown: not enough answers yet, still learning, getting there, good, or expert."""
+    """How a branch is shown: unknown (too few answers yet), common .. legendary by accuracy, or expert."""
     if skill is None or skill.judged < min_shown:
         return "unknown"
     if skill.proven:
         return "expert"
     accuracy = skill.correct / skill.judged
-    if accuracy >= 0.85:
-        return "good"
-    if accuracy >= 0.6:
-        return "fair"
-    return "learning"
+    for tier, lowest in expertise_bands():
+        if accuracy >= lowest:
+            return tier
+    return "common"
+
+
+def expertise_legend():
+    """The tree's legend: (status, label) from lowest to highest."""
+    bands = list(reversed(expertise_bands()))
+    pct = lambda x: f"{round(x * 100)}%"   # noqa: E731
+    legend = [("common", f"under {pct(EXPERTISE_FLOOR)}")]
+    for i, (tier, lowest) in enumerate(bands):
+        upper = bands[i + 1][1] if i + 1 < len(bands) else None
+        legend.append((tier, f"{round(lowest * 100)}\u2013{pct(upper)}" if upper else f"{pct(lowest)}+"))
+    return legend + [("expert", "proven expert")]
 
 
 def expertise_tree(player):
@@ -554,5 +577,5 @@ def expertise_tree(player):
         tree.append(sub)
     root = node("subfamily", "")
     return {"root": root, "subfamilies": tree, "min_shown": min_shown, "per_species": per_species(),
-            "min_accuracy": min_accuracy(),
+            "min_accuracy": min_accuracy(), "legend": expertise_legend(),
             "experts": sum(1 for s in skills.values() if s.proven)}
