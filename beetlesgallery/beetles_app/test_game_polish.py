@@ -72,7 +72,7 @@ class ReviewPageTests(ScoringCase):
     def test_links_go_to_the_annotation_page_with_the_roi_open(self):
         roi = self.roi(self.t_affinis)
         GameReport.objects.create(roi=roi, reporter=self.user, reason="bad_box")
-        self.client.force_login(self.staff)
+        self.client.force_login(self.superuser)
         page = self.client.get(reverse("game_review")).content.decode()
         self.assertIn(f'?image={roi.image_asset_id}&roi={roi.id}', page)
         self.assertIn('data-testid="to-annotation"', page)

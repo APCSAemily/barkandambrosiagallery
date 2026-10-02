@@ -15,6 +15,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
@@ -915,18 +916,70 @@ def _player_rows():
     return rows
 
 
-@staff_member_required
+def _sort_rows(request, rows, param, keys, default=""):
+    """
+    Sort ``rows`` by the column named in the query (``?players_sort=labelled``, a leading "-" for descending).
+    ``keys`` maps column names to a function giving a row's value; rows without a value go last either way.
+    Returns (rows, the sort in use).
+    """
+    raw = request.GET.get(param) or default
+    name = raw.lstrip("-")
+    if name not in keys:
+        raw, name = default, default.lstrip("-")
+    if not name:
+        return list(rows), raw
+    value = keys[name]
+    rows = list(rows)
+    present = [r for r in rows if value(r) not in (None, "")]
+    missing = [r for r in rows if value(r) in (None, "")]
+    present.sort(key=lambda r: (value(r).lower() if isinstance(value(r), str) else value(r)), reverse=raw.startswith("-"))
+    return present + missing, raw
+
+
+def _cell_accuracy(cell):
+    return cell["accuracy"] if cell.get("n") else None
+
+
+@login_required
 def game_review(request):
+    """Superusers only: open reports, every player's reliability and the label proposals, each paged and sortable."""
+    if not request.user.is_superuser:
+        raise Http404("Not found")
     only_trusted = request.GET.get("trusted") == "1"
     entries = game.consensus()
     if only_trusted:
         entries = [e for e in entries if e["trusted_rank"]]
+
+    def page(items, param):
+        """One page of a table; each table has its own page number, so paging one keeps your place in the others."""
+        return Paginator(items, REVIEW_PER_PAGE).get_page(request.GET.get(param))
+
+    reports, reports_sort = _sort_rows(
+        request, GameReport.objects.filter(status=GameReport.Status.OPEN).select_related("reporter", "roi__taxon"),
+        "reports_sort", {
+            "roi": lambda r: str(r.roi_id), "label": lambda r: r.roi.taxon.scientific_name if r.roi.taxon else None,
+            "reason": lambda r: r.get_reason_display(), "reporter": lambda r: r.reporter.username,
+            "date": lambda r: r.created_at,
+        }, default="date")
+    player_keys = {"player": lambda r: r["username"], "labelled": lambda r: r["labelled"], "expert": lambda r: len(r["proven"])}
+    for i, rank in enumerate(game.RANKS):
+        player_keys[f"id_{rank}"] = lambda r, i=i: _cell_accuracy(r["classify"][i])
+        player_keys[f"sim_{rank}"] = lambda r, i=i: _cell_accuracy(r["pair"][i])
+    players, players_sort = _sort_rows(request, _player_rows(), "players_sort", player_keys, default="-labelled")
+    label_keys = {
+        "roi": lambda e: str(e["roi"].id), "label": lambda e: e["roi"].taxon.scientific_name if e["roi"].taxon else None,
+        "answers": lambda e: e["answers"],
+    }
+    for rank in game.RANKS:
+        label_keys[rank] = lambda e, rank=rank: (e["ranks"].get(rank) or {}).get("value")
+    entries, labels_sort = _sort_rows(request, entries, "labels_sort", label_keys)   # default: most answered first
+
     return render(request, "beetles/game_review.html", {
-        "open_reports": GameReport.objects.filter(status=GameReport.Status.OPEN)
-        .select_related("reporter", "roi__taxon").order_by("created_at")[:200],
+        "open_reports": page(reports, "reports_page"),
+        "reports_sort": reports_sort, "players_sort": players_sort, "labels_sort": labels_sort,
         "ranks": game.RANKS,
-        "players": _player_rows(),
-        "consensus": entries[:200],
+        "players": page(players, "players_page"),
+        "consensus": page(entries, "labels_page"),
         "consensus_total": len(entries),
         "only_trusted": only_trusted,
         "rounds": GameRound.objects.count(),
@@ -935,12 +988,21 @@ def game_review(request):
     })
 
 
+REVIEW_PER_PAGE = 25
+
+
 def _pct(value):
     return "" if value is None else f"{value:.3f}"
 
 
-@staff_member_required
+@login_required
 def game_export(request, kind):
+    if not request.user.is_superuser:
+        raise Http404("Not found")
+    return _game_export(request, kind)
+
+
+def _game_export(request, kind):
     response = HttpResponse(content_type="text/csv")
     writer = csv.writer(response)
     if kind == "labels":

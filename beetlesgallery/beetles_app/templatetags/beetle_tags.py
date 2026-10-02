@@ -86,9 +86,36 @@ def digit_groups_text(value, decimals=0):
     return sign + "\u202f".join(groups) + fraction
 
 
+@register.simple_tag(takes_context=True)
+def page_url(context, param, number, anchor=""):
+    """This page's address with one page number changed (the rest of the query kept): {% page_url "labels_page" 2 "labels" %}."""
+    query = context["request"].GET.copy()
+    query[param] = number
+    return "?" + query.urlencode() + (f"#{anchor}" if anchor else "")
+
+
 @register.filter
 def level_icon(level):
     """The game's icon for a level: {{ level|level_icon }} -> "fi-rr-worm"."""
     from beetlesgallery.beetles_app.game_levels import level_icon as icon
 
     return icon(level)
+
+
+@register.simple_tag(takes_context=True)
+def sort_link(context, param, key, label, anchor=""):
+    """
+    A table header that sorts by its column: click once for ascending, again for descending. Keeps the rest of the
+    query, goes back to the first page of that table (``<table>_sort`` -> ``<table>_page``).
+    """
+    from django.utils.html import format_html
+
+    query = context["request"].GET.copy()
+    current = query.get(param) or context.get(param, "")
+    active = current.lstrip("-") == key
+    descending = current.startswith("-")
+    query[param] = f"-{key}" if active and not descending else key
+    query.pop(param.replace("_sort", "_page"), None)
+    arrow = (" \u2193" if descending else " \u2191") if active else ""
+    return format_html('<a href="?{}{}" class="hover:text-gray-900 {}" data-sort="{}">{}{}</a>', query.urlencode(),
+                       f"#{anchor}" if anchor else "", "text-gray-900" if active else "", key, label, arrow)
