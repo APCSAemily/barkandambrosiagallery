@@ -19,12 +19,36 @@ class BoardTests(ScoringCase):
     def names(self, rows):
         return [r["username"] for r in rows]
 
-    def test_it_sorts_by_score_accuracy_or_beetles_seen(self):
-        self.assertEqual(self.names(game_board.board()), ["cy", "ann", "bob"])
-        # cy has too few judged answers for an accuracy, so goes last on that board
-        self.assertEqual(self.names(game_board.board(sort="accuracy")), ["bob", "ann", "cy"])
-        self.assertEqual(self.names(game_board.board(sort="viewed")), ["bob", "ann", "cy"])
-        self.assertIsNone(game_board.board()[0]["accuracy"])
+    def test_it_sorts_by_score_either_games_accuracy_or_beetles_seen(self):
+        from collections import defaultdict
+        from unittest import mock
+
+        def stats(classify, pair):
+            return {"classify": {"accuracy": classify}, "pair": {"accuracy": pair}}
+        by_game = defaultdict(lambda: stats(None, None), {
+            self.ann.id: stats(0.9, 0.4), self.bob.id: stats(0.6, 0.95), self.cy.id: stats(None, 0.7)})
+        with mock.patch.object(game_board, "mode_stats", return_value=by_game):
+            self.assertEqual(self.names(game_board.board()), ["cy", "ann", "bob"])
+            # cy has too few judged identifications for an accuracy, so goes last on that board
+            self.assertEqual(self.names(game_board.board(sort="identification")), ["ann", "bob", "cy"])
+            self.assertEqual(self.names(game_board.board(sort="similarity")), ["bob", "cy", "ann"])
+            self.assertEqual(self.names(game_board.board(sort="viewed")), ["bob", "ann", "cy"])
+            self.assertIsNone(game_board.board()[0]["id_accuracy"])
+
+    def test_identification_and_similarity_are_counted_apart(self):
+        from beetlesgallery.beetles_app.test_game_scoring import AFFINIS
+        for _ in range(10):
+            self.answer(self.ann, self.roi(self.t_affinis), AFFINIS)
+        from beetlesgallery.beetles_app import game_scoring
+        game_scoring.recompute([self.ann.id])
+        stats = game_board.mode_stats([self.ann.id])[self.ann.id]
+        self.assertEqual((stats["classify"]["accuracy"], stats["pair"]["accuracy"]), (1.0, None))
+        self.assertGreater(stats["classify"]["points"], 0)
+        self.client.force_login(self.ann)
+        page = self.client.get("/game/leaderboard/?sort=accuracy").content.decode()   # old links still work
+        self.assertIn('value="identification" selected', page)
+        self.assertIn("Similarity", page)
+        self.assertIn('data-testid="game-split"', self.client.get("/game/").content.decode())
 
     def test_it_can_be_searched(self):
         self.assertEqual(self.names(game_board.board(q="BO")), ["bob"])

@@ -1,4 +1,5 @@
 """Levels need points and reliability; perks; whose labels reach curators; experts' labels applied without review."""
+from django.test import SimpleTestCase
 from django.test import override_settings
 
 from beetlesgallery.beetles_app import game_levels as levels
@@ -257,3 +258,28 @@ class PageTests(ScoringCase):
     def test_anyone_can_look_at_someone_elses_tree(self):
         self.client.force_login(self.user)
         self.assertContains(self.client.get(f"/game/players/{self.staff.id}/expertise/"), "expertise")
+
+
+class LevelIconTests(SimpleTestCase):
+    def test_every_level_has_its_own_icon_from_egg_to_crown(self):
+        from beetlesgallery.beetles_app import game_levels
+        icons = [game_levels.level_icon(n) for n in range(1, len(game_levels.LEVELS) + 1)]
+        self.assertEqual(len(set(icons)), len(game_levels.LEVELS))
+        self.assertEqual((icons[0], icons[-1]), ("fi-rr-egg", "fi-rr-crown"))
+        self.assertEqual(game_levels.level_icon(99), "fi-rr-crown")
+        self.assertEqual(game_levels.level_icon("x"), "fi-rr-egg")
+
+    def test_the_badge_shows_the_icon(self):
+        from django.template.loader import render_to_string
+        html = render_to_string("beetles/includes/game_level_badge.html", {"level": 2, "name": "Larva"})
+        self.assertIn("fi-rr-worm", html)
+        self.assertIn(">2</span>", html)
+
+    def test_a_proven_expert_is_a_glowing_blue_dot(self):
+        import re
+        from pathlib import Path
+        from django.conf import settings
+        css = (Path(settings.BASE_DIR) / "beetlesgallery/templates/beetles/game_expertise.html").read_text()
+        rule = re.search(r"\.st-expert \.tree-dot \{([^}]*)\}", css).group(1)
+        self.assertIn("#2563eb", rule)        # blue
+        self.assertIn("box-shadow", rule)     # glowing

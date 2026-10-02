@@ -89,6 +89,22 @@ class ChooseGameTests(MixedFeedCase):
         self.assertEqual(game.play_mode(self.user), "pair")
         self.assertEqual(set(self.modes(game.start_round(self.user, "mixed", size=6))), {"pair"})
 
+    def test_reaching_level_two_mid_game_brings_identification_in_at_once(self):
+        from beetlesgallery.beetles_app import game_scoring
+        self.level(49)
+        data = self.post("game_start", {"mode": "mixed"}).json()
+        self.assertFalse(data["prefs"]["choose_game"])
+        body = {"index": data["item"]["index"], "pair_answer": "genus"}
+        with mock.patch.object(game_scoring, "score_new_answer", side_effect=lambda record: self.level(60)), \
+                mock.patch.object(game_levels, "pair_share", return_value=0.0), \
+                mock.patch.object(game, "finish_round"):   # it would re-score from the real answers, undoing the 60
+            res = self.client.post(reverse("game_answer", args=[data["round"]]), json.dumps(body),
+                                   content_type="application/json").json()
+        self.assertIn("level", [e["kind"] for e in res["events"]])
+        self.assertTrue(res["prefs"]["choose_game"])                 # the toolbar unlocks straight away
+        self.assertNotEqual(res["round"], data["round"])              # and a fresh batch, picked under the new rules
+        self.assertIn("classify", self.modes(GameRound.objects.get(pk=res["round"])))
+
     def test_level_two_unlocks_identification_and_defaults_to_both(self):
         self.level(60)
         self.assertEqual(game.play_mode(self.user), "both")

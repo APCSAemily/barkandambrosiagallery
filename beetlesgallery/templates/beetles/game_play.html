@@ -14,7 +14,8 @@
   #photos canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
   #photos.fade canvas { opacity: 0; }
   #photos canvas { transition: opacity 0.15s ease; }
-  #panel { flex: 0 0 auto; padding: 0.625rem 0.75rem calc(0.625rem + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: #fff; }
+  /* The answer panel scrolls on its own if a short screen cannot fit it; the buttons stay stuck to the bottom */
+  #panel { flex: 0 1 auto; max-height: 68%; overflow-y: auto; overscroll-behavior: contain; padding: 0.625rem 0.75rem 0; border-top: 1px solid #e5e7eb; background: #fff; }
   .rank-row { display: flex; align-items: center; height: 2.75rem; border: 1px solid #d1d5db; border-radius: 0.75rem; background: #fff; }
   .rank-row label { flex: 0 0 6.25rem; padding-left: 0.875rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7280; }
   .rank-row select { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 2rem 0 0.25rem; font-size: 1rem; color: #111827; background: transparent; border: 0; border-radius: 0 0.75rem 0.75rem 0;
@@ -23,6 +24,21 @@
   .rank-row.has-value { border-color: #4b5563; }
   .rank-row.is-disabled { background: #f9fafb; border-color: #e5e7eb; }
   .rank-row:focus-within { box-shadow: 0 0 0 2px #4b5563; }
+  /* Grey, not the browser's blue: the focus ring, and the open list where the browser lets us style it */
+  #game select { accent-color: #4b5563; }
+  #game select:focus, #game select:focus-visible { outline: none; }
+  #game select option:checked { background: #e5e7eb linear-gradient(#e5e7eb, #e5e7eb); color: #111827; }
+  #game select option:hover { background: #f3f4f6 linear-gradient(#f3f4f6, #f3f4f6); }
+  @supports (appearance: base-select) {
+    .rank-row select, .rank-row select::picker(select) { appearance: base-select; }
+    .rank-row select { display: flex; align-items: center; }
+    .rank-row select::picker-icon { display: none; }
+    .rank-row select::picker(select) { border: 1px solid #d1d5db; border-radius: 0.75rem; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 55vh; padding: 0.25rem; }
+    .rank-row select option { padding: 0.5rem 0.75rem; border-radius: 0.5rem; }
+    .rank-row select option::checkmark { display: none; }
+    .rank-row select option:hover, .rank-row select option:focus-visible { background: #f3f4f6; outline: none; }
+    .rank-row select option:checked { background: #e5e7eb; font-weight: 600; }
+  }
   .rank-row .chev { position: absolute; right: 0.875rem; pointer-events: none; color: #9ca3af; font-size: 0.75rem; }
 
   /* The relatedness ladder: a meter that fills from "strangers" down to "same species" */
@@ -40,19 +56,45 @@
   .rung.selected small { color: #d1d5db; }
   .rung.selected::before { background: #fff; border-color: #fff; }
 
-  #actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  #actions { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 0.5rem; margin-top: 0.5rem; padding: 0 0 calc(0.625rem + env(safe-area-inset-bottom)); background: #fff; }
   #actions button { height: 3rem; border-radius: 0.75rem; font-size: 1rem; }
-  #skip { flex: 0 0 32%; font-weight: 500; color: #4b5563; border: 1px solid #d1d5db; background: #fff; }
+  #skip { flex: 0 0 30%; font-weight: 500; color: #4b5563; border: 1px solid #d1d5db; background: #fff; }
+  #open-search { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0 0.875rem; font-weight: 500; color: #374151; border: 1px solid #d1d5db; background: #fff; }
+  #open-search.hidden { display: none; }
   #submit { flex: 1 1 auto; font-weight: 600; color: #fff; background: #6b7280; }
   #submit:disabled { background: #d1d5db; }
   #actions button:active:not(:disabled) { transform: scale(0.98); }
   .icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; color: #374151; }
   .icon-btn:active { background: #f3f4f6; }
+  /* Keyboard hints: only on a computer (see HAS_KEYBOARD) */
+  .kbd { display: none; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; margin-left: 0.4rem; border: 1px solid currentColor; border-radius: 0.3rem;
+         font-size: 0.625rem; font-weight: 600; line-height: 1; opacity: 0.55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #game.has-kbd .kbd { display: inline-flex; }
+  .rung .kbd { margin-left: 0.5rem; }
+  /* The beetles-in-a-row chip: grey at 2, warmer as it grows, gold and glowing at 20 */
+  #combo { transition: background-color .3s, color .3s, box-shadow .3s; }
+  #combo.c1 { background: #f3f4f6; color: #6b7280; }
+  #combo.c2 { background: #dcfce7; color: #15803d; }
+  #combo.c3 { background: #dbeafe; color: #1d4ed8; }
+  #combo.c4 { background: #f3e8ff; color: #7e22ce; }
+  #combo.c5 { background: #fef3c7; color: #b45309; box-shadow: 0 0 0 1px #fbbf24, 0 0 10px rgba(251,191,36,.7); }
+  /* Today's goal reached: the streak chip lights up */
+  #chip.lit { background: #fff7ed; color: #c2410c; box-shadow: 0 0 0 1px #fdba74, 0 0 10px rgba(249,115,22,.45); }
+  #chip.lit #chip-flame { filter: drop-shadow(0 0 3px rgba(249,115,22,.9)); }
+  #chip.pop { animation: chip-pop .6s ease; }
+  @keyframes chip-pop { 40% { transform: scale(1.18); } }
+  /* What the other players called the last beetle: stays until closed or the next one replaces it */
+  #community { display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.4rem 0.4rem 0.4rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.75rem;
+               background: #fff; color: #374151; font-size: 0.8125rem; line-height: 1.35; }
+  #community.agree { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  #community.hidden { display: none; }
+  #community button { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; margin-top: -0.125rem; border-radius: 0.5rem; color: inherit; opacity: 0.6; }
+  #community button:hover { opacity: 1; background: rgba(0,0,0,.05); }
   /* On a phone the two photos of Family Ties sit one above the other so each gets the full width */
   @media (max-width: 639px) { #game[data-mode="pair"] #photos { flex-direction: column; } #game[data-mode="pair"] #photos .cell { height: auto; width: 100%; } }
   /* On a wide screen keep the answer buttons a comfortable width in the middle */
   @media (min-width: 700px) { #panel { padding-left: calc((100% - 38rem) / 2); padding-right: calc((100% - 38rem) / 2); } }
-  @media (prefers-reduced-motion: reduce) { #photos canvas { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { #photos canvas { transition: none; } #chip.pop { animation: none; } }
 </style>
 {% endblock %}
 
@@ -76,12 +118,11 @@
       <h1 id="game-title" class="font-semibold text-gray-900 text-base tracking-tight truncate">{{ mode_label }}</h1>
       <div id="focus-line" class="hidden text-[11px] text-gray-500 truncate"></div>
     </div>
-    <span id="combo" class="hidden items-center px-2 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Beetles answered in a row without skipping"></span>
+    <span id="combo" class="hidden items-center gap-1 px-2 h-8 rounded-full text-xs font-semibold tabular-nums" title="Beetles answered in a row without skipping" data-testid="combo"><i class="fi fi-rr-bolt"></i><span id="combo-text"></span></span>
     <span id="chip" class="hidden items-center gap-1 px-2.5 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 tabular-nums" title="Today's beetles and your daily goal">
       <i class="fi fi-rr-flame" id="chip-flame"></i><span id="chip-text"></span>
     </span>
     <span id="level-chip" class="hidden items-center gap-1 px-2 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 tabular-nums" title="Points to the next level" data-testid="level-chip"></span>
-    <button type="button" id="open-search" class="icon-btn hidden" aria-label="Search for a name"><i class="fi fi-rr-search text-lg"></i></button>
     <button type="button" id="open-help" class="icon-btn hidden" aria-label="How it works"><i class="fi fi-rr-interrogation text-lg"></i></button>
   </header>
   <!-- progress to the next level, right under the top bar -->
@@ -115,6 +156,8 @@
     <div id="photos"></div>
 
     <div id="panel">
+      <div id="community" class="hidden" role="status" data-testid="community"><span id="community-text" class="flex-1 min-w-0 pt-0.5"></span>
+        <button type="button" id="community-close" aria-label="Close"><i class="fi fi-rr-cross-small"></i></button></div>
       <div class="space-y-2 hidden" id="ranks">
         {% for rank, label in ranks %}
         <div class="rank-row relative" data-row="{{ rank }}">
@@ -126,13 +169,14 @@
       </div>
       <div id="ladder" class="hidden" role="radiogroup" aria-label="How closely related are these two beetles?">
         {% for value, label, hint in rungs %}
-        <button type="button" role="radio" aria-checked="false" data-choice="{{ value }}" class="rung">{{ label }}<small>{{ hint }}</small></button>
+        <button type="button" role="radio" aria-checked="false" data-choice="{{ value }}" class="rung">{{ label }}<small>{{ hint }}</small><kbd class="kbd">{{ forloop.counter }}</kbd></button>
         {% endfor %}
       </div>
 
       <div id="actions">
-        <button type="button" id="skip">Skip</button>
-        <button type="button" id="submit" disabled>Next</button>
+        <button type="button" id="skip"><span id="skip-text">Skip</span><kbd class="kbd">S</kbd></button>
+        <button type="button" id="open-search" class="hidden" aria-label="Search for a name"><i class="fi fi-rr-search"></i><span>Search</span><kbd class="kbd">/</kbd></button>
+        <button type="button" id="submit" disabled>Next<kbd class="kbd">Enter</kbd></button>
       </div>
     </div>
   </div>
@@ -209,6 +253,7 @@
     <div id="recap-badges" class="mb-6 space-y-2"></div>
     <div class="flex flex-col gap-3">
       <button type="button" id="recap-more" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-500 hover:bg-gray-500 rounded-xl">Keep playing</button>
+      <a href="{% url 'game_report' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl" data-testid="recap-learn"><i class="fi fi-rr-bulb"></i> Where I lost points</a>
       <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">See my stats and the leaderboard</a>
     </div>
     <a href="{{ discussions }}" target="_blank" rel="noopener" class="mt-6 inline-block text-sm text-gray-500 underline hover:text-gray-800" data-testid="discussions-link">Bug or idea? Tell us on GitHub Discussions</a>
@@ -224,8 +269,8 @@
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
     <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
-  <!-- Barely there on purpose: report a photo that looks wrong -->
-  <button type="button" id="report-cog" class="absolute bottom-3 left-3 p-2 text-white/30 hover:text-white/70 text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i></button>
+  <!-- Quiet, but labelled so players can find it: report a photo that looks wrong -->
+  <button type="button" id="report-cog" class="absolute bottom-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-2 text-white/60 hover:text-white text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i><span>Report</span></button>
   <div id="report-menu" class="hidden absolute bottom-12 left-3 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800 whitespace-nowrap" role="menu" aria-label="Report this image">
     <div class="px-2 py-1 text-xs font-semibold text-gray-500">Report this image</div>
     {% for value, label in report_reasons %}
@@ -233,6 +278,8 @@
     {% endfor %}
   </div>
 </div>
+
+{% include "beetles/includes/game_tour.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -258,6 +305,9 @@
   const RANKS = ["subfamily", "tribe", "genus", "species"];
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const $ = (id) => document.getElementById(id);
+  // A computer with a mouse and keyboard: show the keyboard shortcuts (phones and tablets never see them)
+  const HAS_KEYBOARD = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  root.classList.toggle("has-kbd", HAS_KEYBOARD);
 
   let roundId = null;
   let item = null;
@@ -401,16 +451,24 @@
     el.classList.remove("hidden");
     el.classList.add("inline-flex");
     $("chip-text").textContent = chip.today + "/" + chip.goal;
+    // today's goal reached: the chip lights up (with a little pop the moment it happens)
+    const lit = chip.goal > 0 && chip.today >= chip.goal;
+    if (lit && !el.classList.contains("lit") && el.dataset.seen) { el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+    el.classList.toggle("lit", lit);
+    el.dataset.seen = "1";
     // the flame takes the streak's rarity colour (the same as on the game home)
     const s = chip.streak || 0;
     $("chip-flame").className = "fi fi-rr-flame " + (s >= 100 ? "text-yellow-600" : s >= 30 ? "text-orange-600" : s >= 14 ? "text-purple-600"
       : s >= 7 ? "text-blue-600" : s >= 3 ? "text-green-600" : "text-gray-400");
-    el.title = chip.streak + "-day streak. " + chip.today + " of " + chip.goal + " beetles today.";
+    el.title = chip.streak + "-day streak. " + chip.today + " of " + chip.goal + " beetles today." + (lit ? " Today's goal done!" : "");
     if (chip.level) {
       const lc = $("level-chip");
       lc.classList.remove("hidden");
       lc.classList.add("inline-flex");
-      lc.textContent = "L" + chip.level + " · " + digitGroupsText(chip.score) + (chip.next_at ? "/" + digitGroupsText(chip.next_at) : "");
+      const icon = document.createElement("i");
+      icon.className = "fi " + (chip.level_icon || "fi-rr-egg");
+      icon.setAttribute("aria-hidden", "true");
+      lc.replaceChildren(icon, document.createTextNode("L" + chip.level + " · " + digitGroupsText(chip.score) + (chip.next_at ? "/" + digitGroupsText(chip.next_at) : "")));
       lc.title = chip.next_at ? digitGroupsText(chip.next_at - chip.score) + " points to level " + (chip.level + 1) : "Top level";
       $("level-bar").style.width = Math.round((chip.next_at ? chip.level_progress : 1) * 100) + "%";
     }
@@ -437,32 +495,37 @@
   function showCommunity(c) {
     if (!c) return;
     let text;
-    let mark = "";
+    let agree = false;
     if (!c.players) {
       text = "Last beetle: you're the first to name it.";
     } else if (!c.name) {
       text = "Last beetle: " + c.players + " other player" + (c.players === 1 ? "" : "s") + " named it, no clear majority yet.";
     } else {
       text = "Last beetle: others said " + c.name + " (" + c.count + " of " + c.of + ").";
-      if (c.agree === true) { mark = "agree"; text += " You agree."; }
-      else if (c.agree === false) { mark = "differ"; text += " You said something else."; }
+      if (c.agree === true) { agree = true; text += " You agree."; }
+      else if (c.agree === false) text += " You said something else.";
     }
-    const card = document.createElement("div");
     // green only when it means something: you agree with most players
-    card.style.cssText = "position:fixed;left:50%;top:4.25rem;transform:translate(-50%,-6px);z-index:94;max-width:92vw;padding:0.5rem 0.875rem;border-radius:0.75rem;font-size:0.8125rem;box-shadow:0 2px 8px rgba(0,0,0,.12);transition:opacity .3s,transform .3s;opacity:0;pointer-events:none;" +
-      (mark === "agree" ? "background:#f0fdf4;border:1px solid #bbf7d0;color:#166534" : "background:#fff;border:1px solid #e5e7eb;color:#374151");
-    card.textContent = text;
-    document.body.appendChild(card);
-    requestAnimationFrame(() => { card.style.opacity = "1"; card.style.transform = "translate(-50%,0)"; });
-    setTimeout(() => { card.style.opacity = "0"; setTimeout(() => card.remove(), 350); }, 2200);
+    $("community").classList.toggle("agree", agree);
+    $("community-text").textContent = text;
+    $("community").classList.remove("hidden");
   }
+  $("community-close").addEventListener("click", () => $("community").classList.add("hidden"));
+
+  // Beetles answered in a row: 2 is a start, 20 is perfect
+  const COMBO_PERFECT = 20;
   function bumpCombo(answered) {
     combo = answered ? combo + 1 : 0;
     const el = $("combo");
-    el.classList.toggle("hidden", combo < 3);
-    el.classList.toggle("inline-flex", combo >= 3);
-    el.textContent = "\u00d7" + combo;   // e.g. x6: answered six in a row
-    if ([10, 25, 50, 100].includes(combo)) toast({ kind: "combo", title: combo + " in a row!", text: "No skips. Keep it going." });
+    el.classList.toggle("hidden", combo < 2);
+    el.classList.toggle("inline-flex", combo >= 2);
+    const tier = combo >= COMBO_PERFECT ? 5 : combo >= 15 ? 4 : combo >= 10 ? 3 : combo >= 5 ? 2 : 1;
+    el.classList.remove("c1", "c2", "c3", "c4", "c5");
+    el.classList.add("c" + tier);
+    $("combo-text").textContent = "\u00d7" + combo;   // e.g. x6: answered six in a row
+    el.title = combo >= COMBO_PERFECT ? combo + " in a row: perfect!" : combo + " in a row without skipping. " + COMBO_PERFECT + " is perfect.";
+    if (combo === COMBO_PERFECT) toast({ kind: "combo", title: "Perfect streak!", text: COMBO_PERFECT + " in a row. Keep it going." });
+    else if ([10, 50, 100].includes(combo)) toast({ kind: "combo", title: combo + " in a row!", text: "No skips. Keep it going." });
   }
 
   // ---------- which game is on screen ----------
@@ -471,7 +534,7 @@
     root.dataset.mode = mode;   // the photo layout follows it
     $("ranks").classList.toggle("hidden", mode !== "classify");
     $("ladder").classList.toggle("hidden", mode !== "pair");
-    $("skip").textContent = mode === "pair" ? "Not sure" : "Skip";
+    $("skip-text").textContent = mode === "pair" ? "Not sure" : "Skip";
     $("game-title").textContent = GAME_NAMES[mode];
     $("open-search").classList.toggle("hidden", mode !== "classify");
     $("open-help").classList.toggle("hidden", mode !== "pair");
@@ -638,6 +701,7 @@
 
     resetAnswer();
     show("stage");
+    document.dispatchEvent(new CustomEvent("game:item-shown"));   // the new-player tour waits for the first beetle
     shownAt = Date.now();
     prefetch(item.prefetch);
   }
@@ -656,6 +720,7 @@
       answered += 1;
       if (data.celebrate) confetti();
       updateChip(data.chip);
+      if (data.prefs) renderPrefs(data.prefs);   // a new level: its unlocks show (and work) straight away
       (data.events || []).forEach(toast);
       showCommunity(data.community);
       bumpCombo(!extra.skipped && extra.pair_answer !== "unsure");
@@ -906,8 +971,68 @@
     updateSubmit();
   }
 
+  // Close whatever sits on top of the game. True if something was open.
+  function closeOverlays() {
+    const open = [["lightbox"], ["search-sheet"], ["focus-sheet"], ["help-sheet"]].filter(([id]) => $(id) && !$(id).classList.contains("hidden"));
+    $("lightbox").classList.add("hidden");
+    openSearch(false);
+    if ($("focus-sheet")) openFocus(false);
+    if ($("help-sheet")) { $("help-sheet").classList.add("hidden"); $("help-sheet").classList.remove("flex"); }
+    document.dispatchEvent(new CustomEvent("game:close-overlays"));
+    return open.length > 0;
+  }
+
+  // The phone's back button does what Exit does (or closes what is open), instead of leaving without the recap
+  const BACK_STATE = { beetleGame: true };
+  history.pushState(BACK_STATE, "");
+  window.addEventListener("popstate", () => {
+    if (!$("recap").classList.contains("hidden")) { location.href = root.dataset.homeUrl; return; }
+    history.pushState(BACK_STATE, "");
+    if (closeOverlays()) return;
+    $("exit").click();
+  });
+
+  // Keyboard shortcuts on a computer: Enter next, S skip / not sure, / search, 1-6 or the arrows on the ladder,
+  // V the whole photo, Esc closes
+  function isTyping(el) { return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable); }
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { $("lightbox").classList.add("hidden"); openSearch(false); openFocus(false); }
+    if (e.key === "Escape") { closeOverlays(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    const t = e.target;
+    if (isTyping(t)) {
+      if (t.id === "search" && e.key === "Enter") {
+        const first = results.querySelector("button");
+        if (first) { e.preventDefault(); first.click(); }
+      }
+      return;
+    }
+    if (t && t.tagName === "OPTION") return;   // choosing in an open list
+    if (!$("recap").classList.contains("hidden")) {
+      if (e.key === "Enter") { e.preventDefault(); $("recap-more").click(); }
+      return;
+    }
+    if (!$("lightbox").classList.contains("hidden") || document.querySelector("[data-overlay-open]")) return;
+    if ($("stage").classList.contains("hidden") || $("search-sheet").classList.contains("flex") || ($("focus-sheet") && $("focus-sheet").classList.contains("flex"))) return;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (key === "Enter") {
+      e.preventDefault();   // also keeps a focused list from opening
+      if (!$("submit").disabled) $("submit").click();
+    } else if (key === "s") {
+      e.preventDefault();
+      if (!$("skip").disabled) $("skip").click();
+    } else if (key === "/" && MODE === "classify") {
+      e.preventDefault();
+      openSearch(true);
+    } else if (key === "v" && item && item.images.length) {
+      const im = item.images[0];
+      openLightbox(im.url, im.box, 0);
+    } else if (MODE === "pair" && /^[1-9]$/.test(key)) {
+      setRung(Number(key) - 1);
+    } else if (MODE === "pair" && (key === "ArrowDown" || key === "ArrowUp")) {
+      e.preventDefault();
+      const now = rungs.findIndex((r) => r.classList.contains("selected"));
+      setRung(key === "ArrowDown" ? Math.min(rungs.length - 1, now + 1) : Math.max(0, now - 1));
+    }
   });
 
   startFeed();

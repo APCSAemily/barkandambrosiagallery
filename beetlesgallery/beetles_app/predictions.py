@@ -13,6 +13,8 @@ The CSV has one row per ROI and model:
     model_version       e.g. "2026-09"                                                  optional
     top_k               further candidates, best first: "1733:0.08;2210:0.03"           optional
                         (or a JSON list of {"valid_species_id": ..., "confidence": ...})
+    subfamily, tribe,   what the model said at that rank, if it says so, each with      optional
+    genus               a <rank>_confidence column (0 to 1); kept in rank_confidence
 
 The whole file is checked before anything is written; if any row is wrong nothing is saved and
 every problem is reported with its row number. Uploading the same model version again replaces
@@ -37,6 +39,8 @@ COLUMN_ALIASES = {
     "version": "model_version",
 }
 REQUIRED_COLUMNS = ("record_id", "valid_species_id", "confidence")
+UPPER_RANKS = ("subfamily", "tribe", "genus")   # optional per-rank columns, each with <rank>_confidence
+RANKS = UPPER_RANKS + ("species",)
 MAX_ERRORS_SHOWN = 30
 CHUNK = 2000
 
@@ -119,6 +123,59 @@ def parse_top_k(text, species_ids, primary):
     return cleaned, None
 
 
+def parse_rank_confidence(row, known):
+    """
+    The optional subfamily / tribe / genus columns and their confidences. Returns (dict, None) or (None, error).
+    ``known`` is {rank: {lower-cased name: name as in the taxonomy}}.
+    """
+    out = {}
+    for rank in UPPER_RANKS:
+        value, conf = row.get(rank, ""), row.get(f"{rank}_confidence", "")
+        if not value and not conf:
+            continue
+        if not value or not conf:
+            return None, f"{rank} and {rank}_confidence go together: give both or neither"
+        name = known[rank].get(value.lower())
+        if name is None:
+            return None, f"{rank} '{value}' is not in the species list"
+        number, error = parse_confidence(conf, f"{rank}_confidence")
+        if error:
+            return None, error
+        out[rank] = {"value": name, "confidence": number}
+    return out, None
+
+
+def rank_tips(prediction):
+    """
+    What the model thinks at each rank, best guess and confidence: {rank: {"value", "confidence", "source"}}.
+    "model" when the upload gave that rank's confidence; otherwise "species", added up from the species and its
+    runners-up (a lower bound when the runners-up were cut short). Meant for a future game unlock that shows players
+    the AI's opinion, and for curators.
+    """
+    taxa = {t.valid_species_id: t for t in Taxon.objects.filter(
+        valid_species_id__in=[prediction.valid_species_id] + [c["valid_species_id"] for c in prediction.top_k or []])}
+    candidates = [(prediction.valid_species_id, prediction.confidence)] + [
+        (c["valid_species_id"], c["confidence"]) for c in prediction.top_k or []]
+    tips = {}
+    for rank in RANKS:
+        given = (prediction.rank_confidence or {}).get(rank)
+        if given:
+            tips[rank] = {"value": given["value"], "confidence": given["confidence"], "source": "model"}
+            continue
+        totals = {}
+        for species_id, conf in candidates:
+            taxon = taxa.get(species_id)
+            if taxon is None:
+                continue
+            value = f"{taxon.genus} {taxon.species}" if rank == "species" else getattr(taxon, rank, "")
+            if value:
+                totals[value] = totals.get(value, 0.0) + conf
+        if totals:
+            value, conf = max(totals.items(), key=lambda kv: kv[1])
+            tips[rank] = {"value": value, "confidence": round(min(conf, 1.0), 4), "source": "species"}
+    return tips
+
+
 def read_rows(source):
     """Rows of a CSV as dicts of stripped strings, with header names lower-cased and aliases mapped."""
     text = source.read() if hasattr(source, "read") else source
@@ -167,6 +224,12 @@ def import_predictions(source, user=None, default_model="", default_version="", 
     result.rows = len(rows)
 
     species_ids = {sid: pk for sid, pk in Taxon.objects.values_list("valid_species_id", "id")}
+    known = {rank: {} for rank in UPPER_RANKS}
+    if any(rank in columns for rank in UPPER_RANKS):
+        for values in Taxon.objects.values_list(*UPPER_RANKS):
+            for rank, value in zip(UPPER_RANKS, values):
+                if value:
+                    known[rank].setdefault(value.lower(), value)
     wanted = {}
     for i, row in enumerate(rows):
         try:
@@ -210,6 +273,10 @@ def import_predictions(source, user=None, default_model="", default_version="", 
         if error:
             problem(row_num, error)
 
+        ranks, error = parse_rank_confidence(row, known)
+        if error:
+            problem(row_num, error)
+
         if result.error_count != before:
             continue
         key = (roi_id, model_name, model_version)
@@ -219,7 +286,7 @@ def import_predictions(source, user=None, default_model="", default_version="", 
         keys[key] = row_num
         pending.append(ModelPrediction(
             roi_id=roi_id, valid_species_id=species, taxon_id=species_ids[species], confidence=confidence,
-            top_k=top_k, model_name=model_name, model_version=model_version, uploaded_by=user,
+            top_k=top_k, rank_confidence=ranks, model_name=model_name, model_version=model_version, uploaded_by=user,
         ))
         if roi_id not in best or confidence > best[roi_id][0]:
             best[roi_id] = (confidence, model_name)
@@ -241,7 +308,8 @@ def import_predictions(source, user=None, default_model="", default_version="", 
             ModelPrediction.objects.bulk_create(
                 chunk, update_conflicts=True,
                 unique_fields=["roi", "model_name", "model_version"],
-                update_fields=["valid_species_id", "taxon", "confidence", "top_k", "uploaded_by", "created_at"],
+                update_fields=["valid_species_id", "taxon", "confidence", "top_k", "rank_confidence", "uploaded_by",
+                               "created_at"],
             )
         # The game matches images to players by difficulty: a model that is unsure is a hard image.
         difficulties = [

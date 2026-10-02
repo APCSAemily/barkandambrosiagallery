@@ -13,7 +13,8 @@ from beetlesgallery.beetles_app.test_game import AFFINIS, FERR, FeedbackCase
 PLAT = {"subfamily": "Platypodinae", "tribe": "Platypodini", "genus": "Platypus", "species": "cylindrus"}
 
 
-@override_settings(GAME_POINTS_PARTICIPATION=0)   # the rules below are easier to read without it; it has its own test
+# The rules below are easier to read without the participation point and the Identification weight; each has its own test
+@override_settings(GAME_POINTS_PARTICIPATION=0, GAME_POINTS_CLASSIFY_WEIGHT=1)
 class ScoringCase(FeedbackCase):
     def player(self, name):
         return get_user_model().objects.create_user(name, password="pw")
@@ -82,6 +83,29 @@ class TruthPointsTests(ScoringCase):
 
     def test_a_retry_earns_half(self):
         self.assertEqual(self.points(self.answer(self.user, self.roi(self.t_affinis), AFFINIS, retry=True)).points, 7.5)
+
+
+@override_settings(GAME_POINTS_CLASSIFY_WEIGHT=3)
+class IdentificationWeightTests(ScoringCase):
+    """Naming a beetle is worth several times a similarity answer, gains and losses alike."""
+
+    def test_identification_counts_three_times(self):
+        self.assertEqual(self.points(self.answer(self.user, self.roi(self.t_affinis), AFFINIS)).points, 45.0)
+        genus_only = dict(AFFINIS, species="")
+        self.assertEqual(self.points(self.answer(self.user, self.roi(self.t_affinis), genus_only)).points, 21.0)
+        self.assertEqual(self.points(self.answer(self.player("x"), self.roi(self.t_affinis), PLAT)).points, -33.75)
+
+    def test_a_perfect_identification_is_worth_many_similarity_answers(self):
+        name = self.points(self.answer(self.user, self.roi(self.t_affinis), AFFINIS)).points
+        b = self.roi(self.t_affinis)
+        pair = self.points(self.answer(self.player("p"), self.roi(self.t_affinis), mode="pair", roi_b=b, pair="species")).points
+        self.assertGreaterEqual(name / pair, 5)
+
+    def test_the_explanation_shows_the_weighted_points(self):
+        self.client.force_login(self.user)
+        page = self.client.get("/game/how-it-works/").content.decode()
+        self.assertIn("worth 3&times; the points", page)
+        self.assertIn("the exact species 45", page)
 
 
 class PairPointsTests(ScoringCase):

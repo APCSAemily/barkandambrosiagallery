@@ -92,3 +92,11 @@ def page_url(context, param, number, anchor=""):
     query = context["request"].GET.copy()
     query[param] = number
     return "?" + query.urlencode() + (f"#{anchor}" if anchor else "")
+
+
+@register.filter
+def level_icon(level):
+    """The game's icon for a level: {{ level|level_icon }} -> "fi-rr-worm"."""
+    from beetlesgallery.beetles_app.game_levels import level_icon as icon
+
+    return icon(level)

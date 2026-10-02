@@ -195,9 +195,20 @@ class PlayPageTests(GameCase):
         page = self.page("classify")
         order = [page.index(f'data-rank="{r}"') for r in ("subfamily", "tribe", "genus", "species")]
         self.assertEqual(order, sorted(order))
-        self.assertIn('id="skip">Skip<', page)
+        self.assertIn('id="skip"><span id="skip-text">Skip</span>', page)
         self.assertIn('id="submit"', page)
 
+
+    def test_keyboard_hints_back_button_and_search_sit_with_the_answer_buttons(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("game_play", args=["classify"])).content.decode()
+        actions = page[page.index('<div id="actions">'):]
+        actions = actions[:actions.index("</div>")]
+        for part in ('id="skip"', 'id="open-search"', 'id="submit"', '<kbd class="kbd">Enter</kbd>'):
+            self.assertIn(part, actions)
+        self.assertIn('(hover: hover) and (pointer: fine)', page)   # shortcuts only shown on a computer
+        self.assertIn('addEventListener("popstate"', page)          # the phone's back button acts like Exit
+        self.assertIn('id="community"', page)                        # what others said stays until closed
     def test_family_ties_is_a_ladder_from_strangers_to_the_same_species_with_a_not_sure_button(self):
         page = self.page("pair")
         order = [page.index(f'data-choice="{c}"') for c in ("different", "subfamily", "tribe", "genus", "species")]
@@ -213,3 +224,41 @@ class PlayPageTests(GameCase):
         source = "".join((root / n).read_text() for n in ("game_play.html", "game_home.html"))
         for colour in ("indigo", "emerald", "pink", "fuchsia", "rose", "cyan"):
             self.assertNotIn(colour + "-", source)
+
+
+class OnboardingTests(GameCase):
+    """New players get a walkthrough the first time and, for a few days, how to report a bad photo."""
+
+    def page(self, query=""):
+        self.client.force_login(self.user)
+        return self.client.get(reverse("game_play", args=["mixed"]) + query).content.decode()
+
+    def answer_once(self, days_ago=0):
+        from datetime import timedelta
+        from django.utils import timezone
+        rnd = GameRound.objects.create(player=self.user, mode="classify", items=[])
+        ans = GameAnswer.objects.create(round=rnd, player=self.user, mode="classify", index=0,
+                                        roi=self.roi(self.t_affinis), is_check=True, genus="Xyleborus")
+        GameAnswer.objects.filter(pk=ans.pk).update(answered_at=timezone.now() - timedelta(days=days_ago))
+
+    def test_a_first_game_starts_with_the_tour(self):
+        page = self.page()
+        self.assertIn('data-first="1"', page)
+        self.assertIn("game_tour.js", page)
+        self.assertIn('id="report-tip"', page)
+
+    def test_after_the_first_answer_the_tour_only_comes_back_when_asked(self):
+        self.answer_once()
+        self.assertIn('data-first="0"', self.page())
+        self.assertIn('data-first="1"', self.page("?tour=1"))
+        self.assertIn("?tour=1", self.client.get(reverse("game_how")).content.decode())
+
+    def test_the_report_tip_is_for_the_first_few_days_only(self):
+        self.answer_once()
+        self.assertIn('data-report-tip="1"', self.page())
+        for days_ago in (1, 2, 3):
+            self.answer_once(days_ago)
+        self.assertIn('data-report-tip="0"', self.page())
+
+    def test_the_report_button_is_labelled(self):
+        self.assertIn("<span>Report</span>", self.page())

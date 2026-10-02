@@ -228,3 +228,45 @@ class CommandAndPageTests(PredictionCase):
         with self.settings(MAX_UPLOAD_SIZE_PREDICTIONS=10):
             response = self.post(csv_text(f"{self.roi.id},1733,0.9,ibbi,v1,"))
         self.assertContains(response, "too large")
+
+
+class RankConfidenceTests(PredictionCase):
+    """What the model says per rank, ready for a future game unlock that shows players the AI's opinion."""
+
+    HEADER = HEADER + ",subfamily,subfamily_confidence,tribe,tribe_confidence,genus,genus_confidence"
+
+    def setUp(self):
+        super().setUp()
+        for t in (self.affinis, self.ferr):
+            t.subfamily, t.tribe = "Scolytinae", "Xyleborini"
+            t.save()
+
+    def test_per_rank_columns_are_kept(self):
+        result = self.load(csv_text(f"{self.roi.id},1733,0.55,ibbi,v1,,scolytinae,0.99,Xyleborini,0.97,xyleborus,0.92",
+                                    header=self.HEADER))
+        self.assertTrue(result.ok, result.errors)
+        ranks = ModelPrediction.objects.get(roi=self.roi).rank_confidence
+        self.assertEqual(ranks["genus"], {"value": "Xyleborus", "confidence": 0.92})   # spelled as in the taxonomy
+        self.assertEqual(ranks["subfamily"]["confidence"], 0.99)
+
+    def test_rank_columns_are_checked(self):
+        # after model_version: top_k, then subfamily / tribe and their confidences (empty), then the genus
+        for cells, message in ((",,,,,Nope,0.9", "not in the species list"), (",,,,,Xyleborus,", "go together"),
+                               (",,,,,Xyleborus,92", "between 0 and 1")):
+            with self.subTest(cells=cells):
+                result = self.load(csv_text(f"{self.roi.id},1733,0.5,ibbi,v1,{cells}", header=self.HEADER))
+                self.assertFalse(result.ok)
+                self.assertIn(message, " ".join(result.errors))
+
+    def test_files_without_the_columns_still_work(self):
+        self.assertTrue(self.load(csv_text(f"{self.roi.id},1733,0.5,ibbi,v1,")).ok)
+        self.assertEqual(ModelPrediction.objects.get(roi=self.roi).rank_confidence, {})
+
+    def test_rank_tips_use_the_model_or_add_up_the_species(self):
+        from beetlesgallery.beetles_app.predictions import rank_tips
+        self.load(csv_text(f"{self.roi.id},1733,0.55,ibbi,v1,2210:0.35"))
+        tips = rank_tips(ModelPrediction.objects.get(roi=self.roi))
+        self.assertEqual(tips["species"], {"value": "Xyleborus affinis", "confidence": 0.55, "source": "species"})
+        self.assertEqual(tips["genus"], {"value": "Xyleborus", "confidence": 0.9, "source": "species"})   # 0.55 + 0.35
+        self.load(csv_text(f"{self.roi.id},1733,0.55,ibbi,v1,2210:0.35,,,,,Xyleborus,0.97", header=self.HEADER))
+        self.assertEqual(rank_tips(ModelPrediction.objects.get(roi=self.roi))["genus"]["source"], "model")
