@@ -29,11 +29,16 @@ from .game import game_setting
 
 PROPOSALS = "proposals"
 CHOOSE_GAME = "choose_game"
+SPECIMEN_PHOTOS = "specimen_photos"
 PERKS = {
     CHOOSE_GAME: ("Identification game", "Name beetles too, and choose Identification, Similarity or both."),
     "focus_subfamily": ("Focus on a subfamily", "Choose one subfamily and the game shows you only its beetles."),
     "focus_tribe": ("Focus on a tribe", "Narrow your focus to a single tribe."),
     "focus_genus": ("Focus on a genus", "Narrow your focus to a single genus."),
+    SPECIMEN_PHOTOS: (
+        "More photos of each beetle",
+        "When the same beetle was photographed more than once, see its other photos too (only photos of that one beetle).",
+    ),
     PROPOSALS: (
         "Your labels go to curators",
         "You seem to know your bark beetles: your names for beetles nobody has checked yet are now sent to the "
@@ -49,7 +54,7 @@ LEVELS = [
     (400, 0.5, "Teneral", ["focus_tribe"]),
     (800, 0.6, "Beetle scout", ["focus_genus"]),
     (1500, 0.7, "Field entomologist", [PROPOSALS]),
-    (3000, 0.75, "Taxonomist", []),
+    (3000, 0.75, "Taxonomist", [SPECIMEN_PHOTOS]),
     (6000, 0.8, "Beetle master", []),
     (10000, 0.85, "Coleopterist", []),
     (25000, 0.92, "King of Bark and Ambrosia", []),

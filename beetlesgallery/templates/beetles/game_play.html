@@ -95,6 +95,16 @@
   /* On a wide screen keep the answer buttons a comfortable width in the middle */
   @media (min-width: 700px) { #panel { padding-left: calc((100% - 38rem) / 2); padding-right: calc((100% - 38rem) / 2); } }
   @media (prefers-reduced-motion: reduce) { #photos canvas { transition: none; } #chip.pop { animation: none; } }
+  /* More photos of the same beetle (an unlock): a chip on the photo, and arrows in the photo viewer */
+  .more-chip { position: absolute; right: 0.375rem; bottom: 0.375rem; z-index: 2; display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem;
+               border-radius: 9999px; background: rgba(17,24,39,.78); color: #fff; font-size: 0.75rem; font-weight: 600; }
+  .more-chip.locked { background: rgba(255,255,255,.92); color: #6b7280; border: 1px solid #d1d5db; }
+  .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); padding: 0.75rem; color: #fff; font-size: 1.5rem; }
+  #lb-prev { left: 0.25rem; }
+  #lb-next { right: 0.25rem; }
+  #lb-count { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); padding: 0.25rem 0.75rem; border-radius: 9999px;
+              background: rgba(0,0,0,.6); color: #fff; font-size: 0.75rem; font-weight: 600; }
+  #lb-prev.hidden, #lb-next.hidden, #lb-count.hidden { display: none; }
 </style>
 {% endblock %}
 
@@ -269,6 +279,9 @@
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
     <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
+  <button type="button" id="lb-prev" class="lb-nav hidden" aria-label="Previous photo of this beetle"><i class="fi fi-rr-angle-left"></i></button>
+  <button type="button" id="lb-next" class="lb-nav hidden" aria-label="Next photo of this beetle"><i class="fi fi-rr-angle-right"></i></button>
+  <div id="lb-count" class="hidden" data-testid="gallery-count"></div>
   <!-- Quiet, but labelled so players can find it: report a photo that looks wrong -->
   <button type="button" id="report-cog" class="absolute bottom-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-2 text-white/60 hover:text-white text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i><span>Report</span></button>
   <div id="report-menu" class="hidden absolute bottom-12 left-3 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800 whitespace-nowrap" role="menu" aria-label="Report this image">
@@ -370,17 +383,43 @@
   }
 
   let lightboxImage = 0;   // which photo of the item is open (A = 0, B = 1), for reporting it
-  function openLightbox(url, box, which) {
-    lightboxImage = which || 0;
-    $("report-menu").classList.add("hidden");
+  let gallery = [];         // with the unlock: this photo first, then other photos of the same beetle
+  let galleryAt = 0;
+  function showPhoto(url, box) {
     $("lightbox-img").src = url;
     const b = $("lightbox-box");
     b.style.left = box[0] * 100 + "%";
     b.style.top = box[1] * 100 + "%";
     b.style.width = box[2] * 100 + "%";
     b.style.height = box[3] * 100 + "%";
+  }
+  function stepGallery(step) {
+    if (gallery.length < 2) return;
+    galleryAt = (galleryAt + step + gallery.length) % gallery.length;
+    showPhoto(gallery[galleryAt].url, gallery[galleryAt].box);
+    $("lb-count").textContent = (galleryAt + 1) + " / " + gallery.length + (gallery[galleryAt].aspect ? " · " + gallery[galleryAt].aspect : "");
+    // only the photo being played can be reported from here
+    $("report-cog").classList.toggle("hidden", galleryAt !== 0);
+    $("report-menu").classList.add("hidden");
+  }
+  function openLightbox(url, box, which, photos) {
+    lightboxImage = which || 0;
+    gallery = photos || [];
+    galleryAt = 0;
+    $("report-menu").classList.add("hidden");
+    $("report-cog").classList.remove("hidden");
+    showPhoto(url, box);
+    ["lb-prev", "lb-next", "lb-count"].forEach((id) => $(id).classList.toggle("hidden", gallery.length < 2));
+    if (gallery.length > 1) $("lb-count").textContent = "1 / " + gallery.length;
     $("lightbox").classList.remove("hidden");
   }
+  $("lb-prev").addEventListener("click", (e) => { e.stopPropagation(); stepGallery(-1); });
+  $("lb-next").addEventListener("click", (e) => { e.stopPropagation(); stepGallery(1); });
+  document.addEventListener("keydown", (e) => {
+    if ($("lightbox").classList.contains("hidden") || gallery.length < 2) return;
+    if (e.key === "ArrowLeft") stepGallery(-1);
+    if (e.key === "ArrowRight") stepGallery(1);
+  });
   $("lightbox").addEventListener("click", () => $("lightbox").classList.add("hidden"));
   $("report-cog").addEventListener("click", (e) => { e.stopPropagation(); $("report-menu").classList.toggle("hidden"); });
   $("report-menu").addEventListener("click", (e) => e.stopPropagation());
@@ -682,6 +721,22 @@
       }
       frame.addEventListener("click", () => openLightbox(im.url, im.box, i));
       cell.appendChild(frame);
+      if (im.more) {
+        // Other photos of exactly this beetle: open them, or (still locked) say which level opens them
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "more-chip" + (im.photos ? "" : " locked");
+        chip.dataset.testid = "more-photos";
+        chip.innerHTML = '<i class="fi ' + (im.photos ? "fi-rr-images" : "fi-rr-lock") + '"></i>';
+        chip.append(document.createTextNode("+" + im.more + " photo" + (im.more === 1 ? "" : "s")));
+        chip.title = im.photos ? "More photos of this same beetle" : "More photos of this beetle unlock at level " + item.more_level;
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!im.photos) { toast({ kind: "lock", title: "Locked", text: "More photos of each beetle unlock at level " + item.more_level + "." }); return; }
+          openLightbox(im.url, im.box, i, [{ url: im.url, box: im.box }].concat(im.photos));
+        });
+        cell.appendChild(chip);
+      }
       holder.appendChild(cell);
     });
     if (item.others) {

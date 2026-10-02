@@ -393,10 +393,23 @@ def _next_index(rnd, start=None):
     return None
 
 
-def _item_images(rnd, index):
+def _item_images(rnd, index, extras=False):
+    """
+    The photos of one item. With ``extras``, each also says how many other photos there are of that same beetle
+    ("more"), and lists them ("photos") once the player has unlocked them (game_levels.SPECIMEN_PHOTOS).
+    """
     a, b = _item_rois(rnd.items[index])
     rois = [a] if b is None else ([b, a] if rnd.items[index].get("flip") else [a, b])
-    return [{"url": r.display_url, "box": _box(r)} for r in rois]
+    images = [{"url": r.display_url, "box": _box(r)} for r in rois]
+    if extras:
+        unlocked = game_levels.SPECIMEN_PHOTOS in game_levels.for_player(rnd.player)["perks"]
+        for image, roi in zip(images, rois):
+            more = game.specimen_photos(roi)
+            if more:
+                image["more"] = len(more)
+                if unlocked:
+                    image["photos"] = [{"url": m.display_url, "box": _box(m), "aspect": m.aspect or ""} for m in more]
+    return images
 
 
 def _item_mode(rnd, index):
@@ -410,9 +423,11 @@ def _item_payload(rnd, index):
         "mode": _item_mode(rnd, index),
         "position": rnd.answers.count() + 1,
         "total": len(rnd.items),
-        "images": _item_images(rnd, index),
+        "images": _item_images(rnd, index, extras=True),
         "prefetch": [],
     }
+    if any(im.get("more") for im in payload["images"]):
+        payload["more_level"] = game_levels.perk_level(game_levels.SPECIMEN_PHOTOS)
     if rnd.items[index].get("retry"):
         payload["again"] = True   # a beetle they got wrong before, shown again so they can learn it
     if payload["mode"] == GameRound.Mode.CLASSIFY:
