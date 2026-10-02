@@ -21,7 +21,7 @@
     { el: "chip", text: "Beetles today against your daily goal. The flame is your day streak: it lights up when the goal is done." },
     { el: "level-chip", text: "Your level and points. New levels unlock more of the game." },
     { el: "toolbar", text: "Pick the game and a focus here once you've unlocked them." },
-    { el: "photos", text: "Photo looks wrong? Open it and tap Report in the corner. You lose no points." },
+    { el: "report-chip-0", text: "Photo looks wrong (wrong name, bad box, blurry)? Tap Report here, at the top right of the photo, and pick what's wrong. You lose no points." },
     { el: "exit", text: "Leave any time: you'll see how the session went." },
   ];
 
@@ -85,11 +85,11 @@
   $("report-tip-ok").addEventListener("click", closeTip);
   $("report-tip-show").addEventListener("click", () => {
     closeTip();
-    const frame = document.querySelector("#photos .frame");
-    if (!frame) return;
-    frame.click();   // opens the whole photo
-    const cog = $("report-cog");
-    if (cog) { cog.classList.add("tour-pulse"); setTimeout(() => cog.classList.remove("tour-pulse"), 5000); }
+    // point at the Report button on the photo itself
+    const chip = $("report-chip-0");
+    if (!chip) return;
+    chip.classList.add("tour-pulse");
+    setTimeout(() => chip.classList.remove("tour-pulse"), 5000);
   });
 
   // Both close with the game's Esc and back button; their own keys don't reach the game

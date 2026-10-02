@@ -16,9 +16,9 @@
   <div class="report-tip-card">
     <h2 id="report-tip-title">Spotted a bad photo?</h2>
     <ol>
-      <li><span>1</span>Tap the photo to open it.</li>
-      <li><span>2</span>Tap <i class="fi fi-rr-settings"></i> <strong>Report</strong> in the corner.</li>
-      <li><span>3</span>Pick what's wrong. You lose no points.</li>
+      <li><span>1</span><span class="tip-text">Tap <strong class="tip-report"><i class="fi fi-rr-flag"></i> Report</strong> at the <strong>top right of the photo</strong>.</span></li>
+      <li><span>2</span>Pick what's wrong: wrong name, box doesn't fit, bad photo.</li>
+      <li><span>3</span>That's it. You lose no points.</li>
     </ol>
     <div class="tour-row">
       <button type="button" id="report-tip-show">Show me</button>
@@ -47,12 +47,13 @@
   .report-tip-card h2 { margin: 0 0 0.75rem; font-size: 1.125rem; font-weight: 700; color: #111827; }
   .report-tip-card ol { margin: 0 0 1rem; padding: 0; list-style: none; display: grid; gap: 0.5rem; font-size: 0.9375rem; color: #374151; }
   .report-tip-card li { display: flex; align-items: center; gap: 0.625rem; }
-  .report-tip-card li > span { flex: 0 0 1.5rem; height: 1.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; background: #f3f4f6; font-size: 0.75rem; font-weight: 700; color: #374151; }
+  .report-tip-card .tip-report { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0 0.5rem; border: 1px solid #d1d5db; border-radius: 9999px; font-size: 0.8125rem; white-space: nowrap; }
+  .report-tip-card li > span:first-child { flex: 0 0 1.5rem; height: 1.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; background: #f3f4f6; font-size: 0.75rem; font-weight: 700; color: #374151; }
   .report-tip-card .tour-row { justify-content: flex-end; }
   #report-tip-show { color: #374151; border: 1px solid #d1d5db; }
   /* "Show me": the report button pulses so it is easy to find */
-  .tour-pulse { animation: tour-pulse 1.2s ease-in-out 4; color: #fff !important; }
-  @keyframes tour-pulse { 50% { box-shadow: 0 0 0 6px rgba(255,255,255,.35); border-radius: 0.5rem; } }
+  .tour-pulse { animation: tour-pulse 1.2s ease-in-out 4; }
+  @keyframes tour-pulse { 50% { box-shadow: 0 0 0 6px rgba(55,65,81,.35); transform: scale(1.08); } }
   @media (prefers-reduced-motion: reduce) { #tour-spot, #tour-bubble { transition: none; } .tour-pulse { animation: none; } }
 </style>
 <script src="{% static 'js/game_tour.js' %}"></script>
