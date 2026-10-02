@@ -84,3 +84,11 @@ def digit_groups_text(value, decimals=0):
         return value
     sign, groups, fraction = parts
     return sign + "\u202f".join(groups) + fraction
+
+
+@register.filter
+def level_icon(level):
+    """The game's icon for a level: {{ level|level_icon }} -> "fi-rr-worm"."""
+    from beetlesgallery.beetles_app.game_levels import level_icon as icon
+
+    return icon(level)

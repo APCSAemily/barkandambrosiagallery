@@ -494,7 +494,9 @@ def game_prefs(request):
 def _chip(player):
     """The small counters in the feed's header: today's beetles against the daily goal, and the day streak."""
     state = game_rewards.progress(player)
-    return {k: state[k] for k in ("today", "goal", "goal_met", "streak", "level", "score", "next_at", "level_progress")}
+    chip = {k: state[k] for k in ("today", "goal", "goal_met", "streak", "level", "score", "next_at", "level_progress")}
+    chip["level_icon"] = game_levels.level_icon(state["level"])
+    return chip
 
 
 def _clean_classification(body):

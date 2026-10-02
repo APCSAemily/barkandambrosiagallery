@@ -1,4 +1,4 @@
-{# A player's level as a little badge in RPG rarity colours: grey 1-2, green 3-4, blue 5-6, purple 7-8, orange 9, gold with a crown at 10. Needs ``level`` and optional ``name``. #}
+{% load beetle_tags %}{# A player's level as a little badge: an icon for the level and its number, in RPG rarity colours: grey 1-2, green 3-4, blue 5-6, purple 7-8, orange 9, gold at 10. Needs ``level`` and optional ``name``. #}
 <span class="inline-flex items-center justify-center gap-0.5 shrink-0 h-5 min-w-[1.25rem] px-1 rounded-md text-[10px] font-bold leading-none tabular-nums align-middle
   {% if level >= 10 %}bg-yellow-400 text-yellow-950 ring-1 ring-yellow-600{% elif level >= 9 %}bg-orange-500 text-white{% elif level >= 7 %}bg-purple-600 text-white{% elif level >= 5 %}bg-blue-600 text-white{% elif level >= 3 %}bg-green-600 text-white{% else %}bg-gray-300 text-gray-800{% endif %}"
-  title="Level {{ level }}{% if name %}: {{ name }}{% endif %}" data-testid="level-badge">{% if level >= 10 %}<i class="fi fi-rr-crown text-[10px]"></i>{% endif %}{{ level }}</span>
+  title="Level {{ level }}{% if name %}: {{ name }}{% endif %}" data-testid="level-badge"><i class="fi {{ level|level_icon }} text-[10px] leading-none" aria-hidden="true"></i>{{ level }}</span>
