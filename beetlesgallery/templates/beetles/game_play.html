@@ -253,6 +253,7 @@
     <div id="recap-badges" class="mb-6 space-y-2"></div>
     <div class="flex flex-col gap-3">
       <button type="button" id="recap-more" class="px-6 py-3.5 text-base font-semibold text-white bg-gray-500 hover:bg-gray-500 rounded-xl">Keep playing</button>
+      <a href="{% url 'game_report' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl" data-testid="recap-learn"><i class="fi fi-rr-bulb"></i> Where I lost points</a>
       <a href="{% url 'game_home' %}" class="px-6 py-3.5 text-base font-medium text-gray-700 border border-gray-300 rounded-xl">See my stats and the leaderboard</a>
     </div>
     <a href="{{ discussions }}" target="_blank" rel="noopener" class="mt-6 inline-block text-sm text-gray-500 underline hover:text-gray-800" data-testid="discussions-link">Bug or idea? Tell us on GitHub Discussions</a>

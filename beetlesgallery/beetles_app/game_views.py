@@ -259,10 +259,13 @@ def _onboarding(request):
 
 
 def _render_report(request, player):
+    since = timezone.now() - timedelta(days=30)
+    recent = GameAnswer.objects.filter(player=player, answered_at__gte=since).select_related("points")
     return render(request, "beetles/game_report.html", {
         "player": player,
         "is_self": player == request.user,
         "report": game_trust.player_report(player),
+        "losses": game_feedback.loss_summary(recent),
     })
 
 
