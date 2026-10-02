@@ -241,7 +241,21 @@ def game_play(request, mode):
         "mode_label": GAME_NAMES[mode],
         "ranks": [(r, r.capitalize()) for r in game.RANKS],
         "rungs": RUNGS,
+        **_onboarding(request),
     })
+
+
+def _onboarding(request):
+    """
+    Help for new players: a walkthrough of every button the first time they play (or when asked for with
+    ?tour=1), and for their first few days a reminder of how to report a photo that looks wrong.
+    """
+    played = GameAnswer.objects.filter(player=request.user, skipped=False).exists()
+    days = len(game_rewards.active_days(request.user)) if played else 0
+    return {
+        "tour": request.GET.get("tour") == "1" or not played,
+        "report_tip": days <= game.game_setting("GAME_REPORT_TIP_DAYS", 3),
+    }
 
 
 def _render_report(request, player):

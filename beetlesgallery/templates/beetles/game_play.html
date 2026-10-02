@@ -268,8 +268,8 @@
     <img id="lightbox-img" alt="Whole image" class="block max-w-[94vw] max-h-[85vh] object-contain">
     <div id="lightbox-box" class="absolute border-2 border-white rounded-sm pointer-events-none"></div>
   </div>
-  <!-- Barely there on purpose: report a photo that looks wrong -->
-  <button type="button" id="report-cog" class="absolute bottom-3 left-3 p-2 text-white/30 hover:text-white/70 text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i></button>
+  <!-- Quiet, but labelled so players can find it: report a photo that looks wrong -->
+  <button type="button" id="report-cog" class="absolute bottom-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-2 text-white/60 hover:text-white text-sm" aria-label="Report this image"><i class="fi fi-rr-settings"></i><span>Report</span></button>
   <div id="report-menu" class="hidden absolute bottom-12 left-3 p-2 bg-white rounded-xl shadow-xl text-sm text-gray-800 whitespace-nowrap" role="menu" aria-label="Report this image">
     <div class="px-2 py-1 text-xs font-semibold text-gray-500">Report this image</div>
     {% for value, label in report_reasons %}
@@ -277,6 +277,8 @@
     {% endfor %}
   </div>
 </div>
+
+{% include "beetles/includes/game_tour.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -698,6 +700,7 @@
 
     resetAnswer();
     show("stage");
+    document.dispatchEvent(new CustomEvent("game:item-shown"));   // the new-player tour waits for the first beetle
     shownAt = Date.now();
     prefetch(item.prefetch);
   }

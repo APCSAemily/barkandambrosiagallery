@@ -1,0 +1,58 @@
+{% load static %}{# New players: a walkthrough of the buttons (first game, or ?tour=1), and for their first days how to report a bad photo. See static/js/game_tour.js #}
+<div id="tour" class="hidden" data-first="{{ tour|yesno:'1,0' }}" data-report-tip="{{ report_tip|yesno:'1,0' }}" role="dialog" aria-modal="true" aria-labelledby="tour-text">
+  <div id="tour-spot"></div>
+  <div id="tour-bubble">
+    <p id="tour-text"></p>
+    <div class="tour-row">
+      <span id="tour-count"></span>
+      <button type="button" id="tour-skip">Skip tour</button>
+      <button type="button" id="tour-back">Back</button>
+      <button type="button" id="tour-next">Next</button>
+    </div>
+  </div>
+</div>
+
+<div id="report-tip" class="hidden" role="dialog" aria-modal="true" aria-labelledby="report-tip-title" data-testid="report-tip">
+  <div class="report-tip-card">
+    <h2 id="report-tip-title">Spotted a bad photo?</h2>
+    <ol>
+      <li><span>1</span>Tap the photo to open it.</li>
+      <li><span>2</span>Tap <i class="fi fi-rr-settings"></i> <strong>Report</strong> in the corner.</li>
+      <li><span>3</span>Pick what's wrong. You lose no points.</li>
+    </ol>
+    <div class="tour-row">
+      <button type="button" id="report-tip-show">Show me</button>
+      <button type="button" id="report-tip-ok">Got it</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  #tour { position: fixed; inset: 0; z-index: 110; }
+  #tour.hidden, #report-tip.hidden { display: none; }
+  #tour-spot { position: fixed; border-radius: 0.875rem; box-shadow: 0 0 0 200vmax rgba(17,24,39,.62); transition: all .25s ease; pointer-events: none; }
+  #tour-spot.none { box-shadow: 0 0 0 200vmax rgba(17,24,39,.62); width: 0 !important; height: 0 !important; }
+  #tour-bubble { position: fixed; left: 50%; transform: translateX(-50%); width: min(22rem, calc(100vw - 2rem)); padding: 0.875rem 1rem; background: #fff; border-radius: 0.875rem;
+                 box-shadow: 0 10px 30px rgba(0,0,0,.25); transition: top .25s ease; }
+  #tour-text { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.45; color: #111827; }
+  .tour-row { display: flex; align-items: center; gap: 0.5rem; }
+  #tour-count { margin-right: auto; font-size: 0.75rem; color: #9ca3af; font-variant-numeric: tabular-nums; }
+  .tour-row button { height: 2.25rem; padding: 0 0.875rem; border-radius: 0.625rem; font-size: 0.875rem; font-weight: 600; }
+  #tour-skip { font-weight: 500; color: #6b7280; }
+  #tour-back { color: #374151; border: 1px solid #d1d5db; }
+  #tour-back:disabled { visibility: hidden; }
+  #tour-next, #report-tip-ok { color: #fff; background: #374151; }
+  #report-tip { position: fixed; inset: 0; z-index: 110; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(17,24,39,.55); }
+  .report-tip-card { width: min(22rem, 100%); padding: 1.25rem; background: #fff; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .report-tip-card h2 { margin: 0 0 0.75rem; font-size: 1.125rem; font-weight: 700; color: #111827; }
+  .report-tip-card ol { margin: 0 0 1rem; padding: 0; list-style: none; display: grid; gap: 0.5rem; font-size: 0.9375rem; color: #374151; }
+  .report-tip-card li { display: flex; align-items: center; gap: 0.625rem; }
+  .report-tip-card li > span { flex: 0 0 1.5rem; height: 1.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; background: #f3f4f6; font-size: 0.75rem; font-weight: 700; color: #374151; }
+  .report-tip-card .tour-row { justify-content: flex-end; }
+  #report-tip-show { color: #374151; border: 1px solid #d1d5db; }
+  /* "Show me": the report button pulses so it is easy to find */
+  .tour-pulse { animation: tour-pulse 1.2s ease-in-out 4; color: #fff !important; }
+  @keyframes tour-pulse { 50% { box-shadow: 0 0 0 6px rgba(255,255,255,.35); border-radius: 0.5rem; } }
+  @media (prefers-reduced-motion: reduce) { #tour-spot, #tour-bubble { transition: none; } .tour-pulse { animation: none; } }
+</style>
+<script src="{% static 'js/game_tour.js' %}"></script>
