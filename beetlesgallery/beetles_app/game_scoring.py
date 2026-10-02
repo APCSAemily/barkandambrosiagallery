@@ -4,6 +4,10 @@ Points for the Beetle ID game.
 Every answer is worth some points (AnswerPoints) and a player's score is the running total, never below zero
 (PlayerScore). The rules, all adjustable with GAME_POINTS_* settings:
 
+Identification is the harder and more useful game, so every Name That Beetle answer counts
+GAME_POINTS_CLASSIFY_WEIGHT (3) times the points below, gains and losses alike: a perfect identification
+earns 45, a perfect similarity answer at most about 6.
+
 Beetles we know the answer to (validated) are scored against the truth. These earn the most.
   Name That Beetle   partial credit: each rank you get right earns its weight (subfamily 1, tribe 2, genus 4,
                      species 8), so naming the exact species is worth the most. Where you go wrong, only the first
@@ -57,6 +61,11 @@ DEPTH_NAME = {-1: "different subfamilies", 0: "same subfamily", 1: "same tribe",
 
 def setting(name, default):
     return game_setting(name, default)
+
+
+def classify_weight():
+    """How many times more a Name That Beetle answer counts than the base points (GAME_POINTS_CLASSIFY_WEIGHT)."""
+    return float(setting("GAME_POINTS_CLASSIFY_WEIGHT", 3.0))
 
 
 # ---------------------------------------------------------------------------
@@ -302,11 +311,14 @@ def _score(answer, votes_for, judges):
         return -setting("GAME_POINTS_UNSURE", 0.25), AnswerPoints.Basis.UNSURE, {}
     retry = setting("GAME_POINTS_RETRY_FACTOR", 0.5) if answer.is_retry else 1.0
     if answer.mode == "classify":
+        weight = classify_weight()
         if is_truth(answer.roi):
             points, detail = classify_truth(answer, answer.roi.taxon)
-            return points * retry, AnswerPoints.Basis.TRUTH, dict(detail, retry=answer.is_retry)
+            for rank in detail["ranks"].values():
+                rank["points"] = round(rank["points"] * weight, 2)
+            return points * weight * retry, AnswerPoints.Basis.TRUTH, dict(detail, retry=answer.is_retry, weight=weight)
         points, detail = consensus_points(answer, votes_for(answer.roi_id), judges)
-        return points, AnswerPoints.Basis.CONSENSUS, detail
+        return points * weight, AnswerPoints.Basis.CONSENSUS, dict(detail, weight=weight)
     a, b = answer.roi, answer.roi_b
     if b is not None and is_truth(a) and is_truth(b):
         scored = pair_truth(answer, a, b)

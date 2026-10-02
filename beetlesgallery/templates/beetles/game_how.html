@@ -23,11 +23,11 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-2">1. Beetles we already know</h2>
       <p class="text-sm text-gray-600 mb-3">Some beetles in the feed have an expert-checked name. You never know which ones, so treat every beetle as if it counts.</p>
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Identification (Name That Beetle)</h3>
-      <p class="text-sm text-gray-600 mb-2">You get partial credit: each rank you get right earns its points.</p>
+      <p class="text-sm text-gray-600 mb-2">Naming a beetle is the harder game, so it is worth {{ classify_weight }}&times; the points. You get partial credit: each rank you get right earns its points.</p>
       <table class="text-sm mb-3"><tbody>
         {% for rank, pts in rank_points.items %}<tr><td class="pr-6 py-0.5 capitalize text-gray-700">{{ rank }}</td><td class="font-semibold text-gray-900 tabular-nums">{{ pts|digit_groups }}</td></tr>{% endfor %}
       </tbody></table>
-      <p class="text-sm text-gray-600 mb-4">Going one rank too far costs a little ({% widthratio overreach 1 100 %}% of that rank): right genus but wrong species earns 4.2, stopping at the genus 7, the exact species 15. A wrong subfamily costs {% widthratio wrong 1 100 %}% of everything you claimed.</p>
+      <p class="text-sm text-gray-600 mb-4">Going one rank too far costs a little ({% widthratio overreach 1 100 %}% of that rank): right genus but wrong species earns {{ classify_examples.overreach }}, stopping at the genus {{ classify_examples.genus }}, the exact species {{ classify_examples.species }}. A wrong subfamily costs {% widthratio wrong 1 100 %}% of everything you claimed.</p>
       <h3 class="text-sm font-semibold text-gray-900 mb-1">Similarity</h3>
       <p class="text-sm text-gray-600 mb-2">The right answer earns more the finer the difference you had to spot:</p>
       <table class="text-sm mb-3"><tbody>

@@ -69,6 +69,7 @@ def game_home(request):
         "rewards": game_rewards.progress(request.user),
         "board": game_board.board(limit=5),
         "standing": game_board.accuracy_standing(request.user),
+        "games": game_board.mode_stats([request.user.id])[request.user.id],
         # the public address in production (SITE_URL), this server's own when developing
         "share_url": (request.build_absolute_uri(reverse("game_home")) if settings.DEBUG
                       else settings.SITE_URL.rstrip("/") + reverse("game_home")),
@@ -123,7 +124,8 @@ def game_checked_page(request):
 @login_required
 def game_leaderboard(request):
     """The full leaderboard: by score, accuracy or beetles seen, all time or this week, searchable, and per branch."""
-    sort = request.GET.get("sort") if request.GET.get("sort") in game_board.SORTS else "score"
+    sort = {"accuracy": "identification"}.get(request.GET.get("sort"), request.GET.get("sort"))   # old links
+    sort = sort if sort in game_board.SORTS else "score"
     period = "week" if request.GET.get("period") == "week" else "all"
     q = (request.GET.get("q") or "").strip()[:50]
     branch_rank = request.GET.get("rank") if request.GET.get("rank") in game_board.BRANCH_SKILL else ""
@@ -191,6 +193,20 @@ def game_expertise(request, user_id=None):
     })
 
 
+def _weight_label(weight):
+    return int(weight) if float(weight).is_integer() else weight
+
+
+def _classify_examples():
+    """The worked examples on the How it works page, with today's settings."""
+    w = game_scoring.classify_weight()
+    rp = game_scoring.RANK_POINTS
+    over = game.game_setting("GAME_POINTS_OVERREACH", 0.35)
+    genus = sum(rp[r] for r in ("subfamily", "tribe", "genus"))
+    nums = {"overreach": (genus - rp["species"] * over) * w, "genus": genus * w, "species": sum(rp.values()) * w}
+    return {k: _weight_label(round(v, 1)) for k, v in nums.items()}
+
+
 @login_required
 def game_how(request):
     """How the game works and how it is scored, in plain words."""
@@ -200,7 +216,9 @@ def game_how(request):
         "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
         "per_species": game_trust.per_species(),
         "trust_accuracy": game_trust.min_accuracy(),
-        "rank_points": game_scoring.RANK_POINTS, "pair_points": [
+        "classify_weight": _weight_label(game_scoring.classify_weight()),
+        "rank_points": {r: p * game_scoring.classify_weight() for r, p in game_scoring.RANK_POINTS.items()},
+        "classify_examples": _classify_examples(), "pair_points": [
             (game_scoring.DEPTH_NAME[d], p) for d, p in sorted(game_scoring.PAIR_POINTS.items())],
         "wrong": game.game_setting("GAME_POINTS_WRONG_FACTOR", 0.75),
         "overreach": game.game_setting("GAME_POINTS_OVERREACH", 0.35),
@@ -585,6 +603,16 @@ def game_answer(request, round_id):
         "events": game_rewards.play_events(request.user, before),
         "chip": _chip(request.user),
     }
+    if any(e["kind"] == "level" for e in extra["events"]):
+        # A new level's unlocks apply at once: the toolbar learns about them, and when the level opens a new game
+        # the rest of this batch (picked under the old rules) is set aside for a fresh one.
+        extra["prefs"] = _prefs(request.user)
+        if extra["prefs"]["choose_game"] and game_levels.CHOOSE_GAME not in before["perks"]:
+            game.finish_round(rnd)
+            fresh = game.start_round(request.user, rnd.mode, fresh_only=True)
+            first = _next_index(fresh, 0) if fresh else None
+            if first is not None:
+                return JsonResponse(dict(extra, round=str(fresh.id), item=_item_payload(fresh, first)))
     nxt = _next_index(rnd, index + 1)
     if nxt is None:
         # The feed carries straight on into a new batch. It only ends when there is nothing new left to show.
