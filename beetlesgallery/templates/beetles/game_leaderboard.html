@@ -5,9 +5,6 @@
 <div class="max-w-4xl mx-auto">
   <a href="{% url 'game_home' %}" class="inline-block py-2 text-sm text-gray-500 hover:text-gray-800">&larr; {{ game_name }}</a>
   <h1 class="page-title">Leaderboard</h1>
-  <a href="{% url 'game_checked' %}" class="inline-flex items-center gap-2 mb-4 text-sm underline text-gray-600 hover:text-gray-900" data-testid="checked-link">
-    <i class="fi fi-rr-time-forward"></i> Beetles checked after you answered them
-  </a>
 
   <form method="get" class="flex flex-wrap items-center gap-2 mb-4" role="search">
     <input type="search" name="q" value="{{ q }}" placeholder="Search players&hellip;" aria-label="Search players"

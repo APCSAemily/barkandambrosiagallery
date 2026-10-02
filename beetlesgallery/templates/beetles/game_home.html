@@ -49,7 +49,7 @@
   <section class="mb-5" data-testid="checked-recap">
     <div class="flex items-baseline justify-between mb-2">
       <h2 class="text-lg font-semibold text-gray-900">Checked since you played{% if checked_new > checked|length %} <span class="text-sm font-normal text-gray-400">({{ checked_new }})</span>{% endif %}</h2>
-      <a href="{% url 'game_checked' %}" class="text-sm underline text-gray-600 hover:text-gray-900">All</a>
+      <a href="{% url 'game_history' %}?tab=checked" class="text-sm underline text-gray-600 hover:text-gray-900">All</a>
     </div>
     {% include "beetles/includes/game_checked_list.html" %}
   </section>
@@ -62,11 +62,12 @@
   {% endif %}
 
   <!-- Everything else, one tap away -->
-  <nav class="grid grid-cols-4 gap-2 mb-6 text-center text-xs font-medium text-gray-700" aria-label="More">
-    <a href="{% url 'game_leaderboard' %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50"><i class="fi fi-rr-trophy block text-xl text-gray-600"></i>Leaderboard</a>
+  <nav class="grid gap-2 mb-6 text-center text-xs font-medium text-gray-700" style="grid-template-columns: repeat(5, minmax(0, 1fr))" aria-label="More">
+    <a href="{% url 'game_leaderboard' %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50"><i class="fi fi-rr-trophy block text-xl text-gray-600"></i>Leader&shy;board</a>
     <a href="{% url 'game_unlocks' %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50"><i class="fi fi-rr-unlock block text-xl text-gray-600"></i>Unlocks</a>
     <a href="{% url 'game_expertise' %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50"><i class="fi fi-rr-sitemap block text-xl text-gray-600"></i>Expertise</a>
     <a href="{% url 'game_profile' user.id %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50"><i class="fi fi-rr-medal block text-xl text-gray-600"></i>Badges</a>
+    <a href="{% url 'game_history' %}" class="py-3 rounded-2xl border border-gray-200 hover:bg-gray-50" data-testid="history-link"><i class="fi fi-rr-time-past block text-xl text-gray-600"></i>History</a>
   </nav>
 
   <div class="mb-6">

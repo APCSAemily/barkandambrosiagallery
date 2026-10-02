@@ -118,8 +118,37 @@ def game_staff_unlocks(request):
 
 @login_required
 def game_checked_page(request):
-    """Every beetle a curator validated after the player answered it, newest first."""
-    return render(request, "beetles/game_checked.html", {"checked": game_checked.items(request.user, limit=200)})
+    """Old address of the checked beetles: they now live on the History page."""
+    return redirect(reverse("game_history") + "?tab=checked")
+
+
+HISTORY_PER_PAGE = 20
+
+
+@login_required
+def game_history(request):
+    """
+    A player's history: every session (batch) they played, newest first, with what it earned and a link to its
+    answers; and every beetle a curator checked after they answered it.
+    """
+    from django.core.paginator import Paginator
+    from django.db.models import Count, Q, Sum
+
+    tab = "checked" if request.GET.get("tab") == "checked" else "sessions"
+    rounds = (
+        GameRound.objects.filter(player=request.user, finished_at__isnull=False)
+        .annotate(labelled=Count("answers", filter=Q(answers__skipped=False), distinct=True),
+                  identified=Count("answers", filter=Q(answers__skipped=False, answers__mode="classify"), distinct=True),
+                  compared=Count("answers", filter=Q(answers__skipped=False, answers__mode="pair"), distinct=True),
+                  points=Sum("answers__points__points"))
+        .filter(labelled__gt=0).order_by("-finished_at")
+    )
+    checked = game_checked.items(request.user, limit=500)
+    sessions = Paginator(rounds, HISTORY_PER_PAGE).get_page(request.GET.get("page") if tab == "sessions" else 1)
+    checked_page = Paginator(checked, HISTORY_PER_PAGE).get_page(request.GET.get("page") if tab == "checked" else 1)
+    return render(request, "beetles/game_history.html", {
+        "tab": tab, "sessions": sessions, "checked": checked_page, "checked_total": len(checked),
+    })
 
 
 @login_required

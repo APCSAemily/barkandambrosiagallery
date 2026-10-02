@@ -65,7 +65,7 @@ class LateValidationTests(ScoringCase):
         self.assertFalse(self.ans.validated_later)
         self.assertIsNone(self.ans.correct_species)
 
-    def test_the_recap_shows_once_on_the_home_and_always_on_the_checked_page(self):
+    def test_the_recap_shows_once_on_the_home_and_always_in_the_history(self):
         self.validate()
         game_scoring.recompute([self.user.id])
         self.client.force_login(self.user)
@@ -74,7 +74,7 @@ class LateValidationTests(ScoringCase):
         self.assertIn("Xyleborus affinis", first)
         self.assertIn("+15.0 pts", first)
         self.assertNotIn('data-testid="checked-recap"', self.client.get(reverse("game_home")).content.decode())
-        page = self.client.get(reverse("game_checked")).content.decode()
+        page = self.client.get(reverse("game_history") + "?tab=checked").content.decode()
         self.assertIn('data-testid="checked-item"', page)
         self.assertIn("checked ", page)
 
@@ -113,3 +113,31 @@ class SiteTests(ScoringCase):
         self.client.force_login(self.user)
         for url in (reverse("game_home"), reverse("game_how"), reverse("game_play", args=["mixed"])):
             self.assertIn('data-testid="beta"', self.client.get(url).content.decode(), url)
+
+
+class HistoryTests(ScoringCase):
+    def test_sessions_are_listed_newest_first_with_their_points(self):
+        from beetlesgallery.beetles_app import game
+        from beetlesgallery.beetles_app.test_game import AFFINIS
+        old = self.answer(self.user, self.roi(self.t_affinis), AFFINIS)
+        game.finish_round(old.round)
+        new = self.answer(self.user, self.roi(self.t_affinis), dict(AFFINIS, species=""))
+        game.finish_round(new.round)
+        skipped = self.answer(self.user, self.roi(self.t_affinis), skipped=True)
+        game.finish_round(skipped.round)      # nothing labelled: not a session worth listing
+        game_scoring.recompute([self.user.id])
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("game_history")).content.decode()
+        links = [reverse("game_round_review", args=[r]) for r in (new.round_id, old.round_id)]
+        self.assertLess(page.index(links[0]), page.index(links[1]))
+        self.assertNotIn(reverse("game_round_review", args=[skipped.round_id]), page)
+        self.assertIn("+15 pts", page)
+        self.assertIn("Identification", page)
+
+    def test_nobody_sees_anyone_elses_history(self):
+        from beetlesgallery.beetles_app import game
+        from beetlesgallery.beetles_app.test_game import AFFINIS
+        theirs = self.answer(self.player("someone"), self.roi(self.t_affinis), AFFINIS)
+        game.finish_round(theirs.round)
+        self.client.force_login(self.user)
+        self.assertNotIn(str(theirs.round_id), self.client.get(reverse("game_history")).content.decode())
