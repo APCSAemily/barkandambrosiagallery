@@ -66,6 +66,11 @@
   #actions button:active:not(:disabled) { transform: scale(0.98); }
   .icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; color: #374151; }
   .icon-btn:active { background: #f3f4f6; }
+  /* Report a bad photo: always on the photo itself, top right, so nobody has to hunt for it */
+  .report-chip { position: absolute; top: 0.375rem; right: 0.375rem; z-index: 3; display: inline-flex; align-items: center; gap: 0.3rem;
+                 height: 1.875rem; padding: 0 0.7rem; border-radius: 9999px; background: #fff; border: 1px solid #d1d5db;
+                 box-shadow: 0 1px 3px rgba(0,0,0,.15); color: #374151; font-size: 0.75rem; font-weight: 600; }
+  .report-chip:hover { border-color: #6b7280; color: #111827; }
   /* Keyboard hints: only on a computer (see HAS_KEYBOARD) */
   .kbd { display: none; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; margin-left: 0.4rem; border: 1px solid currentColor; border-radius: 0.3rem;
          font-size: 0.625rem; font-weight: 600; line-height: 1; opacity: 0.55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -95,11 +100,6 @@
   /* On a wide screen keep the answer buttons a comfortable width in the middle */
   @media (min-width: 700px) { #panel { padding-left: calc((100% - 38rem) / 2); padding-right: calc((100% - 38rem) / 2); } }
   @media (prefers-reduced-motion: reduce) { #photos canvas { transition: none; } #chip.pop { animation: none; } }
-  /* Report a bad photo: always on the photo itself, top right, so nobody has to hunt for it */
-  .report-chip { position: absolute; top: 0.375rem; right: 0.375rem; z-index: 3; display: inline-flex; align-items: center; gap: 0.3rem;
-                 height: 1.875rem; padding: 0 0.7rem; border-radius: 9999px; background: #fff; border: 1px solid #d1d5db;
-                 box-shadow: 0 1px 3px rgba(0,0,0,.15); color: #374151; font-size: 0.75rem; font-weight: 600; }
-  .report-chip:hover { border-color: #6b7280; color: #111827; }
 </style>
 {% endblock %}
 
