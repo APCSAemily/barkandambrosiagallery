@@ -60,6 +60,17 @@ LEVELS = [
     (25000, 0.92, "King of Bark and Ambrosia", []),
 ]
 FOCUS_PERK = {"subfamily": "focus_subfamily", "tribe": "focus_tribe", "genus": "focus_genus"}
+# One icon per level (Flaticon uicons, regular rounded), from egg to crown
+LEVEL_ICONS = ["fi-rr-egg", "fi-rr-worm", "fi-rr-hourglass", "fi-rr-bug", "fi-rr-binoculars", "fi-rr-tree-deciduous",
+               "fi-rr-book-open-cover", "fi-rr-microscope", "fi-rr-graduation-cap", "fi-rr-crown"]
+
+
+def level_icon(level):
+    """The icon class for a level (1-based)."""
+    try:
+        return LEVEL_ICONS[max(1, min(int(level), len(LEVEL_ICONS))) - 1]
+    except (TypeError, ValueError):
+        return LEVEL_ICONS[0]
 
 
 def level_index(score, rating):

@@ -1,0 +1,13 @@
+{% load beetle_tags %}{# Identification and Similarity side by side: accuracy and points. Needs ``games`` from game_board.mode_stats. #}
+<div class="grid grid-cols-2 gap-3" data-testid="game-split">
+  <div class="p-3 bg-gray-50 border border-gray-100 rounded-2xl">
+    <div class="flex items-center gap-1.5 text-xs uppercase tracking-wider text-gray-500 font-semibold"><i class="fi fi-rr-search-alt"></i>Identification</div>
+    <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{% if games.classify.accuracy is not None %}{% widthratio games.classify.accuracy 1 100 %}%{% else %}&ndash;{% endif %}</div>
+    <div class="text-xs text-gray-500 tabular-nums">{{ games.classify.points|digit_groups }} pts</div>
+  </div>
+  <div class="p-3 bg-gray-50 border border-gray-100 rounded-2xl">
+    <div class="flex items-center gap-1.5 text-xs uppercase tracking-wider text-gray-500 font-semibold"><i class="fi fi-rr-copy-alt"></i>Similarity</div>
+    <div class="mt-1 text-lg font-bold text-gray-900 tabular-nums">{% if games.pair.accuracy is not None %}{% widthratio games.pair.accuracy 1 100 %}%{% else %}&ndash;{% endif %}</div>
+    <div class="text-xs text-gray-500 tabular-nums">{{ games.pair.points|digit_groups }} pts</div>
+  </div>
+</div>

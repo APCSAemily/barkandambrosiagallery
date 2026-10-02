@@ -11,13 +11,57 @@ from django.db.models import Count, Q, Sum
 from . import game, game_levels, game_rewards
 from .models import AnswerPoints, GameAnswer, PlayerScore, PlayerSkill, SpeciesDiscovery
 
-SORTS = {"score": "Score", "accuracy": "Accuracy", "viewed": "Beetles seen"}
+SORTS = {"score": "Score", "identification": "Identification accuracy", "similarity": "Similarity accuracy",
+         "viewed": "Beetles seen"}
+GAMES = ("classify", "pair")   # Identification (Name That Beetle) and Similarity (Family Ties)
 # a branch of the tree -> the skill that measures it (see game_trust.BRANCH_OF)
 BRANCH_SKILL = {"subfamily": "tribe", "tribe": "genus", "genus": "species"}
 
 
+def mode_stats(player_ids=None):
+    """
+    Identification and Similarity kept apart: {player_id: {"classify": {...}, "pair": {...}}}, each with
+    ``accuracy`` (None until GAME_MIN_JUDGED_FOR_ACCURACY ranks were judged), ``judged``, ``correct`` and ``points``.
+    Accuracy is counted as for the overall rating (game_scoring.ratings): the first time a player saw a validated
+    beetle, rank by rank.
+    """
+    from collections import defaultdict
+
+    min_judged = game.game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10)
+    out = defaultdict(lambda: {m: {"correct": 0, "judged": 0, "points": 0.0, "accuracy": None} for m in GAMES})
+    answers = GameAnswer.objects.filter(Q(is_check=True) | Q(validated_later=True), is_retry=False, skipped=False,
+                                        score_hold=False)
+    points = AnswerPoints.objects.all()
+    if player_ids is not None:
+        answers = answers.filter(player_id__in=list(player_ids))
+        points = points.filter(answer__player_id__in=list(player_ids))
+    first = set()
+    rows = answers.order_by("answered_at").values_list("player_id", "mode", "roi_id", "roi_b_id",
+                                                       *[f"correct_{r}" for r in game.RANKS])
+    for pid, mode, a, b, *oks in rows:
+        if mode not in GAMES or (pid, mode, a, b) in first:
+            continue
+        first.add((pid, mode, a, b))
+        for ok in oks:
+            if ok is not None:
+                out[pid][mode]["correct"] += int(ok)
+                out[pid][mode]["judged"] += 1
+    for pid, mode, total in points.values_list("answer__player", "answer__mode").annotate(s=Sum("points")).values_list(
+            "answer__player", "answer__mode", "s"):
+        if mode in GAMES:
+            out[pid][mode]["points"] = round(total or 0.0)
+    for stats in out.values():
+        for s in stats.values():
+            if s["judged"] >= min_judged:
+                s["accuracy"] = s["correct"] / s["judged"]
+    return out
+
+
 def board(sort="score", period="all", q="", limit=50):
-    """Rows: position, player_id, username, level, level_name, score, accuracy, viewed, is_expert, discoveries."""
+    """
+    Rows: position, player_id, username, level, level_name, score, accuracy, id_accuracy, sim_accuracy, viewed,
+    is_expert, discoveries. Sort by score, identification or similarity accuracy, or beetles seen.
+    """
     scores = {s.player_id: s for s in PlayerScore.objects.all()}
     names = dict(get_user_model().objects.filter(id__in=scores).values_list("id", "username"))
     experts = set(PlayerSkill.objects.filter(proven=True).values_list("player_id", flat=True))
@@ -31,6 +75,7 @@ def board(sort="score", period="all", q="", limit=50):
         week_viewed = dict(
             GameAnswer.objects.filter(answered_at__gte=since).values("player").annotate(n=Count("id")).values_list("player", "n")
         )
+    by_game = mode_stats()
     rows = []
     for pid, s in scores.items():
         if pid not in names or (s.viewed == 0):
@@ -45,9 +90,11 @@ def board(sort="score", period="all", q="", limit=50):
             "player_id": pid, "username": names[pid], "level": level["level"], "level_name": level["name"],
             "score": round(score), "accuracy": s.accuracy if s.judged >= game.game_setting("GAME_MIN_JUDGED_FOR_ACCURACY", 10) else None,
             "viewed": viewed, "is_expert": pid in experts, "discoveries": finds.get(pid, 0),
+            "id_accuracy": by_game[pid]["classify"]["accuracy"], "sim_accuracy": by_game[pid]["pair"]["accuracy"],
         })
-    if sort == "accuracy":
-        rows.sort(key=lambda r: (r["accuracy"] is None, -(r["accuracy"] or 0), -r["score"]))
+    if sort in ("identification", "similarity", "accuracy"):
+        key = "sim_accuracy" if sort == "similarity" else "id_accuracy"
+        rows.sort(key=lambda r: (r[key] is None, -(r[key] or 0), -r["score"]))
     elif sort == "viewed":
         rows.sort(key=lambda r: (-r["viewed"], -r["score"]))
     else:
@@ -93,6 +140,7 @@ def profile(player):
         ],
         "discoveries": list(player.species_discoveries.order_by("genus", "species")),
         "modes": dict(GameAnswer.objects.filter(player=player, skipped=False).values_list("mode").annotate(n=Count("id"))),
+        "games": mode_stats([player.id])[player.id],
     }
 
 
