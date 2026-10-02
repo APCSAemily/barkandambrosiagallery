@@ -938,3 +938,33 @@ def consensus(limit=None, roi_ids=None, voters=None):
         })
     results.sort(key=lambda e: (-e["answers"], str(e["roi"].id)))
     return results[:limit] if limit else results
+
+
+def specimen_photos(roi, limit=6):
+    """
+    Other photos of exactly this beetle: ROIs with the same specimen id (depicts_specimen), each on a photo that
+    shows only that one beetle, as must the photo of ``roi`` itself (a photo of several beetles can't promise
+    which is which). Not deleted, with a box. Used by the "More photos of each beetle" unlock.
+    """
+    from django.db.models import Count
+    from django.db.models.functions import Lower, Trim
+
+    key = (getattr(roi, "depicts_specimen", None) or "").strip()
+    if not key or roi.image_asset_id is None:
+        return []
+
+    def single_beetle(image_ids):
+        rows = (Beetles.objects.filter(image_asset_id__in=image_ids, is_deleted=False)
+                .values("image_asset_id").annotate(n=Count("id")))
+        return {r["image_asset_id"] for r in rows if r["n"] == 1}
+
+    if roi.image_asset_id not in single_beetle([roi.image_asset_id]):
+        return []
+    candidates = list(
+        Beetles.objects.annotate(specimen=Lower(Trim("depicts_specimen")))
+        .filter(specimen=key.lower(), is_deleted=False, image_asset__isnull=False,
+                image_asset__is_deleted=False, bbox_x__isnull=False, bbox_width__gt=0)
+        .exclude(image_asset_id=roi.image_asset_id).select_related("image_asset").order_by("aspect", "id")
+    )
+    ok = single_beetle({c.image_asset_id for c in candidates})
+    return [c for c in candidates if c.image_asset_id in ok][:limit]
