@@ -275,11 +275,54 @@ class LevelIconTests(SimpleTestCase):
         self.assertIn("fi-rr-worm", html)
         self.assertIn(">2</span>", html)
 
-    def test_a_proven_expert_is_a_glowing_blue_dot(self):
+    def test_a_proven_expert_is_a_glowing_gold_dot_like_the_top_level(self):
         import re
         from pathlib import Path
         from django.conf import settings
         css = (Path(settings.BASE_DIR) / "beetlesgallery/templates/beetles/game_expertise.html").read_text()
         rule = re.search(r"\.st-expert \.tree-dot \{([^}]*)\}", css).group(1)
-        self.assertIn("#2563eb", rule)        # blue
+        self.assertIn("#facc15", rule)        # gold, as the level 10 badge
         self.assertIn("box-shadow", rule)     # glowing
+
+
+class RarityColourTests(SimpleTestCase):
+    """Badges, levels and the expertise tree share one colour scale: grey, green, blue, purple, orange, gold."""
+
+    def test_every_badge_has_exactly_one_tier(self):
+        from beetlesgallery.beetles_app import game_rewards
+        listed = [k for keys in game_rewards.BADGE_TIERS.values() for k in keys]
+        self.assertEqual(sorted(listed), sorted(game_rewards.BADGES))
+        self.assertEqual(len(listed), len(set(listed)))
+        self.assertEqual(game_rewards.badge_tier("first"), "common")
+        self.assertEqual(game_rewards.badge_tier("king"), "mythic")
+
+    def test_an_earned_badge_takes_its_tiers_colour(self):
+        from django.template.loader import render_to_string
+        easy = render_to_string("beetles/includes/game_badge.html", {"b": {"key": "hundred", "name": "x", "how": "", "icon": "fi-rr-medal", "earned": True, "tier": "uncommon"}})
+        self.assertIn("text-green-600", easy)      # the colour of levels 3-4
+        top = render_to_string("beetles/includes/game_badge.html", {"b": {"key": "king", "name": "x", "how": "", "icon": "fi-rr-crown", "earned": True, "tier": "mythic"}})
+        self.assertIn("box-shadow", top)            # the top badge glows, like the top level
+
+    def test_levels_not_reached_are_grey_and_the_king_glows(self):
+        from django.template.loader import render_to_string
+        locked = render_to_string("beetles/includes/game_level_badge.html", {"level": 5, "locked": True, "size": "lg"})
+        self.assertIn("bg-gray-100", locked)
+        self.assertNotIn("bg-blue-600", locked)
+        self.assertIn("height: 1.75rem", locked)
+        king = render_to_string("beetles/includes/game_level_badge.html", {"level": 10})
+        self.assertIn("box-shadow", king)
+        self.assertNotIn("box-shadow", render_to_string("beetles/includes/game_level_badge.html", {"level": 9}))
+
+    @override_settings(GAME_TRUST_MIN_ACCURACY=0.9)
+    def test_expertise_bands_run_from_50_percent_to_what_an_expert_needs(self):
+        from types import SimpleNamespace
+        from beetlesgallery.beetles_app import game_trust
+
+        def status(right, judged=100, proven=False):
+            return game_trust.node_status(SimpleNamespace(correct=right, judged=judged, proven=proven), 5)
+        self.assertEqual([status(n) for n in (49, 50, 60, 70, 80, 95)],
+                         ["common", "uncommon", "rare", "epic", "legendary", "legendary"])
+        self.assertEqual(status(95, proven=True), "expert")
+        self.assertEqual(status(4, judged=4), "unknown")
+        self.assertEqual([label for _, label in game_trust.expertise_legend()],
+                         ["under 50%", "50\u201360%", "60\u201370%", "70\u201380%", "80%+", "proven expert"])

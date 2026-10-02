@@ -223,11 +223,29 @@ def _best_streak(days):
     return best
 
 
+# How hard each badge is, in the same rarity colours as the levels (includes/game_level_badge.html):
+# common grey (levels 1-2), uncommon green (3-4), rare blue (5-6), epic purple (7-8), legendary orange (9),
+# mythic gold (10). Easy badges look like early levels, the hardest like the top one.
+BADGE_TIERS = {
+    "common": ("first", "ten", "goal", "both", "streak3"),
+    "uncommon": ("hundred", "streak7", "species1", "comeback", "nightowl", "earlybird"),
+    "rare": ("thousand", "streak30", "goal7", "species25", "fivehundred", "genera10", "similar50"),
+    "epic": ("expert", "species100", "platypod", "twins", "ahead", "curator", "marathon", "discovery"),
+    "legendary": ("tenthousand", "streak100", "flawless", "discovery3", "expert5", "genera50"),
+    "mythic": ("king", "streak365"),
+}
+BADGE_TIER = {key: tier for tier, keys in BADGE_TIERS.items() for key in keys}
+
+
+def badge_tier(key):
+    return BADGE_TIER.get(key, "common")
+
+
 def badge_cards(player):
-    """All badges for display: earned or not."""
+    """All badges for display: earned or not, with their rarity tier."""
     have = earned_badges(player)
     return [
-        {"key": key, "name": name, "how": how, "icon": icon, "earned": key in have}
+        {"key": key, "name": name, "how": how, "icon": icon, "earned": key in have, "tier": badge_tier(key)}
         for key, (name, how, icon, _) in BADGES.items()
     ]
 
@@ -272,7 +290,7 @@ def recap(player, since):
     scored = sitting.filter(is_check=True, skipped=False, score_hold=False).exclude(mode="pair", pair_answer="unsure")
     right = scored.exclude(correct_subfamily=False).exclude(correct_tribe=False).exclude(correct_genus=False).exclude(correct_species=False).count()
     new = [
-        {"key": key, "name": BADGES[key][0], "how": BADGES[key][1], "icon": BADGES[key][2]}
+        {"key": key, "name": BADGES[key][0], "how": BADGES[key][1], "icon": BADGES[key][2], "tier": badge_tier(key)}
         for key in BADGES if key in earned_badges(player) and key not in earned_badges(player, before=since)
     ]
     state = progress(player)

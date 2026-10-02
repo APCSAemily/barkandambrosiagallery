@@ -1,14 +1,8 @@
-{# One badge card with its own accent colour when earned (grey while locked). Needs ``b`` from game_rewards.badge_cards. #}
+{# One badge card in its rarity colour when earned (grey while locked): the same colours as the levels, so easy badges look like early levels. Needs ``b`` from game_rewards.badge_cards. #}
 {% if not b.earned %}{% with ring="border-gray-100 bg-gray-50" ink="text-gray-300" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "king" or b.key == "streak365" or b.key == "tenthousand" or b.key == "genera50" %}{% with ring="border-yellow-400 bg-yellow-50" ink="text-yellow-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "flawless" or b.key == "streak100" or b.key == "expert5" or b.key == "discovery3" or b.key == "marathon" %}{% with ring="border-orange-300 bg-orange-50" ink="text-orange-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "species100" or b.key == "platypod" or b.key == "similar50" or b.key == "twins" or b.key == "ahead" or b.key == "curator" %}{% with ring="border-purple-300 bg-purple-50" ink="text-purple-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "genera10" or b.key == "fivehundred" or b.key == "goal7" or b.key == "comeback" or b.key == "nightowl" or b.key == "earlybird" %}{% with ring="border-blue-300 bg-blue-50" ink="text-blue-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "first" or b.key == "ten" %}{% with ring="border-lime-300 bg-lime-50" ink="text-lime-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "hundred" or b.key == "thousand" %}{% with ring="border-sky-300 bg-sky-50" ink="text-sky-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "streak3" or b.key == "streak7" or b.key == "streak30" %}{% with ring="border-orange-300 bg-orange-50" ink="text-orange-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "goal" or b.key == "both" %}{% with ring="border-teal-300 bg-teal-50" ink="text-teal-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "species1" or b.key == "species25" %}{% with ring="border-violet-300 bg-violet-50" ink="text-violet-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "expert" %}{% with ring="border-green-300 bg-green-50" ink="text-green-700" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% elif b.key == "discovery" %}{% with ring="border-amber-300 bg-amber-50" ink="text-amber-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
-{% else %}{% with ring="border-gray-300 bg-white" ink="text-gray-700" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}{% endif %}
+{% elif b.tier == "mythic" %}{% with ring="border-yellow-400 bg-yellow-50 badge-glow" ink="text-yellow-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.tier == "legendary" %}{% with ring="border-orange-300 bg-orange-50" ink="text-orange-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.tier == "epic" %}{% with ring="border-purple-300 bg-purple-50" ink="text-purple-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.tier == "rare" %}{% with ring="border-blue-300 bg-blue-50" ink="text-blue-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% elif b.tier == "uncommon" %}{% with ring="border-green-300 bg-green-50" ink="text-green-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}
+{% else %}{% with ring="border-gray-300 bg-white" ink="text-gray-600" %}{% include "beetles/includes/game_badge_card.html" %}{% endwith %}{% endif %}
