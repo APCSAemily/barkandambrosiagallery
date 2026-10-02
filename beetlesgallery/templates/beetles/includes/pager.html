@@ -1,0 +1,11 @@
+{% load beetle_tags %}{# Previous / next for one table. Needs ``page`` (a Paginator page), ``param`` (its query name) and ``anchor``. #}
+{% if page.paginator.num_pages > 1 %}
+<nav class="flex items-center justify-between gap-2 mt-2 text-sm" aria-label="Pages" data-testid="pager-{{ anchor }}">
+  <span class="text-xs text-gray-500 tabular-nums">{{ page.start_index|digit_groups }}&ndash;{{ page.end_index|digit_groups }} of {{ page.paginator.count|digit_groups }}</span>
+  <span class="flex items-center gap-1">
+    {% if page.has_previous %}<a href="{% page_url param page.previous_page_number anchor %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">&larr; Previous</a>{% endif %}
+    <span class="px-2 text-xs text-gray-500 tabular-nums">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="{% page_url param page.next_page_number anchor %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Next &rarr;</a>{% endif %}
+  </span>
+</nav>
+{% endif %}

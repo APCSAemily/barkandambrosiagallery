@@ -84,3 +84,11 @@ def digit_groups_text(value, decimals=0):
         return value
     sign, groups, fraction = parts
     return sign + "\u202f".join(groups) + fraction
+
+
+@register.simple_tag(takes_context=True)
+def page_url(context, param, number, anchor=""):
+    """This page's address with one page number changed (the rest of the query kept): {% page_url "labels_page" 2 "labels" %}."""
+    query = context["request"].GET.copy()
+    query[param] = number
+    return "?" + query.urlencode() + (f"#{anchor}" if anchor else "")

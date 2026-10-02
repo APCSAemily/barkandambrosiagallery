@@ -15,6 +15,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
@@ -874,18 +875,26 @@ def game_review(request):
     entries = game.consensus()
     if only_trusted:
         entries = [e for e in entries if e["trusted_rank"]]
+
+    def page(items, param):
+        """One page of a table; each table has its own page number, so paging one keeps your place in the others."""
+        return Paginator(items, REVIEW_PER_PAGE).get_page(request.GET.get(param))
+
     return render(request, "beetles/game_review.html", {
-        "open_reports": GameReport.objects.filter(status=GameReport.Status.OPEN)
-        .select_related("reporter", "roi__taxon").order_by("created_at")[:200],
+        "open_reports": page(GameReport.objects.filter(status=GameReport.Status.OPEN)
+                             .select_related("reporter", "roi__taxon").order_by("created_at"), "reports_page"),
         "ranks": game.RANKS,
-        "players": _player_rows(),
-        "consensus": entries[:200],
+        "players": page(_player_rows(), "players_page"),
+        "consensus": page(entries, "labels_page"),
         "consensus_total": len(entries),
         "only_trusted": only_trusted,
         "rounds": GameRound.objects.count(),
         "answers": GameAnswer.objects.count(),
         "per_species": game_trust.per_species(),
     })
+
+
+REVIEW_PER_PAGE = 25
 
 
 def _pct(value):

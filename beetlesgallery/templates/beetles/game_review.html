@@ -32,8 +32,8 @@
     </p>
   </div>
 
-  <details class="group mb-8" open data-testid="section">
-  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Open player reports <span class="text-sm font-normal text-gray-400">({{ open_reports|length }})</span></h2></summary>
+  <details class="group mb-8" open data-testid="section" id="reports">
+  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Open player reports <span class="text-sm font-normal text-gray-400">({{ open_reports.paginator.count|digit_groups }})</span></h2></summary>
   <p class="text-xs text-gray-500 mb-3">
     Reported ROIs are not used to score anyone until resolved, and the reporter's answer on them is held.
     Open the image, fix it if needed, then resolve the reports from the ROI panel.
@@ -65,10 +65,11 @@
       </tbody>
     </table>
   </div>
+  {% include "beetles/includes/pager.html" with page=open_reports param="reports_page" anchor="reports" %}
   </details>
 
-  <details class="group mb-8" data-testid="section">
-  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Players <span class="text-sm font-normal text-gray-400">({{ players|length }})</span></h2></summary>
+  <details class="group mb-8" data-testid="section" id="players" {% if request.GET.players_page %}open{% endif %}>
+  <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Players <span class="text-sm font-normal text-gray-400">({{ players.paginator.count|digit_groups }})</span></h2></summary>
   <p class="text-xs text-gray-500 mb-3">Correct / judged per rank on validated items. Click a player for their full report.</p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg mb-10">
     <table class="w-full text-sm whitespace-nowrap">
@@ -110,22 +111,23 @@
       </tbody>
     </table>
   </div>
+  {% include "beetles/includes/pager.html" with page=players param="players_page" anchor="players" %}
   </details>
 
-  <details class="group mb-8" data-testid="section" {% if only_trusted %}open{% endif %}>
+  <details class="group mb-8" data-testid="section" id="labels" {% if only_trusted or request.GET.labels_page %}open{% endif %}>
   <summary class="cursor-pointer list-none flex items-center gap-2 mb-2"><i class="fi fi-rr-angle-small-right group-open:rotate-90 transition-transform text-gray-400"></i><h2 class="inline text-lg font-semibold text-gray-900">Label proposals for unvalidated ROIs <span class="text-sm font-normal text-gray-400">({{ consensus_total|digit_groups }})</span></h2></summary>
   <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-2">
     <span></span>
     <div class="flex text-sm bg-gray-100 rounded-lg p-1 self-start">
-      <a href="?" class="px-3 py-1.5 rounded-md {% if not only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">All</a>
-      <a href="?trusted=1" class="px-3 py-1.5 rounded-md {% if only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Expert-backed</a>
+      <a href="?#labels" class="px-3 py-1.5 rounded-md {% if not only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">All</a>
+      <a href="?trusted=1#labels" class="px-3 py-1.5 rounded-md {% if only_trusted %}bg-white shadow-sm font-semibold text-gray-900{% else %}text-gray-500{% endif %}">Expert-backed</a>
     </div>
   </div>
   <p class="text-xs text-gray-500 mb-3">
     Votes from both modes, weighted by each player's reliability at that rank. A pair answer such as
     &ldquo;same genus&rdquo; votes for the validated partner's subfamily, tribe and genus.
     Percent = the winning name's share of the weighted vote; <i class="fi fi-rr-shield-check text-green-700"></i> = expert-backed.
-    Showing {{ consensus|length|digit_groups }} of {{ consensus_total|digit_groups }} (most answered first); the CSV has all of them.
+    Most answered first; the CSV has all of them.
   </p>
   <div class="overflow-x-auto border border-gray-200 rounded-lg">
     <table class="w-full text-sm whitespace-nowrap">
@@ -155,6 +157,7 @@
       </tbody>
     </table>
   </div>
+  {% include "beetles/includes/pager.html" with page=consensus param="labels_page" anchor="labels" %}
   </details>
 </div>
 {% endblock %}
