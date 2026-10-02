@@ -16,7 +16,64 @@ from django.utils import timezone
 from .models import GameAnswer
 
 def daily_goal():
+    """The lowest a daily goal can be (GAME_DAILY_GOAL, 20): every new player starts there."""
     return getattr(settings, "GAME_DAILY_GOAL", 20)
+
+
+# ---------------------------------------------------------------------------
+# The daily goal adapts, like a fitness watch's step goal
+# ---------------------------------------------------------------------------
+def goal_history(counts, until):
+    """
+    {day: goal} for every day from the first day played up to ``until`` (inclusive), given ``counts`` =
+    {day: beetles labelled that day}. Each day's goal comes from the days before it only, so it never moves
+    during the day:
+
+    * goal met: the next goal rises halfway towards what was done (at most 25% more);
+    * played but fell short: it eases a quarter of the way down (at most 15% less);
+    * a day off: it eases 5%;
+    * never below GAME_DAILY_GOAL (20) nor above GAME_DAILY_GOAL_MAX (300), in steps of 5.
+    """
+    from datetime import timedelta
+
+    low = daily_goal()
+    high = getattr(settings, "GAME_DAILY_GOAL_MAX", 300)
+    played = sorted(d for d, n in counts.items() if n)
+    if not played or played[0] > until:
+        return {until: low}
+    goals, goal, day = {}, float(low), played[0]
+    while day <= until:
+        # the exact goal is carried from day to day; only what players see is rounded to 5
+        goals[day] = low if goal < low + 2.5 else int(max(low, min(high, 5 * round(goal / 5))))
+        done = counts.get(day, 0)
+        if done >= goals[day]:
+            goal = min(goal + 0.5 * (done - goal), goal * 1.25)
+        elif done:
+            goal = max(goal - 0.25 * (goal - done), goal * 0.85)
+        else:
+            goal *= 0.95
+        goal = max(low, min(high, goal))
+        day += timedelta(days=1)
+    return goals
+
+
+def _day_counts(player, since=None, before=None):
+    rows = labelled(player)
+    if since is not None:
+        rows = rows.filter(answered_at__date__gte=since)
+    if before is not None:
+        rows = rows.filter(answered_at__lt=before)
+    rows = rows.annotate(day=TruncDate("answered_at", tzinfo=timezone.get_current_timezone())).values("day").annotate(n=Count("id"))
+    return {r["day"]: r["n"] for r in rows}
+
+
+def player_goal(player, day=None):
+    """Today's daily goal for this player (from the last 60 days of play)."""
+    from datetime import timedelta
+
+    day = day or timezone.localdate()
+    counts = _day_counts(player, since=day - timedelta(days=60))
+    return goal_history(counts, day)[day]
 
 
 def labelled(player, **filters):
@@ -49,9 +106,10 @@ def progress(player):
     from . import game_levels
     total = labelled(player).count()
     today = labelled(player, answered_at__date=timezone.localdate()).count()
+    goal = player_goal(player)
     level = game_levels.for_player(player)
     return {
-        "total": total, "today": today, "goal": daily_goal(), "goal_met": today >= daily_goal(),
+        "total": total, "today": today, "goal": goal, "goal_met": today >= goal,
         "streak": streak_days(active_days(player)),
         "level": level["level"], "level_name": level["name"], "proposals": level["proposals"],
         "perks": sorted(level["perks"]),
@@ -119,7 +177,11 @@ def earned_badges(player, before=None):
     # the streak they had at the end of their last day of play before the cut-off
     best = _best_streak(days)
     per_day = done.annotate(day=TruncDate("answered_at", tzinfo=timezone.get_current_timezone())).values("day").annotate(n=Count("id"))
-    goal_days = any(row["n"] >= daily_goal() for row in per_day)
+    # each day is judged against that day's own goal (it adapts, see goal_history)
+    counts = {row["day"]: row["n"] for row in per_day}
+    goals = goal_history(counts, max(counts)) if counts else {}
+    per_day = [dict(row, goal=goals.get(row["day"], daily_goal())) for row in per_day]
+    goal_days = any(row["n"] >= row["goal"] for row in per_day)
     right_species = answers.filter(is_check=True, is_retry=False, correct_species=True, score_hold=False).count()
     have = set()
     for key, needed in (("first", 1), ("ten", 10), ("hundred", 100), ("thousand", 1000)):
@@ -174,7 +236,7 @@ def _harder_badges(player, answers, done, total, best, per_day):
     day_counts = [row["n"] for row in per_day]
     if any(n >= 200 for n in day_counts):
         have.add("marathon")
-    if sum(1 for n in day_counts if n >= daily_goal()) >= 7:
+    if sum(1 for row in per_day if row["n"] >= row["goal"]) >= 7:
         have.add("goal7")
     hours = set(done.annotate(h=ExtractHour("answered_at", tzinfo=timezone.get_current_timezone())).values_list("h", flat=True).distinct())
     if hours & {0, 1, 2, 3}:

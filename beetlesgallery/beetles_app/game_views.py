@@ -69,6 +69,7 @@ def game_home(request):
         "rewards": game_rewards.progress(request.user),
         "board": game_board.board(limit=5),
         "standing": game_board.accuracy_standing(request.user),
+        "goal_floor": game_rewards.daily_goal(),
         "games": game_board.mode_stats([request.user.id])[request.user.id],
         # the public address in production (SITE_URL), this server's own when developing
         "share_url": (request.build_absolute_uri(reverse("game_home")) if settings.DEBUG
@@ -211,7 +212,7 @@ def _classify_examples():
 def game_how(request):
     """How the game works and how it is scored, in plain words."""
     return render(request, "beetles/game_how.html", {
-        "discussions": discussions_url(), "levels": game_levels.table(),
+        "discussions": discussions_url(), "levels": game_levels.table(), "goal_floor": game_rewards.daily_goal(),
         "proposal_level": game_levels.proposal_level(),
         "min_experts": game.game_setting("GAME_AUTO_APPLY_MIN_EXPERTS", 2),
         "per_species": game_trust.per_species(),
