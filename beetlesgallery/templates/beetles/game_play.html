@@ -462,7 +462,10 @@
       const lc = $("level-chip");
       lc.classList.remove("hidden");
       lc.classList.add("inline-flex");
-      lc.textContent = "L" + chip.level + " · " + digitGroupsText(chip.score) + (chip.next_at ? "/" + digitGroupsText(chip.next_at) : "");
+      const icon = document.createElement("i");
+      icon.className = "fi " + (chip.level_icon || "fi-rr-egg");
+      icon.setAttribute("aria-hidden", "true");
+      lc.replaceChildren(icon, document.createTextNode("L" + chip.level + " · " + digitGroupsText(chip.score) + (chip.next_at ? "/" + digitGroupsText(chip.next_at) : "")));
       lc.title = chip.next_at ? digitGroupsText(chip.next_at - chip.score) + " points to level " + (chip.level + 1) : "Top level";
       $("level-bar").style.width = Math.round((chip.next_at ? chip.level_progress : 1) * 100) + "%";
     }
