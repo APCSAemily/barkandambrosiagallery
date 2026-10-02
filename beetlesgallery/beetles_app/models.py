@@ -1673,6 +1673,10 @@ class ModelPrediction(models.Model):
 
     One row per ROI, model name and model version: uploading the same model version again
     replaces its predictions instead of adding to them.
+
+    ``rank_confidence`` keeps what the model said at each rank above the species, when it says so (a hierarchical
+    classifier, or one that is surer of the genus than the species). Where it is empty, the ranks can be worked out
+    from the species candidates (see predictions.rank_tips), for tips such as "AI: genus Xyleborus, 92%".
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -1686,6 +1690,10 @@ class ModelPrediction(models.Model):
     top_k = models.JSONField(
         default=list, blank=True,
         help_text='Further candidates, best first: [{"valid_species_id": "1733", "confidence": 0.08}, ...]',
+    )
+    rank_confidence = models.JSONField(
+        default=dict, blank=True,
+        help_text='What the model said per rank, when it says so: {"genus": {"value": "Xyleborus", "confidence": 0.92}, ...}',
     )
     model_name = models.CharField(max_length=100)
     model_version = models.CharField(max_length=50, blank=True)
