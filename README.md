@@ -5,6 +5,8 @@ UI Demo: https://drive.google.com/file/d/1q2IxkhCCGwTcAj68M3B70oNZalV8iVSh/view?
 
 <img width="1917" height="914" alt="image" src="https://github.com/user-attachments/assets/0526003a-a966-45f4-8067-f0d4c37da123" />
 <img width="1821" height="711" alt="image" src="https://github.com/user-attachments/assets/fb149cc9-acbe-40fa-a74f-7c17fe43e0d1" />
+<img width="1534" height="811" alt="image" src="https://github.com/user-attachments/assets/e6d20dd9-c84e-48e0-ba5d-fb51812f7441" />
+
 
 
 ## The idea
