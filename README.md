@@ -4,6 +4,8 @@ UI Demo: https://drive.google.com/file/d/1q2IxkhCCGwTcAj68M3B70oNZalV8iVSh/view?
 > A personal UI exploration, built on my fork of the [Bark & Ambrosia Beetle Gallery](https://github.com/ChristopherMarais/barkandambrosiagallery), an open-source image database from the University of Florida Forest Entomology Lab. **This is not the official site, it is a reference for how the front page could feel.
 
 <img width="1917" height="914" alt="image" src="https://github.com/user-attachments/assets/0526003a-a966-45f4-8067-f0d4c37da123" />
+<img width="1821" height="711" alt="image" src="https://github.com/user-attachments/assets/fb149cc9-acbe-40fa-a74f-7c17fe43e0d1" />
+
 
 ## The idea
 
