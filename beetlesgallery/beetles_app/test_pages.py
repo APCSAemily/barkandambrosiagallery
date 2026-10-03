@@ -9,6 +9,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -70,8 +71,18 @@ SUPERUSER_PAGES = [
 NO_WHITENOISE = [m for m in settings.MIDDLEWARE if "whitenoise" not in m.lower()]
 
 
-@override_settings(STORAGES=PLAIN_STATIC, MIDDLEWARE=NO_WHITENOISE)
+# Tests must not touch the real (Redis) cache: it is shared with the running app, so a test against an empty
+# database would overwrite the cached numbers on the landing page. A private in-memory cache, emptied per test.
+LOCMEM_CACHE = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+
+@override_settings(STORAGES=PLAIN_STATIC, MIDDLEWARE=NO_WHITENOISE, CACHES=LOCMEM_CACHE)
 class PageTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.addCleanup(cache.clear)
+
     """Base class with one user of each access level."""
 
     @classmethod

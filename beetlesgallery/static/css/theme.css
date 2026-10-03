@@ -1,0 +1,104 @@
+/* ==========================================================================
+   Site theme: the forest sidebar, shared by every page.
+   Only the navigation is themed here; page content keeps its own styling.
+   Each tab has its own colour (--tab-rgb) that drives its shadow, glow and icon.
+   ========================================================================== */
+
+:root {
+  --th-bark: #06170f;
+  --th-spruce: #0a2318;
+  --th-text: #d3e6d9;
+  --th-text-hi: #f2faf4;
+  --th-muted: #9db9a8;
+  --th-faint: #7c9a89;
+  --th-line: rgba(190, 255, 215, 0.1);
+  --th-amber: #e2a23b;
+}
+
+/* ---- the sidebar and the phone menu ---- */
+#sidenavWrap,
+#sidenav {
+  background: linear-gradient(180deg, #0c2c1c 0%, var(--th-spruce) 45%, var(--th-bark) 100%);
+  border-color: var(--th-line);
+}
+#sidenav { box-shadow: 0 0 44px rgba(0, 18, 8, 0.6), inset -1px 0 0 rgba(190, 255, 215, 0.05); }
+#mobile-menu { background: #08201a; border-color: var(--th-line); }
+#mobileMenuWrap > div.lg\:hidden { border-color: var(--th-line); }
+#mobileMenuWrap button { color: var(--th-text-hi); }
+#mobileMenuWrap button:focus { background: rgba(255, 255, 255, 0.08); }
+
+#sidenav a,
+#mobile-menu a { color: var(--th-text); }
+#sidenav .text-gray-700, #sidenav .text-gray-800,
+#mobile-menu .text-gray-700, #mobile-menu .text-gray-800 { color: var(--th-text); }
+#sidenav .text-gray-500, #mobile-menu .text-gray-500 { color: var(--th-muted); }
+#sidenav .text-gray-400, #mobile-menu .text-gray-400 { color: var(--th-faint); }
+#sidenav .bg-gray-300, #mobile-menu .bg-gray-300 { background: var(--th-line); }
+#sidenav .border-gray-200, #mobile-menu .border-gray-200, #sidenav-footer { border-color: var(--th-line); }
+/* the line-art beetle is black on transparent: flip it to bone on the dark ground */
+#image_browser-icon, #mobile-menu img { filter: invert(1) brightness(1.15) drop-shadow(0 6px 14px rgba(150, 255, 190, 0.18)); }
+#sidenav-footer a { color: var(--th-faint); }
+#sidenav-footer a:hover { color: var(--th-text-hi); }
+
+/* ---- every tab: its own colour, shadow and glow ---- */
+#sidenav a, #mobile-menu a, #sidenav form button, #mobile-menu form button {
+  --tab-rgb: 190, 255, 215;
+  transition: background 0.25s ease, box-shadow 0.3s ease, transform 0.25s ease;
+}
+/* Image Browser: fern */
+:is(#sidenav, #mobile-menu) a[href="/beetles/"] { --tab-rgb: 102, 217, 138; }
+/* Taxonomy: teal */
+:is(#sidenav, #mobile-menu) a[href="/taxonomy/"] { --tab-rgb: 79, 209, 197; }
+/* Interactions: elderberry */
+:is(#sidenav, #mobile-menu) a[href="/interactions/"] { --tab-rgb: 210, 123, 224; }
+/* AI Identification: dusk sky */
+:is(#sidenav, #mobile-menu) a[href="/tools/classify/"] { --tab-rgb: 99, 179, 255; }
+/* Game: amber */
+:is(#sidenav, #mobile-menu) a[href="/game/"] { --tab-rgb: 240, 180, 62; }
+/* Annotation: ember */
+:is(#sidenav, #mobile-menu) a[href="/tools/annotate/"] { --tab-rgb: 255, 138, 107; }
+/* Data Management: sand */
+:is(#sidenav, #mobile-menu) a[href="/my-uploads/"] { --tab-rgb: 230, 207, 143; }
+/* Account: lichen */
+:is(#sidenav, #mobile-menu) a[href="/accounts/me/"] { --tab-rgb: 184, 216, 122; }
+/* Sign in: moonlight */
+:is(#sidenav, #mobile-menu) a[href="/accounts/login/"] { --tab-rgb: 170, 200, 255; }
+
+/* resting: a faint wash of the tab's colour and a soft shadow under it */
+#sidenav a[style], #sidenav a, #mobile-menu a {
+  background: linear-gradient(90deg, rgba(var(--tab-rgb), 0.07), rgba(var(--tab-rgb), 0) 80%);
+  box-shadow: 0 10px 22px -14px rgba(var(--tab-rgb), 0.55);
+}
+#sidenav a#sidenav-logo, #sidenav a[href="/"], #mobile-menu a[href="/"] { background: none; box-shadow: none; }
+#sidenav a:not(#sidenav-logo) i.fi, #mobile-menu a i.fi { color: rgba(var(--tab-rgb), 0.95); transition: color 0.25s ease, filter 0.25s ease; }
+
+/* hover: the tab lights up in its own colour */
+#sidenav a:hover, #mobile-menu a:hover,
+#sidenav form button:hover, #mobile-menu form button:hover {
+  background: linear-gradient(90deg, rgba(var(--tab-rgb), 0.22), rgba(var(--tab-rgb), 0.04) 85%);
+  box-shadow: 0 14px 30px -10px rgba(var(--tab-rgb), 0.75), 0 0 0 1px rgba(var(--tab-rgb), 0.28);
+  transform: translateY(-1px);
+}
+#sidenav a:hover i.fi, #mobile-menu a:hover i.fi { filter: drop-shadow(0 0 8px rgba(var(--tab-rgb), 0.85)); }
+#sidenav a#sidenav-logo:hover, #sidenav a[href="/"]:hover { background: none; box-shadow: none; transform: none; }
+
+/* the page you are on: a solid bar in its colour, a stronger glow and a lit icon */
+#sidenav a.bg-gray-200, #mobile-menu a.bg-gray-200 {
+  background: linear-gradient(90deg, rgba(var(--tab-rgb), 0.3), rgba(var(--tab-rgb), 0.06) 90%);
+  box-shadow: inset 3px 0 0 rgb(var(--tab-rgb)), 0 14px 32px -12px rgba(var(--tab-rgb), 0.85);
+  color: var(--th-text-hi);
+}
+#sidenav a.bg-gray-200 span, #mobile-menu a.bg-gray-200 span { color: var(--th-text-hi); }
+#sidenav a.bg-gray-200 i.fi, #mobile-menu a.bg-gray-200 i.fi { filter: drop-shadow(0 0 8px rgba(var(--tab-rgb), 0.9)); }
+
+#sidenav a:focus-visible, #mobile-menu a:focus-visible,
+#sidenav form button:focus-visible, #mobile-menu form button:focus-visible { outline: 2px solid rgb(var(--tab-rgb)); outline-offset: 2px; }
+
+/* sign out: quiet, no glow until you point at it */
+#sidenav form button, #mobile-menu form button { background: none; }
+#sidenav form button i.fi, #mobile-menu form button i.fi { color: var(--th-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  #sidenav a, #mobile-menu a, #sidenav form button, #mobile-menu form button { transition: none; }
+  #sidenav a:hover, #mobile-menu a:hover { transform: none; }
+}

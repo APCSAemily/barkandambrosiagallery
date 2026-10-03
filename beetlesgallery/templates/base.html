@@ -11,6 +11,7 @@
   <link rel="icon" type="image/png" href="{% static 'img/IMG_5557.PNG' %}" />
 
   <link href="{% static 'css/style.css' %}" rel="stylesheet" />
+  <link href="{% static_fresh 'css/theme.css' %}" rel="stylesheet" />
 
   <script src="{% static 'js/timezone_cookie.js' %}"></script>
 
@@ -482,7 +483,7 @@
     </div>
 
     <div class="flex-1 overflow-x-hidden">
-      <main class="max-w-7xl mx-auto px-6 py-8 min-h-[80vh]">
+      <main class="{% block main_class %}max-w-7xl mx-auto px-6 py-8 min-h-[80vh]{% endblock %}">
         {% if messages %}
         <div class="mb-6 space-y-2">
           {% for message in messages %}

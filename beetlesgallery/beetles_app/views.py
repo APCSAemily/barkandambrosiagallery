@@ -217,6 +217,53 @@ class PostOnlyLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
+def _landing_featured(limit=5):
+    """
+    Up to ``limit`` identified specimens with a photo, for the landing page's hero slides.
+
+    Starts from a random point in primary-key order (cheap on a big table, unlike ORDER BY random()),
+    keeps one specimen per genus so the slides differ, and returns plain dicts so the result can be cached.
+    """
+    photo = Q(image_asset__image_file__isnull=False) & ~Q(image_asset__image_file="")
+    qs = (
+        Beetles.objects.filter(photo, is_deleted=False, image_asset__is_deleted=False, taxon__isnull=False)
+        .select_related("taxon", "image_asset")
+        .order_by("id")
+    )
+    window = limit * 12
+    start = uuid.uuid4()
+    rows = list(qs.filter(id__gte=start)[:window])
+    if len(rows) < window:  # near the end of the key range: wrap around to the start
+        rows += list(qs.filter(id__lt=start)[: window - len(rows)])
+
+    featured, seen_genera = [], set()
+    for b in rows:
+        taxon, image = b.taxon, b.image_asset
+        genus = (taxon.genus or "").strip()
+        if genus.lower() in seen_genera:
+            continue
+        seen_genera.add(genus.lower())
+        name = (taxon.scientific_name or "").strip() or f"{genus} {taxon.species or ''}".strip()
+        authority = (taxon.scientific_name_authority or "").strip()
+        if not authority and taxon.authority:
+            authority = f"{taxon.authority}, {taxon.authority_year}" if taxon.authority_year else taxon.authority
+        featured.append({
+            "beetle_id": str(b.id),
+            "scientific_name": name,
+            "authority": authority,
+            "genus": genus,
+            "subfamily": (taxon.subfamily or "").strip(),
+            "tribe": (taxon.tribe or "").strip(),
+            "country": (b.collection_country or "").strip(),
+            "photographer": (image.photographer or "").strip(),
+            "institution": (image.image_institution or "").strip(),
+            "image_url": b.display_url,
+        })
+        if len(featured) == limit:
+            break
+    return featured
+
+
 def landing(request):
     from django.core.cache import cache
 
@@ -245,7 +292,12 @@ def landing(request):
         }
         cache.set(stats_cache_key, context, 60 * 10)
 
-    return render(request, 'landing.html', context)
+    featured = cache.get("landing:featured:v1")
+    if featured is None:
+        featured = _landing_featured()
+        cache.set("landing:featured:v1", featured, 60 * 10)
+
+    return render(request, 'landing.html', {**context, 'featured': featured})
 
 
 def _normalize_valid_id_for_lookup(v):

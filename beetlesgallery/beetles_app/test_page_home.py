@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from beetlesgallery.beetles_app.test_pages import PageTestCase
 
-CARD = re.compile(r'<a href="([^"]+)" class="group relative flex items-center gap-4 p-5')
+CARD = re.compile(r'<a href="([^"]+)" class="lp-card"')
 
 EXPECTED = [
     reverse("beetles_image_browser"),

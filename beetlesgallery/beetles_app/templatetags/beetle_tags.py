@@ -1,4 +1,9 @@
+import os
+
 from django import template
+from django.conf import settings
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
 
 register = template.Library()
 
@@ -119,3 +124,18 @@ def sort_link(context, param, key, label, anchor=""):
     arrow = (" \u2193" if descending else " \u2191") if active else ""
     return format_html('<a href="?{}{}" class="hover:text-gray-900 {}" data-sort="{}">{}{}</a>', query.urlencode(),
                        f"#{anchor}" if anchor else "", "text-gray-900" if active else "", key, label, arrow)
+
+
+@register.simple_tag
+def static_fresh(path):
+    """
+    ``{% static %}`` plus, while developing, ``?v=<time the file was last changed>``, so a browser never keeps showing an
+    old copy of a stylesheet or script you have just edited. In production the static files storage already puts a hash in
+    each file name, so there the address is left exactly as ``{% static %}`` gives it.
+    """
+    url = static(path)
+    if settings.DEBUG:
+        found = finders.find(path)
+        if found and not isinstance(found, (list, tuple)):
+            url += f"?v={int(os.path.getmtime(found))}"
+    return url

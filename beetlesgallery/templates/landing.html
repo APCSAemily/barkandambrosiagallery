@@ -1,110 +1,174 @@
 {% extends 'base.html' %}
 {% load static beetle_tags %}
 
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800;900&display=swap">
+<link rel="preload" as="image" href="{% static 'img/hero/beetle-sheet.webp' %}" type="image/webp">
+<link rel="stylesheet" href="{% static_fresh 'css/landing.css' %}">
+{% endblock %}
+
+{# the landing page is full-bleed: drop base.html's centred, padded column #}
+{% block main_class %}lp-main{% endblock %}
+
 {% block content %}
-<div class="h-auto w-full lg:h-screen lg:overflow-y-scroll lg:snap-y lg:snap-mandatory scroll-smooth no-scrollbar">
+<div id="lp-root" class="lp h-auto w-full lg:h-screen lg:overflow-y-scroll lg:snap-y lg:snap-mandatory scroll-smooth no-scrollbar">
 
-  <section id="landing-section" class="lg:snap-start relative flex flex-col min-h-screen w-full bg-white">
-    
-    <div class="flex-1 flex flex-col w-full max-w-7xl mx-auto">
-      <header class="text-center py-6 md:py-10 space-y-4 px-4">
-        <h1 class="text-3xl md:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-          Bark & Ambrosia Beetle<br class="hidden md:block" /> Gallery
-        </h1>
-        <p class="text-base mt-6 md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed text-balance">
-          Welcome to the Bark & Ambrosia Beetle Gallery. The world's largest collection of bark and ambrosia beetle images and specimen data. 
-          
-        <span class="block mt-6 text-sm md:text-base font-medium text-gray-400">
-          Image Attribution
-          <span class="block text-gray-600 font-normal mt-1">
-            Images in this database were contributed by the global community of entomologists and museum curators. Their names and institutions are listed with each respective file and will be acknowledged in an upcoming publication.
-          </span>
-        </span>
+  {# ====================== HERO ====================== #}
+  <section id="landing-section" class="lp-hero lg:snap-start" tabindex="0"
+           aria-roledescription="carousel" aria-label="Featured specimens">
 
-          <span class="block mt-6 text-sm md:text-base font-medium text-gray-400">Maintained by the 
-            <a href="https://pitchtube.org/" target="_blank" class="block text-gray-600 hover:underline">
-              University of Florida Forest Entomology Lab.
-            </a>
-          </span>
-        </p>
-      </header>
+    <div class="lp-bgs" aria-hidden="true">
+      {% for f in featured %}
+      <div class="lp-bg{% if forloop.first %} is-active{% endif %}" data-bg="{{ f.image_url|urlencode:'/:' }}"{% if forloop.first %} style="background-image:url('{{ f.image_url|urlencode:'/:' }}')"{% endif %}></div>
+      {% empty %}
+      <div class="lp-bg lp-bg--plain is-active"></div>
+      {% endfor %}
+    </div>
+    <div class="lp-vignette" aria-hidden="true"></div>
+    <div class="lp-grain" aria-hidden="true"></div>
 
-      <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-16 items-center px-4 pb-12">
-        
-        <div class="lg:col-span-7 flex justify-center order-1 lg:order-1">
-          <div class="relative w-full max-w-md lg:max-w-full aspect-square lg:aspect-video flex items-center justify-center">
-            <div class="absolute inset-0 bg-gray-50 rounded-full blur-3xl opacity-30 animate-pulse"></div>
-            <img src="{% static 'img/IMG_5557.PNG' %}" 
-                alt="Beetles DB specimen"
-                class="relative z-10 w-auto h-auto max-h-[400px] lg:max-h-[500px] object-contain drop-shadow-xl hover:scale-105 transition-transform duration-500" />
+    {# the forest: light through the canopy, distant and nearer pines drifting past, mist, fireflies #}
+    <div class="lp-forest" aria-hidden="true">
+      <div class="lp-rays"></div>
+      <div class="lp-treeline lp-treeline--far"></div>
+      <div class="lp-treeline lp-treeline--mid"></div>
+      <div class="lp-mist"></div>
+      <div class="lp-motes"></div>
+    </div>
+
+    <header class="lp-brand">
+      <img src="{% static 'img/IMG_5557.PNG' %}" alt="">
+      <span>Bark &amp; Ambrosia Beetle Gallery</span>
+    </header>
+
+    <h1 class="lp-title">
+      <span class="lp-sr">Bark &amp; Ambrosia Beetle Gallery. </span>
+      <span class="lp-title-main" aria-hidden="true">Beetles</span>
+      <span class="lp-welcome">Welcome to the world of Entomology</span>
+    </h1>
+
+    <div class="lp-photos">
+      <div class="lp-beetle" role="img" aria-label="An iridescent green beetle that turns to face your cursor">
+        <span class="lp-beetle-shadow" aria-hidden="true"></span>
+        <div class="lp-beetle-bob" aria-hidden="true">
+          <div class="lp-beetle-tilt">
+            <div class="lp-beetle-sprite is-on" style="--col:0;--row:0"></div>
+            <div class="lp-beetle-sprite" style="--col:0;--row:0"></div>
           </div>
         </div>
-
-        <div class="lg:col-span-5 flex flex-col gap-4 w-full max-w-md mx-auto order-2 lg:order-2">
-
-          <a href="{% url 'beetles_image_browser' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-bug text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">Browse Images</h3>
-              <p class="text-sm text-gray-500">Explore the images and specimen data.</p>
-            </div>
-          </a>
-
-          <a href="{% url 'tool_classify' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-sparkles text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">AI Identification</h3>
-              <p class="text-sm text-gray-500">Identify species using AI.</p>
-            </div>
-          </a>
-
-          <a href="{% url 'game_home' %}" class="group relative flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-            <div class="p-3 bg-gray-100 text-gray-600 rounded-xl group-hover:scale-110 transition-transform">
-              <i class="fi fi-rr-gamepad text-xl"></i>
-            </div>
-            <div>
-              <h3 class="font-bold text-gray-900 text-lg group-hover:text-gray-700">{{ game_name }} {% include "beetles/includes/game_beta.html" %}</h3>
-              <p class="text-sm text-gray-500">Test your eye and help label beetle images.</p>
-            </div>
-          </a>
-        </div>
       </div>
+      <p class="lp-hint" aria-hidden="true">Move your cursor &middot; it&rsquo;s watching</p>
+    </div>
+    {# undergrowth in front of the specimen #}
+    <div class="lp-treeline lp-treeline--near" aria-hidden="true"></div>
+
+    <div class="lp-side">
+      <div class="lp-info-stack" aria-live="off">
+        {% for f in featured %}
+        <div class="lp-info{% if forloop.first %} is-active{% endif %}" aria-hidden="{% if forloop.first %}false{% else %}true{% endif %}">
+          <figure class="lp-thumb">
+            <img {% if forloop.first %}src="{{ f.image_url }}" fetchpriority="high"{% else %}data-src="{{ f.image_url }}"{% endif %}
+                 alt="Photograph of {{ f.scientific_name }}" decoding="async">
+          </figure>
+          <p class="lp-label">Featured specimen</p>
+          <h2 class="lp-name">
+            <em>{{ f.scientific_name }}</em>
+            {% if f.authority %}<span class="lp-authority">{{ f.authority }}</span>{% endif %}
+          </h2>
+          {% if f.subfamily or f.tribe %}
+          <p class="lp-rank">{% if f.subfamily %}<span>{{ f.subfamily }}</span>{% endif %}{% if f.tribe %}<span>{{ f.tribe }}</span>{% endif %}</p>
+          {% endif %}
+          {% if f.country %}<p class="lp-meta">Collected in {{ f.country }}.</p>{% endif %}
+          {% if f.genus %}
+          <a class="lp-cta" href="{% url 'beetles_image_browser' %}?genus={{ f.genus|urlencode }}"{% if not forloop.first %} tabindex="-1"{% endif %}>
+            Explore <em>{{ f.genus }}</em> <i class="fi fi-rr-arrow-small-right" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+          {% if f.photographer or f.institution %}<p class="lp-credit">Photo: {{ f.photographer }}{% if f.photographer and f.institution %} &middot; {% endif %}{{ f.institution }}</p>{% endif %}
+        </div>
+        {% empty %}
+        <div class="lp-info is-active">
+          <p class="lp-label">The gallery</p>
+          <h2 class="lp-name">The world's largest collection of bark and ambrosia beetle images</h2>
+          <a class="lp-cta" href="{% url 'beetles_image_browser' %}">Browse images <i class="fi fi-rr-arrow-small-right" aria-hidden="true"></i></a>
+        </div>
+        {% endfor %}
+      </div>
+
+      <dl class="lp-stats">
+        <div class="lp-stat"><dt>Images</dt><dd data-count="{{ total_images|default:0 }}">{{ total_images|default:0|digit_groups }}</dd></div>
+        <div class="lp-stat"><dt>Genera</dt><dd data-count="{{ total_genera|default:0 }}">{{ total_genera|default:0|digit_groups }}</dd></div>
+        <div class="lp-stat"><dt>Species</dt><dd data-count="{{ total_species|default:0 }}">{{ total_species|default:0|digit_groups }}</dd></div>
+        <div class="lp-stat"><dt>Type Specimens</dt><dd data-count="{{ type_status_count|default:0 }}">{{ type_status_count|default:0|digit_groups }}</dd></div>
+      </dl>
     </div>
 
-    <div class="border-t border-b border-gray-100 bg-gray-50/50 py-8 mt-auto w-full">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 max-w-5xl mx-auto px-4">
-        <div class="flex flex-col items-center text-center">
-          <span class="text-2xl md:text-4xl font-black text-gray-800 tracking-widest">{{ total_images|default:0|digit_groups }}</span>
-          <span class="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Images</span>
-        </div>
-        <div class="flex flex-col items-center text-center">
-          <span class="text-2xl md:text-4xl font-black text-gray-800 tracking-widest">{{ total_genera|default:0|digit_groups }}</span>
-          <span class="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Genera</span>
-        </div>
-        <div class="flex flex-col items-center text-center">
-          <span class="text-2xl md:text-4xl font-black text-gray-800 tracking-widest">{{ total_species|default:0|digit_groups }}</span>
-          <span class="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Species</span>
-        </div>
-        <div class="flex flex-col items-center text-center">
-          <span class="text-2xl md:text-4xl font-black text-gray-800 tracking-widest">{{ type_status_count|default:0|digit_groups }}</span>
-          <span class="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Type Specimens</span>
-        </div>
+    {% if featured|length > 1 %}
+    <div class="lp-controls">
+      <div class="lp-count" aria-hidden="true"><b data-lp-current>01</b><span>/ {{ featured|length|stringformat:"02d" }}</span></div>
+      <div class="lp-arrows">
+        <button type="button" class="lp-arrow" data-lp-prev aria-label="Previous specimen"><i class="fi fi-rr-angle-small-left" aria-hidden="true"></i></button>
+        <button type="button" class="lp-arrow lp-arrow--next" data-lp-next aria-label="Next specimen"><i class="fi fi-rr-angle-small-right" aria-hidden="true"></i></button>
       </div>
+      <div class="lp-progress" aria-hidden="true"><i></i></div>
     </div>
-      <button onclick="document.getElementById('team-section').scrollIntoView({ behavior: 'smooth' });" 
-            class="w-full pt-6 pb-2 mt-4 justify-center hidden lg:flex items-center opacity-40 hover:opacity-100 transition-opacity duration-300 cursor-pointer outline-none z-10">
-        <div class="flex flex-col items-center animate-bounce">
-            <span class="text-[16px] text-gray-400 font-bold uppercase tracking-widest mb-1">Team and Sponsors</span>
-            <i class="fi fi-rr-angle-double-small-down text-xl text-gray-400 mb-4"></i>
-        </div>
-    </button>
+    {% endif %}
+
+    <button type="button" class="lp-cue" onclick="document.getElementById('explore-section').scrollIntoView({ behavior: 'smooth' });">Explore</button>
   </section>
 
-  <section id="team-section" class="lg:snap-start relative flex flex-col min-h-screen w-full bg-white">
+  {# ====================== EXPLORE ====================== #}
+  <section id="explore-section" class="lp-section lp-explore lg:snap-start">
+    <div class="lp-treeline lp-treeline--mid" aria-hidden="true"></div>
+    <div class="lp-container">
+      <p class="lp-kicker">Start exploring</p>
+      <h2 class="lp-h2">Explore the gallery</h2>
+      <p class="lp-lead">Welcome to the Bark &amp; Ambrosia Beetle Gallery. The world's largest collection of bark and ambrosia beetle images and specimen data.</p>
+
+      <div class="lp-cards">
+        <a href="{% url 'beetles_image_browser' %}" class="lp-card">
+          <span class="lp-card-no" aria-hidden="true">01</span>
+          <span class="lp-card-icon"><i class="fi fi-rr-bug" aria-hidden="true"></i></span>
+          <h3>Browse Images</h3>
+          <p>Explore the images and specimen data.</p>
+          <i class="fi fi-rr-arrow-small-right lp-card-go" aria-hidden="true"></i>
+        </a>
+
+        <a href="{% url 'tool_classify' %}" class="lp-card">
+          <span class="lp-card-no" aria-hidden="true">02</span>
+          <span class="lp-card-icon"><i class="fi fi-rr-sparkles" aria-hidden="true"></i></span>
+          <h3>AI Identification</h3>
+          <p>Identify species using AI.</p>
+          <i class="fi fi-rr-arrow-small-right lp-card-go" aria-hidden="true"></i>
+        </a>
+
+        <a href="{% url 'game_home' %}" class="lp-card">
+          <span class="lp-card-no" aria-hidden="true">03</span>
+          <span class="lp-card-icon"><i class="fi fi-rr-gamepad" aria-hidden="true"></i></span>
+          <h3>{{ game_name }} {% include "beetles/includes/game_beta.html" %}</h3>
+          <p>Test your eye and help label beetle images.</p>
+          <i class="fi fi-rr-arrow-small-right lp-card-go" aria-hidden="true"></i>
+        </a>
+      </div>
+
+      <div class="lp-attrib">
+        <div class="lp-attrib-group">
+          <h4>Image Attribution</h4>
+          <p>Images in this database were contributed by the global community of entomologists and museum curators. Their names and institutions are listed with each respective file and will be acknowledged in an upcoming publication.</p>
+        </div>
+        <div class="lp-attrib-group">
+          <h4>Maintained by the</h4>
+          <p><a href="https://pitchtube.org/" target="_blank" rel="noopener">University of Florida Forest Entomology Lab.</a></p>
+        </div>
+      </div>
+
+      <button type="button" class="lp-cue" onclick="document.getElementById('team-section').scrollIntoView({ behavior: 'smooth' });">Team and Sponsors</button>
+    </div>
+  </section>
+
+  <section id="team-section" class="lg:snap-start relative flex flex-col min-h-screen w-full lp-dark">
     
     <button onclick="document.getElementById('landing-section').scrollIntoView({ behavior: 'smooth' });" 
             class="w-full pt-6 pb-2 mt-4 justify-center hidden lg:flex items-center opacity-40 hover:opacity-100 transition-opacity duration-300 cursor-pointer outline-none z-10">
@@ -330,7 +394,7 @@
     </div>
 
     <footer class="py-6 flex flex-col items-center justify-center gap-3 border-t border-gray-200 mt-auto">
-      <div class="flex gap-6 opacity-40 hover:opacity-100 transition-opacity duration-300">
+      <div class="lp-logos">
         <img src="{% static 'img/NSF_4-Color_bitmap_Logo_RGB.png' %}" class="h-16 w-auto grayscale" alt="NSF">
         <img src="{% static 'img/PngItem_2222864.png' %}" class="h-16 w-auto grayscale" alt="USDA">
         <img src="{% static 'img/forest-service-usda-logos.png' %}" class="h-16 w-auto grayscale" alt="USDA">
@@ -357,4 +421,8 @@
       scrollbar-width: none;  /* Firefox */
   }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_fresh 'js/landing.js' %}" defer></script>
 {% endblock %}

@@ -11,7 +11,7 @@ from django.core.cache import cache
 from django.test import override_settings
 
 from beetlesgallery.beetles_app.models import Beetles, ImageAsset, Taxon
-from beetlesgallery.beetles_app.test_pages import PageTestCase
+from beetlesgallery.beetles_app.test_pages import LOCMEM_CACHE, PageTestCase
 
 _seq = itertools.count(1)
 
@@ -50,11 +50,6 @@ def make_beetle(image=None, taxon=None, bbox=None, **fields):
         fields.update(BBOX)
         fields["bbox_is_validated"] = bbox == "validated"
     return Beetles.objects.create(image_asset=image, **fields)
-
-
-# The gallery caches filter dropdowns and match counts in Redis in production;
-# tests use a private in-memory cache so nothing leaks between tests (or into Redis).
-LOCMEM_CACHE = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 
 @override_settings(

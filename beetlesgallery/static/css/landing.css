@@ -1,0 +1,413 @@
+/* ==========================================================================
+   Landing page: a walk through the forest.
+   Hand-written (no Tailwind build step) and scoped by the "lp-" prefix.
+   Palette: deep spruce greens, bone text, ambrosia amber as the accent.
+   The sidebar is themed in theme.css so it matches on every page.
+   ========================================================================== */
+
+:root {
+  --lp-ground: #0a2016;
+  --lp-ground-2: #0d2a1c;
+  --lp-deep: #05150d;
+  --lp-text: #e9f3ec;
+  --lp-text-2: #c6dccb;
+  --lp-muted: #a3bfac;
+  --lp-faint: #86a392;
+  --lp-amber: #e2a23b;
+  --lp-amber-soft: rgba(226, 162, 59, 0.16);
+  --lp-line: rgba(190, 255, 215, 0.12);
+  --lp-glass: rgba(8, 30, 19, 0.6);
+  --lp-display: "Montserrat", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lp-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --lp-interval: 8s;
+  --lp-title-size: clamp(4.2rem, min(17vw, 24vh), 15rem);
+}
+
+.lp-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---- page frame: the landing page is full-bleed, so main drops its width and padding ---- */
+.lp-main { max-width: none; padding: 0; background: var(--lp-ground); }
+.lp-main > div.mb-6 { margin: 1rem 1.5rem 0; }
+body:has(#lp-root) { background: var(--lp-ground); }
+
+.lp {
+  background: var(--lp-ground);
+  color: var(--lp-text);
+  font-family: var(--lp-body);
+  -webkit-font-smoothing: antialiased;
+}
+.lp.no-scrollbar::-webkit-scrollbar { display: none; }
+.lp.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ==========================================================================
+   Hero
+   ========================================================================== */
+.lp-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--lp-ground);
+  display: flex;
+  flex-direction: column;
+}
+.lp-hero:focus-visible { outline: 2px solid var(--lp-amber); outline-offset: -4px; }
+
+/* blurred copy of the photo as the clearing the specimen sits in, washed green */
+.lp-bgs { position: absolute; inset: 0; z-index: -4; }
+.lp-bg {
+  position: absolute; inset: -10%;
+  background-size: cover; background-position: center;
+  filter: blur(46px) brightness(0.5) saturate(1.15);
+  opacity: 0; transition: opacity 1s ease;
+  will-change: opacity;
+}
+.lp-bg.is-active { opacity: 1; }
+.lp-bg--plain { background: radial-gradient(70% 60% at 35% 45%, #1b4a30 0%, var(--lp-ground) 70%); filter: none; inset: 0; }
+
+/* green canopy tint, then the vignette that darkens the edges toward spruce */
+.lp-vignette {
+  position: absolute; inset: 0; z-index: -3; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(12, 56, 34, 0.55) 0%, rgba(9, 38, 24, 0.7) 55%, rgba(8, 32, 20, 0.92) 100%),
+    radial-gradient(120% 90% at 32% 40%, transparent 0%, rgba(4, 22, 13, 0.5) 65%, rgba(4, 20, 12, 0.88) 100%);
+}
+.lp-grain {
+  position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ---- the forest: pines drifting past at different speeds, light through the canopy, mist, fireflies ---- */
+.lp-forest { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+
+.lp-rays {
+  position: absolute; inset: -25% -10% 25% -10%; mix-blend-mode: screen; opacity: 0.55; filter: blur(5px);
+  background:
+    linear-gradient(104deg, transparent 16%, rgba(190, 255, 205, 0.13) 21%, transparent 29%),
+    linear-gradient(108deg, transparent 33%, rgba(190, 255, 205, 0.08) 38%, transparent 46%),
+    linear-gradient(102deg, transparent 52%, rgba(255, 238, 180, 0.1) 57%, transparent 67%),
+    linear-gradient(110deg, transparent 71%, rgba(190, 255, 205, 0.07) 74%, transparent 82%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
+  transform-origin: 20% 0;
+  animation: lp-sway 16s ease-in-out infinite alternate;
+}
+@keyframes lp-sway { from { transform: rotate(-1.6deg) translateX(-1.5%); } to { transform: rotate(1.6deg) translateX(1.5%); } }
+
+/* a strip of repeating trees; the pseudo-element slides exactly one tile, so the loop never shows a join */
+.lp-treeline { position: absolute; left: 0; right: 0; bottom: var(--lift, 0); height: var(--h); overflow: hidden; }
+.lp-treeline::before {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 100%; width: calc(100% + var(--tile));
+  background: var(--img) repeat-x left bottom / var(--tile) 100%;
+  animation: lp-walk var(--dur) linear infinite; will-change: transform;
+}
+@keyframes lp-walk { to { transform: translate3d(calc(var(--tile) * -1), 0, 0); } }
+.lp-treeline--far  { --h: 170px; --tile: 1400px; --dur: 300s; --lift: 9vh;  --img: url("../img/forest/far.svg");  opacity: 0.75; }
+.lp-treeline--mid  { --h: 250px; --tile: 1600px; --dur: 190s; --lift: 3vh;  --img: url("../img/forest/mid.svg"); }
+.lp-treeline--near { --h: 150px; --tile: 1800px; --dur: 100s; --lift: -2px; --img: url("../img/forest/near.svg"); }
+
+.lp-hero > .lp-treeline--near { z-index: 3; pointer-events: none; }
+
+.lp-mist {
+  position: absolute; left: -20%; right: -20%; bottom: 6vh; height: 34vh; filter: blur(22px);
+  background:
+    radial-gradient(48% 55% at 28% 62%, rgba(185, 240, 205, 0.2), transparent 70%),
+    radial-gradient(40% 50% at 74% 52%, rgba(185, 240, 205, 0.15), transparent 70%);
+  animation: lp-mist 46s ease-in-out infinite alternate;
+}
+@keyframes lp-mist { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+
+.lp-motes { position: absolute; inset: 0; }
+.lp-motes i {
+  position: absolute; left: var(--x); bottom: -10px; width: var(--s); height: var(--s); border-radius: 50%;
+  background: #eaffb0; box-shadow: 0 0 10px 3px rgba(214, 255, 150, 0.55);
+  opacity: 0; animation: lp-float var(--d) linear var(--delay) infinite;
+}
+@keyframes lp-float {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  12% { opacity: 0.9; }
+  50% { transform: translate3d(calc(var(--sway) * 1px), -48vh, 0); opacity: 0.6; }
+  100% { transform: translate3d(calc(var(--sway) * -0.6px), -100vh, 0); opacity: 0; }
+}
+
+/* ---- brand + headline ---- */
+.lp-brand {
+  position: relative; z-index: 5;
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  padding: 1.75rem 1rem 0;
+  font-family: var(--lp-display); font-weight: 700; font-size: 0.72rem;
+  letter-spacing: 0.34em; text-transform: uppercase; color: var(--lp-text-2);
+}
+.lp-brand img { width: 1.9rem; height: 1.9rem; object-fit: contain; filter: invert(1) brightness(1.2); }
+
+.lp-title { position: relative; z-index: 1; margin: 0; padding: 0 1rem; text-align: center; line-height: 1; font-family: var(--lp-display); }
+.lp-welcome {
+  display: block; margin: 1.6vh auto 0; max-width: 40rem;
+  font-size: clamp(0.62rem, 1vw, 0.88rem); font-weight: 600; line-height: 1.6;
+  letter-spacing: 0.42em; text-transform: uppercase; color: var(--lp-text-2);
+  padding-left: 0.42em; text-wrap: balance;
+}
+.lp-title-main {
+  display: block; margin-top: 2.4vh;
+  font-size: var(--lp-title-size);
+  font-weight: 900; letter-spacing: -0.025em; line-height: 0.88; text-transform: uppercase;
+  background: linear-gradient(180deg, #ffffff 0%, #d7eadd 46%, rgba(190, 235, 205, 0.3) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 6px 30px rgba(0, 20, 8, 0.55));
+}
+
+/* ---- the star: an iridescent beetle that turns to face your cursor ---- */
+.lp-photos { position: relative; z-index: 2; }
+.lp-beetle { position: relative; display: grid; place-items: center; container-type: size; -webkit-tap-highlight-color: transparent; }
+.lp-beetle-bob { width: 100%; height: 100%; display: grid; place-items: center; animation: lp-bob 7s ease-in-out infinite; }
+.lp-beetle-tilt { position: relative; width: 100cqmin; height: 100cqmin; /* always a square, whatever the room */ transition: transform 0.35s cubic-bezier(.2, .7, .2, 1); will-change: transform; }
+.lp-beetle-sprite {
+  position: absolute; inset: 0;
+  background: url("../img/hero/beetle-sheet.webp") no-repeat;
+  background-size: 400% 300%;                                     /* the sheet is 4 frames across and 3 down */
+  background-position: calc(var(--col, 0) * 100% / 3) calc(var(--row, 0) * 100% / 2);
+  opacity: 0; transition: opacity 0.14s linear;
+  filter: drop-shadow(0 22px 26px rgba(0, 16, 8, 0.55)) drop-shadow(0 0 46px rgba(110, 230, 160, 0.16));
+}
+.lp-beetle-sprite.is-on { opacity: 1; }
+.lp-beetle-shadow {
+  position: absolute; left: 50%; bottom: 7%; width: 44%; height: 6%; transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(0, 14, 6, 0.6), transparent 70%); filter: blur(7px);
+  animation: lp-shadow 7s ease-in-out infinite;
+}
+.lp-beetle.is-flipped .lp-beetle-tilt { animation: lp-hop 0.7s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes lp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.1%); } }
+@keyframes lp-shadow { 0%, 100% { opacity: 1; transform: translateX(-50%) scaleX(1); } 50% { opacity: 0.7; transform: translateX(-50%) scaleX(0.9); } }
+@keyframes lp-hop { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-5%) scale(1.05); } 100% { transform: translateY(0) scale(1); } }
+
+.lp-hint {
+  position: absolute; left: 50%; bottom: 0.2rem; transform: translateX(-50%); z-index: 4; pointer-events: none; white-space: nowrap;
+  font-size: 0.64rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--lp-muted);
+  transition: opacity 0.6s ease;
+}
+.lp-hint.is-gone { opacity: 0; }
+@media (pointer: coarse) { .lp-hint { display: none; } }
+/* ---- the right-hand panel ---- */
+.lp-side { position: relative; z-index: 6; display: flex; flex-direction: column; gap: 0.9rem; }
+.lp-info-stack { display: grid; }
+.lp-info {
+  grid-area: 1 / 1;
+  padding: 1.5rem 1.6rem 1.4rem;
+  background: var(--lp-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid var(--lp-line); border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 18, 8, 0.45);
+  opacity: 0; visibility: hidden; transform: translateY(10px);
+  transition: opacity 0.6s ease, transform 0.6s ease, visibility 0.6s;
+}
+.lp-info.is-active { opacity: 1; visibility: visible; transform: none; }
+.lp-thumb { position: relative; margin: 0 0 1.1rem; aspect-ratio: 5 / 2; border-radius: 12px; overflow: hidden; background: rgba(0, 18, 8, 0.45); border: 1px solid var(--lp-line); }
+.lp-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.6s ease; }
+.lp-thumb img.is-loaded { opacity: 1; }
+@media (max-height: 700px) { .lp-thumb { display: none; } }
+.lp-label {
+  display: flex; align-items: center; gap: 0.55rem; margin: 0 0 0.9rem;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.26em; text-transform: uppercase; color: var(--lp-muted);
+}
+.lp-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--lp-amber); box-shadow: 0 0 12px var(--lp-amber); }
+.lp-name { margin: 0; font-family: var(--lp-display); font-weight: 700; font-size: 1.55rem; line-height: 1.2; color: #fff; }
+.lp-name em { font-style: italic; }
+.lp-authority { display: block; margin-top: 0.3rem; font-family: var(--lp-body); font-size: 0.82rem; font-weight: 400; color: var(--lp-muted); }
+.lp-rank { margin: 0.9rem 0 0; font-size: 0.82rem; font-weight: 600; color: var(--lp-text-2); }
+.lp-rank span + span::before { content: "\00b7"; margin: 0 0.5rem; color: var(--lp-faint); }
+.lp-meta { margin: 0.45rem 0 0; font-size: 0.8rem; line-height: 1.5; color: var(--lp-muted); }
+.lp-credit { margin: 0.9rem 0 0; padding-top: 0.8rem; border-top: 1px solid var(--lp-line); font-size: 0.68rem; line-height: 1.5; color: var(--lp-faint); }
+.lp-cta {
+  display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.1rem;
+  font-size: 0.85rem; font-weight: 600; color: var(--lp-amber); text-decoration: none;
+  transition: gap 0.2s ease, color 0.2s ease;
+}
+.lp-cta:hover { gap: 0.8rem; color: #f3bd62; }
+.lp-cta:focus-visible { outline: 2px solid var(--lp-amber); outline-offset: 4px; border-radius: 4px; }
+
+.lp-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; margin: 0;
+  padding: 1rem 1.1rem;
+  background: var(--lp-glass);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  border: 1px solid var(--lp-line); border-radius: 16px;
+}
+.lp-stat { text-align: center; min-width: 0; display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+.lp-stat dd {
+  margin: 0; font-family: var(--lp-display); font-weight: 700; font-size: 1.3rem; line-height: 1.1;
+  color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.lp-stat dt { margin-top: 0.35rem; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--lp-faint); }
+
+/* ---- slide controls ---- */
+.lp-controls { position: relative; z-index: 6; display: flex; align-items: center; gap: 1.1rem; }
+.lp-count { font-family: var(--lp-display); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--lp-text); line-height: 1; }
+.lp-count b { font-size: 1.7rem; font-weight: 800; }
+.lp-count span { font-size: 0.8rem; color: var(--lp-faint); margin-left: 0.15rem; }
+.lp-arrows { display: flex; gap: 0.5rem; }
+.lp-arrow {
+  display: grid; place-items: center; width: 2.9rem; height: 2.9rem; padding: 0; cursor: pointer;
+  color: var(--lp-text); background: rgba(190, 255, 215, 0.08);
+  border: 1px solid var(--lp-line); border-radius: 12px; font-size: 1.1rem; line-height: 1;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.lp-arrow:hover { background: rgba(190, 255, 215, 0.16); transform: translateY(-1px); }
+.lp-arrow--next { background: var(--lp-amber); border-color: var(--lp-amber); color: #1a1205; }
+.lp-arrow--next:hover { background: #f0b04c; }
+.lp-arrow:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.lp-progress { position: relative; width: 5.5rem; height: 2px; background: var(--lp-line); border-radius: 2px; overflow: hidden; }
+.lp-progress i { position: absolute; inset: 0; background: var(--lp-amber); transform-origin: left; transform: scaleX(0); }
+.lp-progress.is-running i { animation: lp-fill var(--lp-interval) linear forwards; }
+@keyframes lp-fill { to { transform: scaleX(1); } }
+
+.lp-cue {
+  position: absolute; z-index: 6; left: 50%; bottom: 1rem; transform: translateX(-50%);
+  display: none; flex-direction: column; align-items: center; gap: 0.4rem;
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase;
+  color: var(--lp-muted); text-decoration: none; background: none; border: 0; cursor: pointer;
+}
+.lp-cue::after { content: ""; width: 1px; height: 2.2rem; background: linear-gradient(var(--lp-muted), transparent); animation: lp-cue 2.2s ease-in-out infinite; }
+.lp-cue:hover { color: var(--lp-text); }
+@keyframes lp-cue { 0%, 100% { transform: scaleY(0.5); transform-origin: top; opacity: 0.5; } 50% { transform: scaleY(1); opacity: 1; } }
+
+/* ---- desktop: the photo area is pulled up over the lower third of the headline ---- */
+@media (min-width: 1024px) {
+  .lp-hero {
+    display: flex;
+    /* the room left of the specimen panel: the headline is sized to fit it and is centred over the beetle */
+    --lp-left: calc(100% - min(25rem, 30vw) - 3vw - 1rem);
+    --lp-welcome-h: calc(1.6vh + 2.3rem);   /* the welcome line under the headline */
+    --lp-title-size: clamp(3.5rem, min(24vh, calc((100vw - 5rem - min(25rem, 30vw) - 3vw - 1rem) / 5.15)), 15rem);
+  }
+  .lp-brand, .lp-title { width: var(--lp-left); }
+  .lp-photos {
+    position: relative; flex: 1 1 0; min-height: 18rem;
+    margin-top: calc(var(--lp-title-size) * -0.3 + var(--lp-welcome-h));
+    margin-bottom: 7.5rem; /* room for the slide controls and the scroll cue */
+  }
+  .lp-beetle { position: absolute; left: 2.5%; width: calc(100% - min(25rem, 30vw) - 3vw - 2.5% - 2rem); top: -4%; bottom: -5.5rem; }
+  .lp-side { position: absolute; right: 3vw; bottom: 3.2rem; width: min(25rem, 30vw); }
+  .lp-controls { position: absolute; left: 3vw; bottom: 3.2rem; }
+  .lp-cue { display: flex; }
+}
+@media (min-width: 1024px) and (max-height: 760px) {
+  .lp-info { padding: 1.1rem 1.3rem; }
+  .lp-name { font-size: 1.3rem; }
+}
+
+/* ---- tablet and phone: stacked ---- */
+@media (max-width: 1023px) {
+  .lp-photos { margin-top: 0.5rem; }
+  .lp-beetle { height: min(46vh, 24rem); }
+  .lp-side { margin: 1rem 1rem 0; }
+  .lp-controls { justify-content: space-between; margin: 1.25rem 1rem 0; }
+  .lp-title-main { font-size: clamp(2.2rem, 17vw, 9rem); }
+  .lp-hint { display: none; }
+  .lp-brand { font-size: 0.66rem; letter-spacing: 0.26em; }
+  .lp-welcome { letter-spacing: 0.3em; padding-left: 0.3em; }
+  .lp-stats { grid-template-columns: repeat(2, 1fr); row-gap: 1rem; }
+  .lp-hero { padding-bottom: 8.5rem; } /* leaves the undergrowth room at the bottom */
+  .lp-treeline--far  { --h: 120px; --tile: 1000px; }
+  .lp-treeline--mid  { --h: 170px; --tile: 1100px; }
+}
+
+/* ==========================================================================
+   Explore section
+   ========================================================================== */
+.lp-section { position: relative; width: 100%; background: var(--lp-ground); overflow: hidden; }
+.lp-explore { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 5rem 1.5rem 3rem; background: linear-gradient(180deg, var(--lp-ground) 0%, var(--lp-ground-2) 100%); }
+.lp-explore::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(60% 50% at 50% 0%, rgba(226, 162, 59, 0.07), transparent 70%);
+}
+/* a low tree line along the bottom of the section, so the forest carries on below the hero */
+.lp-explore .lp-treeline { z-index: 0; opacity: 0.55; }
+.lp-container { position: relative; z-index: 1; width: 100%; max-width: 72rem; margin: 0 auto; }
+.lp-kicker { margin: 0 0 0.9rem; text-align: center; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.4em; text-transform: uppercase; color: var(--lp-amber); padding-left: 0.4em; }
+.lp-h2 { margin: 0; text-align: center; font-family: var(--lp-display); font-weight: 800; font-size: clamp(1.9rem, 4.2vw, 3.2rem); line-height: 1.1; letter-spacing: -0.02em; color: #fff; }
+.lp-lead { max-width: 40rem; margin: 1.2rem auto 0; text-align: center; font-size: 1.02rem; line-height: 1.7; color: var(--lp-muted); text-wrap: balance; }
+
+.lp-cards { display: grid; grid-template-columns: 1fr; gap: 1.1rem; margin-top: 3rem; }
+@media (min-width: 768px) { .lp-cards { grid-template-columns: repeat(3, 1fr); gap: 1.4rem; } }
+/* each card carries its own colour (--glow-rgb) for its shadow, border and spotlight */
+.lp-card {
+  --mx: 50%; --my: 0%; --glow-rgb: 226, 162, 59;
+  position: relative; display: flex; flex-direction: column; min-height: 15rem; padding: 1.7rem;
+  color: var(--lp-text); text-decoration: none; overflow: hidden;
+  background: linear-gradient(180deg, rgba(190, 255, 215, 0.07), rgba(190, 255, 215, 0.02));
+  border: 1px solid var(--lp-line); border-radius: 22px;
+  box-shadow: 0 22px 44px -26px rgba(var(--glow-rgb), 0.55);
+  transition: transform 0.35s cubic-bezier(.2, .7, .2, 1), border-color 0.3s ease, box-shadow 0.35s ease;
+}
+.lp-card:nth-child(1) { --glow-rgb: 102, 217, 138; }   /* fern  */
+.lp-card:nth-child(2) { --glow-rgb: 99, 179, 255; }    /* sky   */
+.lp-card:nth-child(3) { --glow-rgb: 240, 180, 62; }    /* amber */
+.lp-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+  background: radial-gradient(22rem circle at var(--mx) var(--my), rgba(var(--glow-rgb), 0.2), transparent 65%);
+}
+.lp-card:hover, .lp-card:focus-visible {
+  transform: translateY(-6px); border-color: rgba(var(--glow-rgb), 0.6);
+  box-shadow: 0 30px 60px -18px rgba(var(--glow-rgb), 0.6), 0 0 44px rgba(var(--glow-rgb), 0.1);
+}
+.lp-card:hover::before, .lp-card:focus-visible::before { opacity: 1; }
+.lp-card:focus-visible { outline: 2px solid rgb(var(--glow-rgb)); outline-offset: 3px; }
+.lp-card-no { position: absolute; top: 1.4rem; right: 1.6rem; font-family: var(--lp-display); font-weight: 700; font-size: 0.78rem; letter-spacing: 0.2em; color: var(--lp-faint); }
+.lp-card-icon {
+  display: grid; place-items: center; width: 3.2rem; height: 3.2rem; border-radius: 14px; font-size: 1.35rem;
+  color: rgb(var(--glow-rgb)); background: rgba(var(--glow-rgb), 0.14); border: 1px solid rgba(var(--glow-rgb), 0.3);
+  transition: transform 0.35s ease;
+}
+.lp-card:hover .lp-card-icon { transform: scale(1.08) rotate(-4deg); }
+.lp-card h3 { margin: auto 0 0; padding-top: 2.2rem; font-family: var(--lp-display); font-weight: 700; font-size: 1.3rem; color: #fff; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.4rem; }
+.lp-card p { margin: 0.5rem 0 0; font-size: 0.92rem; line-height: 1.55; color: var(--lp-muted); padding-right: 2.4rem; }
+.lp-card-go { position: absolute; right: 1.5rem; bottom: 1.6rem; font-size: 1.3rem; color: var(--lp-faint); transition: transform 0.3s ease, color 0.3s ease; }
+.lp-card:hover .lp-card-go { transform: translateX(6px); color: rgb(var(--glow-rgb)); }
+
+.lp-attrib { max-width: 46rem; margin: 3.5rem auto 0; padding-top: 2rem; border-top: 1px solid var(--lp-line); text-align: center; }
+.lp-attrib h4 { margin: 0; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--lp-faint); }
+.lp-attrib p { margin: 0.6rem 0 0; font-size: 0.9rem; line-height: 1.7; color: var(--lp-muted); }
+.lp-attrib a { color: var(--lp-text-2); text-decoration: none; border-bottom: 1px solid var(--lp-line); transition: color 0.2s ease, border-color 0.2s ease; }
+.lp-attrib a:hover { color: var(--lp-amber); border-color: var(--lp-amber); }
+.lp-attrib .lp-attrib-group + .lp-attrib-group { margin-top: 1.6rem; }
+
+.lp-explore .lp-cue { display: none; position: static; transform: none; margin: 2.5rem auto 0; }
+@media (min-width: 1024px) { .lp-explore .lp-cue { display: flex; } }
+
+/* ==========================================================================
+   Team section and footer: the existing markup, re-coloured for the forest
+   ========================================================================== */
+.lp-dark { background: linear-gradient(180deg, var(--lp-ground-2) 0%, var(--lp-deep) 100%); color: var(--lp-text-2); }
+.lp-dark .text-gray-900, .lp-dark .text-gray-800 { color: #f1f8f3; }
+.lp-dark .text-gray-700, .lp-dark .text-gray-600 { color: var(--lp-text-2); }
+.lp-dark .text-gray-500 { color: var(--lp-muted); }
+.lp-dark .text-gray-400, .lp-dark .text-gray-300 { color: var(--lp-faint); }
+.lp-dark .hover\:text-black:hover,
+.lp-dark .hover\:text-gray-900:hover,
+.lp-dark .group:hover .group-hover\:text-gray-600 { color: var(--lp-amber); }
+.lp-dark .border-gray-100, .lp-dark .border-gray-200, .lp-dark .border-gray-300 { border-color: var(--lp-line); }
+.lp-dark .bg-white { background: rgba(190, 255, 215, 0.06); }
+.lp-dark .hover\:bg-gray-50:hover { background: rgba(190, 255, 215, 0.1); }
+.lp-dark .shadow-sm, .lp-dark .hover\:shadow-md:hover { box-shadow: none; }
+/* the funder logos are dark artwork: give them a light plate so they stay readable */
+.lp-dark .lp-logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem; padding: 1rem 1.75rem; background: #eaf2ec; border-radius: 16px; }
+.lp-dark .lp-logos img { opacity: 0.85; }
+
+/* ==========================================================================
+   Reduced motion: trees stand still, no fireflies, no drifting, no autoplay bar
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .lp-treeline::before, .lp-rays, .lp-mist { animation: none; }
+  .lp-motes { display: none; }
+  .lp-beetle-bob, .lp-beetle-shadow, .lp-beetle.is-flipped .lp-beetle-tilt { animation: none; }
+  .lp-beetle-tilt { transition: none; }
+  .lp-bg, .lp-beetle-sprite, .lp-info, .lp-thumb img { transition-duration: 0.01s; }
+  .lp-progress, .lp-cue::after { display: none; }
+  .lp-card, .lp-card:hover { transform: none; }
+}
